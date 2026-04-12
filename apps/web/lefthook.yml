@@ -1,0 +1,6 @@
+pre-commit:
+  commands:
+    lint:
+      run: npx oxlint --fix .
+    format:
+      run: npx oxfmt --write .
