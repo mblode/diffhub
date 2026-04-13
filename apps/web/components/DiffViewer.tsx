@@ -220,7 +220,7 @@ interface SingleFileDiffProps {
   file: string;
   filePatch: string;
   layout: "split" | "stacked";
-  prerenderedHTML?: string;
+  prerenderedHTML?: { dark: string; light: string };
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   viewed: boolean;
@@ -345,9 +345,9 @@ const SingleFileDiff = ({
       />
       <div className={cn("transition-opacity duration-200", viewed && "opacity-60")}>
         <PatchDiff
-          key={`${file}:${layout}`}
+          key={`${file}:${layout}:${resolvedTheme}`}
           patch={filePatch}
-          prerenderedHTML={prerenderedHTML}
+          prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
           disableWorkerPool
           style={
             {

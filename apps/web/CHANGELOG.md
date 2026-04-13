@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.4
+
+### Patch Changes
+
+- Fix diff viewer always showing light mode by pre-rendering both light and dark theme variants
+
 ## 0.1.3
 
 ### Patch Changes
