@@ -504,10 +504,7 @@ export const DiffViewer = ({
     return map;
   }, [fileStats]);
 
-  const file = useMemo(
-    () => selectedFileId ?? getPatchFile(patch),
-    [patch, selectedFileId],
-  );
+  const file = useMemo(() => selectedFileId ?? getPatchFile(patch), [patch, selectedFileId]);
 
   if (!patch || !file) {
     return (

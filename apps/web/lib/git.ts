@@ -88,19 +88,23 @@ export const getDiff = (
   whitespace?: WhitespaceMode,
 ): Promise<DiffResult> => {
   const repoPath = getRepoPath();
-  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}`, 2000, async () => {
-    const g = git();
-    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
-    const branch = raw.trim();
-    if (mode === "uncommitted") {
-      const patch = await g.diff(addWhitespaceArgs(["HEAD"], whitespace));
-      return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
-    }
-    const baseBranch = base ?? (await getBaseBranch());
-    const mergeBase = await getMergeBase(baseBranch);
-    const patch = await g.diff(addWhitespaceArgs([mergeBase], whitespace));
-    return { baseBranch, branch, mergeBase, patch };
-  });
+  return cached(
+    `diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}`,
+    2000,
+    async () => {
+      const g = git();
+      const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+      const branch = raw.trim();
+      if (mode === "uncommitted") {
+        const patch = await g.diff(addWhitespaceArgs(["HEAD"], whitespace));
+        return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
+      }
+      const baseBranch = base ?? (await getBaseBranch());
+      const mergeBase = await getMergeBase(baseBranch);
+      const patch = await g.diff(addWhitespaceArgs([mergeBase], whitespace));
+      return { baseBranch, branch, mergeBase, patch };
+    },
+  );
 };
 
 export const getDiffForFile = (

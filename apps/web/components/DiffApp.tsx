@@ -217,34 +217,37 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   }, []);
 
   // Fetch the diff for a single file; uses local cache
-  const fetchFileDiff = useCallback(async (file: string) => {
-    latestDiffRequestRef.current += 1;
-    const requestId = latestDiffRequestRef.current;
-    const cached = getCachedDiff(diffCacheRef.current, file);
-    if (cached) {
-      if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+  const fetchFileDiff = useCallback(
+    async (file: string) => {
+      latestDiffRequestRef.current += 1;
+      const requestId = latestDiffRequestRef.current;
+      const cached = getCachedDiff(diffCacheRef.current, file);
+      if (cached) {
+        if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+          return;
+        }
+        startFileDiffTransition(() => setFileDiff(cached));
         return;
       }
-      startFileDiffTransition(() => setFileDiff(cached));
-      return;
-    }
-    try {
-      const res = await fetch(`/api/diff${buildDiffQuery(file)}`);
-      if (!res.ok) {
-        return;
+      try {
+        const res = await fetch(`/api/diff${buildDiffQuery(file)}`);
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as FileDiff;
+        if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+          return;
+        }
+        startFileDiffTransition(() => {
+          setCachedDiff(diffCacheRef.current, file, data);
+          setFileDiff(data);
+        });
+      } catch {
+        // empty
       }
-      const data = (await res.json()) as FileDiff;
-      if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
-        return;
-      }
-      startFileDiffTransition(() => {
-        setCachedDiff(diffCacheRef.current, file, data);
-        setFileDiff(data);
-      });
-    } catch {
-      // empty
-    }
-  }, [buildDiffQuery, startFileDiffTransition]);
+    },
+    [buildDiffQuery, startFileDiffTransition],
+  );
 
   const handleSelectFile = useCallback(
     (file: string) => {
