@@ -10,9 +10,7 @@ interface DiffsWorkerProviderProps {
 const createDiffWorker = (): Worker =>
   new Worker(new URL("../workers/diffs.worker.ts", import.meta.url), { type: "module" });
 
-export const DiffsWorkerProvider = ({
-  children,
-}: DiffsWorkerProviderProps): React.JSX.Element => {
+export const DiffsWorkerProvider = ({ children }: DiffsWorkerProviderProps): React.JSX.Element => {
   const poolOptions = useMemo(
     () => ({
       poolSize: Math.min(4, navigator.hardwareConcurrency || 4),
