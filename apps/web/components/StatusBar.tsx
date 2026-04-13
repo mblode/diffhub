@@ -64,7 +64,9 @@ export const StatusBar = ({
     try {
       const text = exportCommentsAsPrompt(comments);
       await navigator.clipboard.writeText(text);
-      if (copiedTimerRef.current) {clearTimeout(copiedTimerRef.current);}
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
       setCopied(true);
       copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
