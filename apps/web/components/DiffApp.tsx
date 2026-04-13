@@ -17,6 +17,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import type { DiffFileStat } from "@/lib/git";
 import type { Comment, CommentTag } from "@/lib/comments";
+import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 
 interface FilesData {
   files: DiffFileStat[];
@@ -32,6 +33,7 @@ interface FileDiff {
   baseBranch: string;
   mergeBase: string;
   branch: string;
+  prerenderedHTML?: PrerenderedDiffHtml;
 }
 
 interface MainPanelProps {
@@ -92,7 +94,7 @@ const MainPanel = ({
   return (
     <DiffViewer
       patch={deferredFileDiff.patch}
-      mergeBase={deferredFileDiff.mergeBase}
+      prerenderedHTML={deferredFileDiff.prerenderedHTML}
       layout={layout}
       comments={comments}
       onAddComment={onAddComment}
@@ -496,6 +498,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         filterQuery={filterQuery}
         onFilterChange={setFilterQuery}
         viewedFiles={viewedFiles}
+        isLoading={filesData === null}
       />
 
       <SidebarInset className="flex flex-col h-svh overflow-hidden">

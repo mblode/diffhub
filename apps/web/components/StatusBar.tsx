@@ -58,8 +58,13 @@ export const StatusBar = ({
 }: StatusBarProps) => {
   const [copied, setCopied] = useState(false);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -210,17 +215,19 @@ export const StatusBar = ({
           <SplitIcon size={14} />
         </Button>
 
-        {/* Theme toggle */}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-          title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {resolvedTheme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-        </Button>
+        {/* Theme toggle - only render after mount to avoid hydration mismatch */}
+        {mounted && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+            title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {resolvedTheme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+          </Button>
+        )}
       </div>
     </header>
   );
