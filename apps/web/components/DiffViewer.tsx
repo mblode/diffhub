@@ -380,7 +380,7 @@ const SingleFileDiff = ({
     (getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined) => (
       <button
         type="button"
-        className="diffr-gutter-btn"
+        className="diffhub-gutter-btn"
         title="Add comment for AI"
         // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onClick={() => {

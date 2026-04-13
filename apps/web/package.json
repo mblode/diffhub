@@ -1,19 +1,24 @@
 {
-  "name": "diffr",
+  "name": "diffhub",
   "version": "0.1.0",
   "description": "GitHub PR-style local diff viewer — review your git changes in the browser",
-  "keywords": ["git", "diff", "cli", "code-review", "ai", "github", "pr"],
-  "homepage": "https://github.com/mblode/diffr#readme",
+  "keywords": [
+    "ai",
+    "cli",
+    "code-review",
+    "diff",
+    "git",
+    "github",
+    "pr"
+  ],
+  "homepage": "https://github.com/mblode/diffhub#readme",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mblode/diffr"
-  },
-  "license": "MIT",
-  "engines": {
-    "node": ">=18"
+    "url": "https://github.com/mblode/diffhub"
   },
   "bin": {
-    "diffr": "./bin/diffr.mjs"
+    "diffhub": "./bin/diffhub.mjs"
   },
   "files": [
     "bin/",
@@ -63,5 +68,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "ultracite": "^7.5.6"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

@@ -10,7 +10,7 @@ const __dirname = import.meta.dirname;
 // Fast-fail on unsupported Node.js versions
 const nodeMajor = Number.parseInt(process.version.slice(1).split(".")[0], 10);
 if (nodeMajor < 18) {
-  process.stderr.write(`❌ diffr requires Node.js 18+. You have ${process.version}.\n`);
+  process.stderr.write(`❌ diffhub requires Node.js 18+. You have ${process.version}.\n`);
   process.stderr.write(`   Download: https://nodejs.org\n`);
   process.exit(1);
 }
@@ -58,7 +58,7 @@ const waitForServer = async (port, maxMs = 15_000) => {
 // -- CLI setup ---------------------------------------------------------------
 
 program
-  .name("diffr")
+  .name("diffhub")
   .description("GitHub PR-style local diff viewer")
   .version("0.1.0")
   .option("-p, --port <port>", "Port to serve on", "2047")
@@ -75,7 +75,7 @@ const baseBranch = opts.base ?? "";
 if (!existsSync(join(repoPath, ".git"))) {
   console.error(`❌ Not a git repository: ${repoPath}`);
   console.error(`   Run from inside a git repo, or pass --repo:`);
-  console.error(`   diffr --repo /path/to/your-repo`);
+  console.error(`   diffhub --repo /path/to/your-repo`);
   process.exit(1);
 }
 
@@ -95,7 +95,7 @@ const port = await findFreePort(Number.parseInt(opts.port, 10));
 
 // -- Startup banner ----------------------------------------------------------
 
-console.log(`  diffr\n`);
+console.log(`  diffhub\n`);
 console.log(`  Repo   ${repoPath}`);
 if (baseBranch) {
   console.log(`  Base   ${baseBranch}`);
@@ -109,8 +109,8 @@ const server = spawn("node", ["server.js"], {
   cwd: standaloneDir,
   env: {
     ...process.env,
-    DIFFR_REPO: repoPath,
-    ...(baseBranch ? { DIFFR_BASE: baseBranch } : {}),
+    DIFFHUB_REPO: repoPath,
+    ...(baseBranch ? { DIFFHUB_BASE: baseBranch } : {}),
     HOSTNAME: "127.0.0.1",
     NODE_ENV: "production",
     PORT: String(port),

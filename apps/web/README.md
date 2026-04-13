@@ -1,6 +1,6 @@
-# diffr
+# diffhub
 
-[![npm version](https://img.shields.io/npm/v/diffr)](https://www.npmjs.com/package/diffr)
+[![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green)](https://nodejs.org)
 
 GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
@@ -8,13 +8,13 @@ GitHub PR-style diff viewer. Opens in the browser and shows all changes since yo
 ## Install
 
 ```bash
-npm install -g diffr
+npm install -g diffhub
 ```
 
 Or run without installing:
 
 ```bash
-npx diffr
+npx diffhub
 ```
 
 ## Usage
@@ -22,23 +22,23 @@ npx diffr
 Run inside any git repository:
 
 ```bash
-diffr
+diffhub
 ```
 
 Opens `http://localhost:2047` and shows all changes between your current branch and `main` (or `master` / `develop`, auto-detected).
 
 ```bash
 # Use a different base branch
-diffr --base develop
+diffhub --base develop
 
 # Point at a repo in another directory
-diffr --repo ~/projects/my-app
+diffhub --repo ~/projects/my-app
 
 # Use a different port
-diffr --port 3000
+diffhub --port 3000
 
 # Don't open the browser automatically
-diffr --no-open
+diffhub --no-open
 ```
 
 ## Features

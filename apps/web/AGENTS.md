@@ -9,7 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Commands
 
 ```bash
-npm run dev          # portless run next dev → https://diffr.localhost
+npm run dev          # portless run next dev → https://diffhub.localhost
 npm run build        # next build → .next/standalone/apps/web/server.js
 npm run start        # next start --port 2047 (production)
 npm run lint         # oxlint .
@@ -42,7 +42,7 @@ Valid values: `'split' | 'unified'`. The prop `layout` does not exist and is sil
 **Never import `lib/comments.ts` in client components.**
 `comments.ts` uses Node.js `fs`. Client components that import it will fail at build time with "Can't resolve 'fs'". Pure utilities (like `exportCommentsAsPrompt`) live in `lib/export-comments.ts` instead.
 
-**`DIFFR_REPO` must be set for API routes to resolve the correct repo.**
+**`DIFFHUB_REPO` must be set for API routes to resolve the correct repo.**
 Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server directory, not the target repo. Set it in `.env.local` for dev or via the CLI env injection for production.
 
 **`outputFileTracingRoot` must be the monorepo root, not `__dirname`.**
@@ -55,6 +55,6 @@ Because `outputFileTracingRoot` is the repo root, the standalone server lives at
 
 - API routes (`app/api/*/route.ts`) are server-only — no `"use client"` directive there
 - Icons come from `blode-icons-react`, not `lucide-react`
-- Comments are stored in `.git/diffr-comments.json` (gitignored in the target repo, not this one)
+- Comments are stored in `.git/diffhub-comments.json` (gitignored in the target repo, not this one)
 - Diff is always `mergeBase...HEAD` — never `HEAD~1` or uncommitted changes
 - Base branch prefers `origin/main` over local `main` so unpushed commits are visible even when on main

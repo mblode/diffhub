@@ -3,7 +3,7 @@ import type { SimpleGit } from "simple-git";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const REPO_POINTER = "/tmp/diffr-active-repo";
+const REPO_POINTER = "/tmp/diffhub-active-repo";
 
 // TTL cache — avoids spawning git subprocesses on every poll
 const cache = new Map<string, { value: unknown; expires: number }>();
@@ -33,7 +33,7 @@ const cached = async <T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 };
 
 const getRepoPath = (): string => {
-  // Temp file from diffr-point takes priority (dev workflow)
+  // Temp file from diffhub-point takes priority (dev workflow)
   try {
     const p = readFileSync(REPO_POINTER, "utf-8").trim();
     if (p) {
@@ -43,7 +43,7 @@ const getRepoPath = (): string => {
     // empty
   }
   // Fallback: env var (set by CLI in production, or .env.local)
-  return process.env.DIFFR_REPO ?? process.cwd();
+  return process.env.DIFFHUB_REPO ?? process.cwd();
 };
 
 const git = (): SimpleGit => simpleGit(getRepoPath());

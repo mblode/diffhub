@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import { join } from "node:path";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["diffr.localhost", "*.diffr.localhost"],
+  allowedDevOrigins: ["diffhub.localhost", "*.diffhub.localhost"],
   logging: {
     browserToTerminal: true,
   },
