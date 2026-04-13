@@ -31,7 +31,13 @@ interface MainPanelProps {
   deferredFileDiff: FileDiff | null;
   layout: "split" | "stacked";
   comments: Comment[];
-  onAddComment: (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => Promise<void>;
+  onAddComment: (
+    file: string,
+    lineNumber: number,
+    side: string,
+    body: string,
+    tag: CommentTag,
+  ) => Promise<void>;
   onDeleteComment: (id: string) => Promise<void>;
   selectedFile: string | null;
   viewedFiles: Set<string>;
