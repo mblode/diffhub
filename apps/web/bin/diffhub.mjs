@@ -23,7 +23,7 @@ const findFreePort = async (start) => {
     // oxlint-disable-next-line promise/avoid-new
     const free = await new Promise((_resolve) => {
       const s = createServer();
-      s.listen(p, () => {
+      s.listen(p, "127.0.0.1", () => {
         s.close();
         _resolve(true);
       });
