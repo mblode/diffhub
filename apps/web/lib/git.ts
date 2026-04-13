@@ -1,7 +1,17 @@
 import { simpleGit, type SimpleGit } from "simple-git";
+import { readFileSync } from "fs";
+
+const REPO_POINTER = "/tmp/cmux-diff-active-repo";
 
 function getRepoPath(): string {
-  return process.env.CMUX_DIFF_REPO ?? process.cwd();
+  // Production: env var set by CLI takes priority
+  if (process.env.CMUX_DIFF_REPO) return process.env.CMUX_DIFF_REPO;
+  // Dev: check temp file written by cmux-diff-point
+  try {
+    const p = readFileSync(REPO_POINTER, "utf-8").trim();
+    if (p) return p;
+  } catch {}
+  return process.cwd();
 }
 
 function git(): SimpleGit {
