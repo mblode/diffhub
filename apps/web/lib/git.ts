@@ -4,14 +4,13 @@ import { readFileSync } from "fs";
 const REPO_POINTER = "/tmp/cmux-diff-active-repo";
 
 function getRepoPath(): string {
-  // Production: env var set by CLI takes priority
-  if (process.env.CMUX_DIFF_REPO) return process.env.CMUX_DIFF_REPO;
-  // Dev: check temp file written by cmux-diff-point
+  // Temp file from cmux-diff-point takes priority (dev workflow)
   try {
     const p = readFileSync(REPO_POINTER, "utf-8").trim();
     if (p) return p;
   } catch {}
-  return process.cwd();
+  // Fallback: env var (set by CLI in production, or .env.local)
+  return process.env.CMUX_DIFF_REPO ?? process.cwd();
 }
 
 function git(): SimpleGit {
