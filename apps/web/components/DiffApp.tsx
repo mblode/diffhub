@@ -26,6 +26,66 @@ interface FileDiff {
   branch: string;
 }
 
+interface MainPanelProps {
+  filesData: FilesData | null;
+  deferredFileDiff: FileDiff | null;
+  layout: "split" | "stacked";
+  comments: Comment[];
+  onAddComment: (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => Promise<void>;
+  onDeleteComment: (id: string) => Promise<void>;
+  selectedFile: string | null;
+  viewedFiles: Set<string>;
+  onToggleViewed: (file: string) => void;
+  repoPath: string;
+  onDiscard: ((file: string) => Promise<void>) | undefined;
+}
+
+const Placeholder = ({ text, pulse = false }: { text: string; pulse?: boolean }) => (
+  <div className="flex h-full items-center justify-center">
+    <div className={`text-muted-foreground text-sm${pulse ? " animate-pulse" : ""}`}>{text}</div>
+  </div>
+);
+
+const MainPanel = ({
+  filesData,
+  deferredFileDiff,
+  layout,
+  comments,
+  onAddComment,
+  onDeleteComment,
+  selectedFile,
+  viewedFiles,
+  onToggleViewed,
+  repoPath,
+  onDiscard,
+}: MainPanelProps) => {
+  if (filesData === null) {
+    return <Placeholder text="Loading diff…" pulse />;
+  }
+  if (filesData.files.length === 0) {
+    return <Placeholder text="No changes" />;
+  }
+  if (!deferredFileDiff) {
+    return <Placeholder text="Loading diff…" pulse />;
+  }
+  return (
+    <DiffViewer
+      patch={deferredFileDiff.patch}
+      mergeBase={deferredFileDiff.mergeBase}
+      layout={layout}
+      comments={comments}
+      onAddComment={onAddComment}
+      onDeleteComment={onDeleteComment}
+      selectedFileId={selectedFile}
+      fileStats={filesData.files}
+      viewedFiles={viewedFiles}
+      onToggleViewed={onToggleViewed}
+      repoPath={repoPath}
+      onDiscard={onDiscard}
+    />
+  );
+};
+
 const POLL_INTERVAL = 5000;
 
 export const DiffApp = ({ repoPath }: { repoPath: string }) => {
@@ -332,26 +392,19 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         />
 
         <div className="flex-1 overflow-hidden">
-          {deferredFileDiff ? (
-            <DiffViewer
-              patch={deferredFileDiff.patch}
-              mergeBase={deferredFileDiff.mergeBase}
-              layout={layout}
-              comments={comments}
-              onAddComment={handleAddComment}
-              onDeleteComment={handleDeleteComment}
-              selectedFileId={selectedFile}
-              fileStats={filesData?.files ?? []}
-              viewedFiles={viewedFiles}
-              onToggleViewed={toggleViewed}
-              repoPath={repoPath}
-              onDiscard={diffMode === "uncommitted" ? handleDiscard : undefined}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-muted-foreground text-sm animate-pulse">Loading diff…</div>
-            </div>
-          )}
+          <MainPanel
+            filesData={filesData}
+            deferredFileDiff={deferredFileDiff}
+            layout={layout}
+            comments={comments}
+            onAddComment={handleAddComment}
+            onDeleteComment={handleDeleteComment}
+            selectedFile={selectedFile}
+            viewedFiles={viewedFiles}
+            onToggleViewed={toggleViewed}
+            repoPath={repoPath}
+            onDiscard={diffMode === "uncommitted" ? handleDiscard : undefined}
+          />
         </div>
       </SidebarInset>
 
