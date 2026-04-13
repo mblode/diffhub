@@ -270,6 +270,7 @@ export function DiffViewer({
   comments,
   onAddComment,
   onDeleteComment,
+  selectedFileId,
 }: DiffViewerProps) {
   const filePatches = useMemo(() => splitPatch(patch), [patch]);
 
@@ -280,6 +281,12 @@ export function DiffViewer({
       </div>
     );
   }
+
+  const visible = useMemo(() => {
+    if (!selectedFileId) return filePatches.slice(0, 1);
+    const match = filePatches.filter((f) => f.file === selectedFileId);
+    return match.length > 0 ? match : filePatches.slice(0, 1);
+  }, [filePatches, selectedFileId]);
 
   return (
     <div className="flex-1 overflow-auto" id="diff-container">
@@ -309,7 +316,7 @@ export function DiffViewer({
         }
       `}</style>
 
-      {filePatches.map(({ file, patch: filePatch }) => (
+      {visible.map(({ file, patch: filePatch }) => (
         <SingleFileDiff
           key={file}
           file={file}
