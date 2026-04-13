@@ -1,8 +1,9 @@
-# cmux-diff 2
+# diffr
 
-GitHub PR-style diff viewer for cmux and AI coding agents.
+[![npm version](https://img.shields.io/npm/v/diffr)](https://www.npmjs.com/package/diffr)
+[![Node.js 18+](https://img.shields.io/badge/node-18+-green)](https://nodejs.org)
 
-Shows `git diff main...HEAD` — all changes since branching from main — in a split or unified view with inline AI review comments, an "Open in" context menu, and live auto-refresh.
+GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
 
 ## Features
 
@@ -16,13 +17,13 @@ Shows `git diff main...HEAD` — all changes since branching from main — in a 
 ## Install
 
 ```bash
-npm install -g cmux-diff
+npm install -g diffr
 ```
 
 Or run without installing:
 
 ```bash
-npx cmux-diff
+npx diffr
 ```
 
 ## Usage
@@ -30,23 +31,23 @@ npx cmux-diff
 Run inside any git repository:
 
 ```bash
-cmux-diff
+diffr
 ```
 
 Opens `http://localhost:2047` and shows all changes between your current branch and `main` (or `master` / `develop`, auto-detected).
 
 ```bash
 # Use a different base branch
-cmux-diff --base develop
+diffr --base develop
 
 # Point at a repo in another directory
-cmux-diff --repo ~/projects/my-app
+diffr --repo ~/projects/my-app
 
 # Use a different port
-cmux-diff --port 3000
+diffr --port 3000
 
 # Don't open the browser automatically
-cmux-diff --no-open
+diffr --no-open
 ```
 
 ### Keyboard shortcuts
@@ -71,7 +72,6 @@ cmux-diff --no-open
 
 - Node.js 18+
 - A git repository with at least one commit on your current branch
-- The project must be built before running (`npm run build` inside `apps/web`)
 
 ## License
 

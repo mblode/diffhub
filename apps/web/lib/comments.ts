@@ -1,17 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-function getCommentsPath(): string {
-  const repoPath = process.env.CMUX_DIFF_REPO ?? process.cwd();
-  return join(repoPath, ".git", "cmux-diff-comments.json");
-}
+const getCommentsPath = (): string => {
+  const repoPath = process.env.DIFFR_REPO ?? process.cwd();
+  return join(repoPath, ".git", "diffr-comments.json");
+};
 
-export type CommentTag =
-  | "[must-fix]"
-  | "[suggestion]"
-  | "[nit]"
-  | "[question]"
-  | "";
+export type CommentTag = "[must-fix]" | "[suggestion]" | "[nit]" | "[question]" | "";
 
 export interface Comment {
   id: string;
@@ -23,33 +18,35 @@ export interface Comment {
   createdAt: string;
 }
 
-export function readComments(): Comment[] {
+export const readComments = (): Comment[] => {
   const path = getCommentsPath();
-  if (!existsSync(path)) return [];
+  if (!existsSync(path)) {
+    return [];
+  }
   try {
     return JSON.parse(readFileSync(path, "utf-8")) as Comment[];
   } catch {
+    // empty
     return [];
   }
-}
+};
 
-function saveComments(comments: Comment[]): void {
+const saveComments = (comments: Comment[]): void => {
   writeFileSync(getCommentsPath(), JSON.stringify(comments, null, 2));
-}
+};
 
-export function addComment(data: Omit<Comment, "id" | "createdAt">): Comment {
+export const addComment = (data: Omit<Comment, "id" | "createdAt">): Comment => {
   const comments = readComments();
   const comment: Comment = {
     ...data,
-    id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    id: crypto.randomUUID(),
   };
   comments.push(comment);
   saveComments(comments);
   return comment;
-}
+};
 
-export function deleteComment(id: string): void {
+export const deleteComment = (id: string): void => {
   saveComments(readComments().filter((c) => c.id !== id));
-}
-
+};

@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# diffr
 
-## Getting Started
+[![npm version](https://img.shields.io/npm/v/diffr)](https://www.npmjs.com/package/diffr)
+[![Node.js 18+](https://img.shields.io/badge/node-18+-green)](https://nodejs.org)
 
-First, run the development server:
+GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
+
+## Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install -g diffr
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or run without installing:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx diffr
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+Run inside any git repository:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+diffr
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Opens `http://localhost:2047` and shows all changes between your current branch and `main` (or `master` / `develop`, auto-detected).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Use a different base branch
+diffr --base develop
 
-## Deploy on Vercel
+# Point at a repo in another directory
+diffr --repo ~/projects/my-app
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Use a different port
+diffr --port 3000
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Don't open the browser automatically
+diffr --no-open
+```
+
+## Features
+
+- **PR-style diff** — diffs against the merge-base of your base branch, matching GitHub's "Files Changed" view exactly
+- **Split and unified views** — toggle with `s`, keyboard-navigable with `j` / `k`
+- **Inline AI comments** — add `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]` notes on any diff line; copy all comments as a formatted prompt
+- **"Open in" context menu** — right-click any file to open in Zed, VS Code, Ghostty, Terminal, Finder, or copy the path
+- **Live refresh** — polls for changes every 5 seconds; manual refresh with `r`
+- **File sidebar** — filter files with `/`, see per-file `+`/`-` stats at a glance
+
+## Keyboard shortcuts
+
+| Key       | Action                      |
+| --------- | --------------------------- |
+| `j` / `k` | Next / previous file        |
+| `s`       | Toggle split / unified view |
+| `/`       | Focus file filter           |
+| `r`       | Refresh diff                |
+
+## Options
+
+| Flag                  | Default | Description                 |
+| --------------------- | ------- | --------------------------- |
+| `-p, --port <port>`   | `2047`  | Port to serve on            |
+| `-r, --repo <path>`   | `cwd`   | Path to the git repository  |
+| `-b, --base <branch>` | auto    | Base branch to diff against |
+| `--no-open`           | —       | Skip automatic browser open |
+
+## Requirements
+
+- Node.js 18+
+- A git repository with at least one commit on your current branch
+
+## License
+
+MIT

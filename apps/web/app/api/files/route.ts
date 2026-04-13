@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getDiffStats } from "@/lib/git";
 
-export async function GET(request: Request) {
+export const GET = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const base = searchParams.get("base") ?? undefined;
+  const mode = searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
   try {
-    const result = await getDiffStats(base);
+    const result = await getDiffStats(base, mode);
     return NextResponse.json(result);
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+};

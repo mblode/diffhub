@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { addComment, deleteComment, readComments } from "@/lib/comments";
 
-export async function GET() {
-  return NextResponse.json(readComments());
-}
+export const GET = () => NextResponse.json(readComments());
 
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   const data = (await request.json()) as Parameters<typeof addComment>[0];
   const comment = addComment(data);
   return NextResponse.json(comment, { status: 201 });
-}
+};
 
-export async function DELETE(request: Request) {
+export const DELETE = (request: Request) => {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) {
@@ -19,4 +17,4 @@ export async function DELETE(request: Request) {
   }
   deleteComment(id);
   return NextResponse.json({ ok: true });
-}
+};

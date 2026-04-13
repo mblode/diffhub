@@ -1,69 +1,81 @@
-import { simpleGit, type SimpleGit } from "simple-git";
-import { readFileSync, statSync } from "fs";
+import { simpleGit } from "simple-git";
+import type { SimpleGit } from "simple-git";
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
-const REPO_POINTER = "/tmp/cmux-diff-active-repo";
+const REPO_POINTER = "/tmp/diffr-active-repo";
 
 // TTL cache — avoids spawning git subprocesses on every poll
 const cache = new Map<string, { value: unknown; expires: number }>();
 let lastPointerMtime = 0;
 
-function bustCacheIfRepoChanged() {
+const bustCacheIfRepoChanged = () => {
   try {
     const mtime = statSync(REPO_POINTER).mtimeMs;
     if (mtime !== lastPointerMtime) {
       lastPointerMtime = mtime;
       cache.clear();
     }
-  } catch {}
-}
+  } catch {
+    // empty
+  }
+};
 
-async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+const cached = async <T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> => {
   bustCacheIfRepoChanged();
   const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) return hit.value as T;
+  if (hit && hit.expires > Date.now()) {
+    return hit.value as T;
+  }
   const value = await fn();
-  cache.set(key, { value, expires: Date.now() + ttlMs });
+  cache.set(key, { expires: Date.now() + ttlMs, value });
   return value;
-}
+};
 
-function getRepoPath(): string {
-  // Temp file from cmux-diff-point takes priority (dev workflow)
+const getRepoPath = (): string => {
+  // Temp file from diffr-point takes priority (dev workflow)
   try {
     const p = readFileSync(REPO_POINTER, "utf-8").trim();
-    if (p) return p;
-  } catch {}
+    if (p) {
+      return p;
+    }
+  } catch {
+    // empty
+  }
   // Fallback: env var (set by CLI in production, or .env.local)
-  return process.env.CMUX_DIFF_REPO ?? process.cwd();
-}
+  return process.env.DIFFR_REPO ?? process.cwd();
+};
 
-function git(): SimpleGit {
-  return simpleGit(getRepoPath());
-}
+const git = (): SimpleGit => simpleGit(getRepoPath());
 
-export async function getBaseBranch(): Promise<string> {
+export const getBaseBranch = (): Promise<string> => {
   const repoPath = getRepoPath();
   return cached(`baseBranch:${repoPath}`, 30_000, async () => {
     const g = git();
     const remotes = await g.branch(["-r"]);
     for (const name of ["main", "master", "develop", "dev"]) {
-      if (remotes.all.includes(`origin/${name}`)) return `origin/${name}`;
+      if (remotes.all.includes(`origin/${name}`)) {
+        return `origin/${name}`;
+      }
     }
     const local = await g.branchLocal();
     for (const name of ["main", "master", "develop", "dev"]) {
-      if (local.all.includes(name)) return name;
+      if (local.all.includes(name)) {
+        return name;
+      }
     }
     return "origin/main";
   });
-}
+};
 
-export async function getMergeBase(baseBranch: string): Promise<string> {
+export const getMergeBase = (baseBranch: string): Promise<string> => {
   const repoPath = getRepoPath();
   return cached(`mergeBase:${repoPath}:${baseBranch}`, 30_000, async () => {
     const g = git();
     const mb = await g.raw(["merge-base", "HEAD", baseBranch]);
     return mb.trim();
   });
-}
+};
 
 export interface DiffResult {
   patch: string;
@@ -72,29 +84,43 @@ export interface DiffResult {
   branch: string;
 }
 
-export async function getDiff(base?: string): Promise<DiffResult> {
+export const getDiff = (base?: string, mode?: "uncommitted"): Promise<DiffResult> => {
   const repoPath = getRepoPath();
-  return cached(`diff:${repoPath}:${base ?? ""}`, 2_000, async () => {
+  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}`, 2000, async () => {
     const g = git();
+    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+    const branch = raw.trim();
+    if (mode === "uncommitted") {
+      const patch = await g.diff(["HEAD"]);
+      return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
+    }
     const baseBranch = base ?? (await getBaseBranch());
     const mergeBase = await getMergeBase(baseBranch);
     const patch = await g.diff([mergeBase]);
-    const branch = (await g.revparse(["--abbrev-ref", "HEAD"])).trim();
-    return { patch, baseBranch, mergeBase, branch };
+    return { baseBranch, branch, mergeBase, patch };
   });
-}
+};
 
-export async function getDiffForFile(file: string, base?: string): Promise<DiffResult> {
+export const getDiffForFile = (
+  file: string,
+  base?: string,
+  mode?: "uncommitted",
+): Promise<DiffResult> => {
   const repoPath = getRepoPath();
-  return cached(`diff:${repoPath}:${base ?? ""}:${file}`, 2_000, async () => {
+  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${file}`, 2000, async () => {
     const g = git();
+    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+    const branch = raw.trim();
+    if (mode === "uncommitted") {
+      const patch = await g.diff(["HEAD", "--", file]);
+      return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
+    }
     const baseBranch = base ?? (await getBaseBranch());
     const mergeBase = await getMergeBase(baseBranch);
     const patch = await g.diff([mergeBase, "--", file]);
-    const branch = (await g.revparse(["--abbrev-ref", "HEAD"])).trim();
-    return { patch, baseBranch, mergeBase, branch };
+    return { baseBranch, branch, mergeBase, patch };
   });
-}
+};
 
 export interface DiffFileStat {
   file: string;
@@ -112,20 +138,64 @@ export interface DiffStatsResult {
   baseBranch: string;
 }
 
-export async function getDiffStats(base?: string): Promise<DiffStatsResult> {
+export const getDiffStats = (base?: string, mode?: "uncommitted"): Promise<DiffStatsResult> => {
   const repoPath = getRepoPath();
-  return cached(`stats:${repoPath}:${base ?? ""}`, 2_000, async () => {
+  return cached(`stats:${repoPath}:${base ?? ""}:${mode ?? ""}`, 2000, async () => {
     const g = git();
+    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+    const branch = raw.trim();
+    if (mode === "uncommitted") {
+      const baseBranch = "HEAD";
+      const summary = await g.diffSummary(["HEAD"]);
+      return {
+        baseBranch,
+        branch,
+        deletions: summary.deletions,
+        files: summary.files as DiffFileStat[],
+        insertions: summary.insertions,
+      };
+    }
     const baseBranch = base ?? (await getBaseBranch());
     const mergeBase = await getMergeBase(baseBranch);
-    const branch = (await g.revparse(["--abbrev-ref", "HEAD"])).trim();
     const summary = await g.diffSummary([mergeBase]);
     return {
+      baseBranch,
+      branch,
+      deletions: summary.deletions,
       files: summary.files as DiffFileStat[],
       insertions: summary.insertions,
-      deletions: summary.deletions,
-      branch,
-      baseBranch,
     };
   });
-}
+};
+
+/**
+ * Return the content of a file at a specific git ref.
+ * Pass "WORKING_TREE" to read the current working-tree copy.
+ * Returns an empty string if the file doesn't exist at that ref (new/deleted files).
+ */
+export const getFileAtRef = (filePath: string, ref: string): Promise<string> => {
+  const repoPath = getRepoPath();
+  if (ref === "WORKING_TREE") {
+    try {
+      return Promise.resolve(readFileSync(join(repoPath, filePath), "utf-8"));
+    } catch {
+      // empty
+      return Promise.resolve("");
+    }
+  }
+  return cached(`file:${repoPath}:${ref}:${filePath}`, 30_000, async () => {
+    try {
+      return await git().show([`${ref}:${filePath}`]);
+    } catch {
+      // empty
+      return "";
+    }
+  });
+};
+
+/** Discard all uncommitted changes to a file (staged + working tree). */
+export const discardFile = async (file: string): Promise<void> => {
+  const g = git();
+  // restore --staged --worktree handles both staged and unstaged changes
+  await g.raw(["restore", "--staged", "--worktree", "--", file]);
+};

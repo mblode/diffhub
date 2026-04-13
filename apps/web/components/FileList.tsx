@@ -1,300 +1,420 @@
 "use client";
 
-import { useState } from "react";
-import { BubbleDotsIcon, PlusLargeIcon } from "blode-icons-react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BubbleDotsIcon, FolderIcon, FolderOpenIcon, MagnifyingGlassIcon } from "blode-icons-react";
+import { FileAddedIcon, FileDiffIcon, FileRemovedIcon } from "./icons/file-status-icons";
 import type { DiffFileStat } from "@/lib/git";
-import type { Comment, CommentTag } from "@/lib/comments";
+import type { Comment } from "@/lib/comments";
 import { ContextMenu } from "./ContextMenu";
+import { cn } from "@/lib/utils";
+import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
 
 interface FileListProps {
   files: DiffFileStat[];
   selectedFile: string | null;
   onSelectFile: (file: string) => void;
   comments: Comment[];
-  onAddComment: (
-    file: string,
-    lineNumber: number,
-    body: string,
-    tag: CommentTag
-  ) => Promise<void>;
-  onDeleteComment: (id: string) => Promise<void>;
   repoPath: string;
   filterQuery: string;
   onFilterChange: (q: string) => void;
+  viewedFiles: Set<string>;
 }
 
-const TAGS: CommentTag[] = ["[must-fix]", "[suggestion]", "[nit]", "[question]"];
-const TAG_COLORS: Record<string, string> = {
-  "[must-fix]": "text-[#f85149] bg-[#f85149]/10",
-  "[suggestion]": "text-[#3fb950] bg-[#3fb950]/10",
-  "[nit]": "text-[#8b949e] bg-white/5",
-  "[question]": "text-[#d2a8ff] bg-[#d2a8ff]/10",
+// ── Tree types ──────────────────────────────────────────────────────────────
+
+interface FileNode {
+  type: "file";
+  name: string;
+  path: string;
+  fileStat: DiffFileStat;
+}
+
+interface FolderNode {
+  type: "folder";
+  /** May be "a/b/c" after compaction of single-child chains. */
+  name: string;
+  /** Path of the deepest folder in the (possibly compacted) chain. */
+  path: string;
+  children: TreeNode[];
+}
+
+type TreeNode = FileNode | FolderNode;
+
+// ── Phase 1: Build hierarchical tree from flat file list ────────────────────
+
+const buildTree = (files: DiffFileStat[]): TreeNode[] => {
+  interface RawNode {
+    files: DiffFileStat[];
+    folders: Record<string, RawNode>;
+  }
+  const root: RawNode = { files: [], folders: {} };
+
+  for (const fileStat of files) {
+    const parts = fileStat.file.split("/");
+    let current = root;
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const part = parts[i];
+      if (!current.folders[part]) {
+        current.folders[part] = { files: [], folders: {} };
+      }
+      current = current.folders[part];
+    }
+    current.files.push(fileStat);
+  }
+
+  const convertFolder = (name: string, node: RawNode, parentPath: string): FolderNode => {
+    const path = parentPath ? `${parentPath}/${name}` : name;
+    const children: TreeNode[] = [];
+
+    for (const [fn, child] of Object.entries(node.folders).toSorted()) {
+      children.push(convertFolder(fn, child, path));
+    }
+    for (const fileStat of node.files) {
+      const parts = fileStat.file.split("/");
+      children.push({
+        fileStat,
+        name: parts.at(-1) ?? fileStat.file,
+        path: fileStat.file,
+        type: "file",
+      });
+    }
+    return { children, name, path, type: "folder" };
+  };
+
+  const result: TreeNode[] = [];
+  for (const [fn, node] of Object.entries(root.folders).toSorted()) {
+    result.push(convertFolder(fn, node, ""));
+  }
+  for (const fileStat of root.files) {
+    result.push({ fileStat, name: fileStat.file, path: fileStat.file, type: "file" });
+  }
+  return result;
 };
 
-interface AddCommentFormProps {
-  file: string;
-  onSubmit: (lineNumber: number, body: string, tag: CommentTag) => void;
-  onCancel: () => void;
+// ── Phase 2: Compact single-child-folder chains (VS Code / Zed style) ───────
+//
+// When a folder has exactly 1 child that is itself a folder (and no files),
+// merge them into one display node: "parent/child" (recursive).
+
+const compactTree = (nodes: TreeNode[]): TreeNode[] =>
+  nodes.map((node) => {
+    if (node.type === "file") {
+      return node;
+    }
+
+    const kids = compactTree(node.children);
+
+    if (kids.length === 1 && kids[0].type === "folder") {
+      const only = kids[0] as FolderNode;
+      return { ...only, name: `${node.name}/${only.name}` } satisfies FolderNode;
+    }
+
+    return { ...node, children: kids };
+  });
+
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+interface FileRowProps {
+  node: FileNode;
+  depth: number;
+  isSelected: boolean;
+  isViewed: boolean;
+  commentCount: number;
+  onSelect: (path: string) => void;
+  onContextMenu: (x: number, y: number, file: string) => void;
 }
 
-function AddCommentForm({ file, onSubmit, onCancel }: AddCommentFormProps) {
-  const [body, setBody] = useState("");
-  const [tag, setTag] = useState<CommentTag>("[suggestion]");
-  const [lineNumber, setLineNumber] = useState(0);
+const FileRow = memo(function FileRow({
+  node,
+  depth,
+  isSelected,
+  isViewed,
+  commentCount,
+  onSelect,
+  onContextMenu,
+}: FileRowProps) {
+  const indent = depth * 16 + 8;
+  const { insertions, deletions } = node.fileStat;
 
-  function handleSubmit() {
-    if (!body.trim()) return;
-    onSubmit(lineNumber, body.trim(), tag);
-    setBody("");
+  let FileStatusIcon = FileDiffIcon;
+  if (insertions > 0 && deletions === 0) {
+    FileStatusIcon = FileAddedIcon;
+  } else if (deletions > 0 && insertions === 0) {
+    FileStatusIcon = FileRemovedIcon;
+  }
+
+  let iconClass = "shrink-0 text-sidebar-foreground/40";
+  if (insertions > 0 && deletions === 0) {
+    iconClass = "shrink-0 text-diff-green";
+  } else if (deletions > 0 && insertions === 0) {
+    iconClass = "shrink-0 text-destructive";
   }
 
   return (
-    <div className="mt-1 rounded-md border border-white/10 bg-[#0d1117] p-2">
-      <div className="text-[10px] text-[#8b949e] font-mono mb-1.5 truncate">
-        {file.split("/").pop()}
-      </div>
-      {/* Tag selector */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {TAGS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTag(t)}
-            className={`rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors ${
-              tag === t
-                ? TAG_COLORS[t]
-                : "text-[#8b949e] hover:text-[#e6edf3]"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      {/* Line number */}
-      <input
-        type="number"
-        placeholder="Line # (optional)"
-        value={lineNumber || ""}
-        onChange={(e) => setLineNumber(Number(e.target.value))}
-        className="mb-1.5 w-full rounded bg-[#161b22] border border-white/10 px-2 py-1 text-xs text-[#e6edf3] placeholder-[#8b949e] focus:outline-none focus:border-[#388bfd]/50"
-      />
-      {/* Textarea */}
-      <textarea
-        autoFocus
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Add a comment for the AI"
-        rows={3}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && e.metaKey) handleSubmit();
-          if (e.key === "Escape") onCancel();
-        }}
-        className="w-full resize-none rounded bg-[#161b22] border border-white/10 px-2 py-1.5 text-xs text-[#e6edf3] placeholder-[#8b949e] focus:outline-none focus:border-[#388bfd]/50"
-      />
-      <div className="mt-1.5 flex justify-end gap-1.5">
-        <button
-          onClick={onCancel}
-          className="rounded px-2 py-1 text-xs text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!body.trim()}
-          className="rounded bg-[#238636] px-2 py-1 text-xs text-white hover:bg-[#2ea043] transition-colors disabled:opacity-40"
-        >
-          Comment ↵
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      className={cn(
+        "flex w-full cursor-pointer items-center gap-1.5 py-1 text-left transition-colors",
+        isSelected
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        isViewed && "opacity-50",
+      )}
+      style={{ paddingLeft: indent, paddingRight: 8 }}
+      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+      onClick={() => onSelect(node.path)}
+      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu(e.clientX, e.clientY, node.path);
+      }}
+    >
+      <FileStatusIcon size={14} className={iconClass} />
+      <span className="flex-1 truncate text-[12px] leading-tight">{node.name}</span>
+      {commentCount > 0 && (
+        <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-sidebar-foreground/50">
+          <BubbleDotsIcon size={10} />
+          {commentCount}
+        </span>
+      )}
+    </button>
   );
+});
+
+interface FolderRowProps {
+  node: FolderNode;
+  depth: number;
+  isCollapsed: boolean;
+  onToggle: (path: string) => void;
+  children: React.ReactNode;
 }
 
-export function FileList({
+const FolderRow = memo(function FolderRow({
+  node,
+  depth,
+  isCollapsed,
+  onToggle,
+  children,
+}: FolderRowProps) {
+  const indent = depth * 16 + 8;
+  const segments = node.name.split("/");
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={!isCollapsed}
+        className="flex w-full items-center gap-1.5 py-1 text-left transition-colors hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        style={{ paddingLeft: indent, paddingRight: 8 }}
+        // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+        onClick={() => onToggle(node.path)}
+      >
+        {isCollapsed ? (
+          <FolderIcon size={12} className="shrink-0 text-sidebar-foreground/50" />
+        ) : (
+          <FolderOpenIcon size={12} className="shrink-0 text-sidebar-foreground/50" />
+        )}
+        <span className="truncate text-[12px] text-sidebar-foreground/70">
+          {segments.map((seg, i) => (
+            // oxlint-disable-next-line react/no-array-index-key
+            <Fragment key={i}>
+              {seg}
+              {i < segments.length - 1 && <span className="text-sidebar-foreground/30">/</span>}
+            </Fragment>
+          ))}
+        </span>
+      </button>
+      {!isCollapsed && (
+        <div className="relative">
+          {/* Indent guide line — centred on the folder icon (icon is 12px wide, offset 6px) */}
+          <div
+            className="pointer-events-none absolute inset-y-0 border-l border-sidebar-border/60"
+            style={{ left: indent + 6 }}
+          />
+          {children}
+        </div>
+      )}
+    </>
+  );
+});
+
+// ── Main component ──────────────────────────────────────────────────────────
+
+const DEFAULT_SIDEBAR_WIDTH = 256;
+const MIN_SIDEBAR_WIDTH = 8;
+
+export const FileList = ({
   files,
   selectedFile,
   onSelectFile,
   comments,
-  onAddComment,
-  onDeleteComment,
   repoPath,
   filterQuery,
   onFilterChange,
-}: FileListProps) {
-  const [addingCommentFor, setAddingCommentFor] = useState<string | null>(null);
-  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+  viewedFiles,
+}: FileListProps) => {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     file: string;
   } | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
-  const filtered = filterQuery
-    ? files.filter((f) =>
-        f.file.toLowerCase().includes(filterQuery.toLowerCase())
-      )
-    : files;
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-  function getFileComments(file: string) {
-    return comments.filter((c) => c.file === file);
-  }
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) {
+        return;
+      }
+      const newWidth = Math.max(
+        MIN_SIDEBAR_WIDTH,
+        dragRef.current.startWidth + e.clientX - dragRef.current.startX,
+      );
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      if (!dragRef.current) {
+        return;
+      }
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
-  async function handleAddComment(
-    file: string,
-    lineNumber: number,
-    body: string,
-    tag: CommentTag
-  ) {
-    await onAddComment(file, lineNumber, body, tag);
-    setAddingCommentFor(null);
-    setExpandedFile(file);
-  }
+  const handleRailMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      dragRef.current = { startWidth: sidebarWidth, startX: e.clientX };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [sidebarWidth],
+  );
+
+  const filtered = useMemo(
+    () =>
+      filterQuery
+        ? files.filter((f) => f.file.toLowerCase().includes(filterQuery.toLowerCase()))
+        : files,
+    [files, filterQuery],
+  );
+
+  const tree = useMemo(() => compactTree(buildTree(filtered)), [filtered]);
+
+  const commentsByFile = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of comments) {
+      map.set(c.file, (map.get(c.file) ?? 0) + 1);
+    }
+    return map;
+  }, [comments]);
+
+  const toggleFolder = useCallback((path: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleContextMenu = useCallback((x: number, y: number, file: string) => {
+    setContextMenu({ file, x, y });
+  }, []);
+
+  const renderTree = (nodes: TreeNode[], depth: number): React.ReactNode =>
+    nodes.map((node) => {
+      if (node.type === "folder") {
+        return (
+          <FolderRow
+            key={node.path}
+            node={node}
+            depth={depth}
+            isCollapsed={collapsedFolders.has(node.path)}
+            onToggle={toggleFolder}
+          >
+            {renderTree(node.children, depth + 1)}
+          </FolderRow>
+        );
+      }
+
+      return (
+        <FileRow
+          key={node.path}
+          node={node}
+          depth={depth}
+          isSelected={selectedFile === node.path}
+          isViewed={viewedFiles.has(node.path)}
+          commentCount={commentsByFile.get(node.path) ?? 0}
+          onSelect={onSelectFile}
+          onContextMenu={handleContextMenu}
+        />
+      );
+    });
 
   return (
-    <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-white/10 bg-[#0d1117]">
+    <Sidebar
+      collapsible="none"
+      className="relative overflow-hidden border-r border-sidebar-border"
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       {/* Filter */}
-      <div className="border-b border-white/10 p-2">
-        <input
-          type="text"
-          value={filterQuery}
-          onChange={(e) => onFilterChange(e.target.value)}
-          placeholder="Filter files…"
-          className="w-full rounded bg-[#161b22] border border-white/10 px-2.5 py-1.5 text-xs text-[#e6edf3] placeholder-[#8b949e] focus:outline-none focus:border-[#388bfd]/50"
-        />
-      </div>
+      <SidebarHeader className="border-b border-sidebar-border h-[53px] flex-row items-center py-0 px-2">
+        <div className="relative flex w-full items-center">
+          <MagnifyingGlassIcon
+            size={12}
+            className="pointer-events-none absolute left-2.5 text-sidebar-foreground/40"
+          />
+          <input
+            type="text"
+            value={filterQuery}
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onChange={(e) => onFilterChange(e.target.value)}
+            placeholder="Filter files…"
+            aria-label="Filter files"
+            className="w-full rounded-md border border-sidebar-border bg-sidebar-accent py-1.5 pl-7 pr-7 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 transition-colors focus:border-sidebar-ring/50 focus:outline-none"
+          />
+          {filterQuery && (
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => onFilterChange("")}
+              aria-label="Clear filter"
+              className="absolute right-2 text-sm leading-none text-sidebar-foreground/40 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </SidebarHeader>
 
-      {/* File list */}
-      <div className="flex-1 overflow-y-auto">
-        {filtered.length === 0 && (
-          <div className="px-4 py-6 text-center text-xs text-[#8b949e]">
-            No changes relative to main
+      {/* Tree */}
+      <SidebarContent className="gap-0 py-1">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+            <p className="text-xs text-sidebar-foreground/50">No changes</p>
+            {filterQuery && (
+              <p className="text-[10px] text-sidebar-foreground/30">
+                No files match &ldquo;{filterQuery}&rdquo;
+              </p>
+            )}
           </div>
+        ) : (
+          renderTree(tree, 0)
         )}
-
-        {filtered.map((fileStat) => {
-          const fileComments = getFileComments(fileStat.file);
-          const isSelected = selectedFile === fileStat.file;
-          const isExpanded = expandedFile === fileStat.file;
-
-          return (
-            <div key={fileStat.file}>
-              {/* File row */}
-              <div
-                className={`group flex items-center gap-1.5 px-2 py-1.5 cursor-pointer transition-colors ${
-                  isSelected
-                    ? "bg-[#1f2937]"
-                    : "hover:bg-white/[0.03]"
-                }`}
-                onClick={() => {
-                  onSelectFile(fileStat.file);
-                  if (fileComments.length > 0) {
-                    setExpandedFile(isExpanded ? null : fileStat.file);
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, file: fileStat.file });
-                }}
-              >
-                {/* Stats */}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {Array.from({ length: Math.min(fileStat.insertions + fileStat.deletions, 5) }).map((_, i) => (
-                    <span
-                      key={i}
-                      className={`w-[7px] h-[7px] rounded-sm ${
-                        i < Math.round((fileStat.insertions / (fileStat.insertions + fileStat.deletions || 1)) * 5)
-                          ? "bg-[#3fb950]"
-                          : "bg-[#f85149]"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Filename */}
-                <span className="flex-1 min-w-0 font-mono text-[11px] text-[#e6edf3] truncate">
-                  {fileStat.file.split("/").pop()}
-                  <span className="text-[#8b949e] text-[10px] ml-0.5">
-                    {fileStat.file.includes("/") &&
-                      ` ${fileStat.file.substring(0, fileStat.file.lastIndexOf("/"))}`}
-                  </span>
-                </span>
-
-                {/* Comment count */}
-                {fileComments.length > 0 && (
-                  <span className="flex items-center gap-0.5 shrink-0 text-[10px] text-[#8b949e]">
-                    <BubbleDotsIcon size={10} />
-                    {fileComments.length}
-                  </span>
-                )}
-
-                {/* Add comment button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAddingCommentFor(
-                      addingCommentFor === fileStat.file ? null : fileStat.file
-                    );
-                  }}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-0.5 text-[#8b949e] hover:text-[#e6edf3] hover:bg-white/10 transition-all"
-                  title="Add comment for AI"
-                >
-                  <PlusLargeIcon size={11} />
-                </button>
-              </div>
-
-              {/* Add comment form */}
-              {addingCommentFor === fileStat.file && (
-                <div className="px-2 pb-1">
-                  <AddCommentForm
-                    file={fileStat.file}
-                    onSubmit={(ln, body, tag) =>
-                      handleAddComment(fileStat.file, ln, body, tag)
-                    }
-                    onCancel={() => setAddingCommentFor(null)}
-                  />
-                </div>
-              )}
-
-              {/* Comments for file */}
-              {isExpanded && fileComments.length > 0 && (
-                <div className="mx-2 mb-1 space-y-1">
-                  {fileComments.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="rounded border border-white/10 bg-[#161b22] p-2 text-xs"
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <div>
-                          {comment.tag && (
-                            <span
-                              className={`inline-block rounded px-1 py-0.5 text-[10px] font-mono mr-1 ${TAG_COLORS[comment.tag]}`}
-                            >
-                              {comment.tag}
-                            </span>
-                          )}
-                          {comment.lineNumber > 0 && (
-                            <span className="text-[10px] text-[#8b949e] font-mono mr-1">
-                              L{comment.lineNumber}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => onDeleteComment(comment.id)}
-                          className="text-[10px] text-[#8b949e] hover:text-[#f85149] shrink-0"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      <p className="mt-1 text-[#e6edf3] leading-relaxed">
-                        {comment.body}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      </SidebarContent>
 
       {/* Context menu */}
       {contextMenu && (
@@ -303,9 +423,16 @@ export function FileList({
           y={contextMenu.y}
           filePath={contextMenu.file}
           repoPath={repoPath}
+          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
           onClose={() => setContextMenu(null)}
         />
       )}
-    </aside>
+      {/* Resize rail */}
+      <div
+        aria-hidden
+        className="absolute inset-y-0 right-0 z-20 w-[5px] cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:transition-colors hover:after:bg-sidebar-border"
+        onMouseDown={handleRailMouseDown}
+      />
+    </Sidebar>
   );
-}
+};

@@ -1,5 +1,5 @@
 {
-  "name": "cmux-diff",
+  "name": "diffr",
   "private": true,
   "packageManager": "npm@10.9.3",
   "workspaces": [
@@ -17,7 +17,12 @@
     "fix": "ultracite fix"
   },
   "devDependencies": {
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0",
     "turbo": "^2",
     "ultracite": "^7.5.6"
+  },
+  "dependencies": {
+    "next-themes": "^0.4.6"
   }
 }

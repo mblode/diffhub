@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { getDiff, getDiffForFile } from "@/lib/git";
 
-export async function GET(request: Request) {
+export const GET = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const base = searchParams.get("base") ?? undefined;
   const file = searchParams.get("file") ?? undefined;
+  const mode = searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
   try {
-    const result = file ? await getDiffForFile(file, base) : await getDiff(base);
+    const result = file ? await getDiffForFile(file, base, mode) : await getDiff(base, mode);
     return NextResponse.json(result);
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
   }
-}
+};

@@ -1,13 +1,29 @@
 {
-  "name": "cmux-diff",
+  "name": "diffr",
   "version": "0.1.0",
-  "private": true,
-  "bin": {
-    "cmux-diff": "./bin/cmux-diff.mjs"
+  "description": "GitHub PR-style local diff viewer — review your git changes in the browser",
+  "keywords": ["git", "diff", "cli", "code-review", "ai", "github", "pr"],
+  "homepage": "https://github.com/mblode/diffr#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mblode/diffr"
   },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "diffr": "./bin/diffr.mjs"
+  },
+  "files": [
+    "bin/",
+    ".next/standalone/",
+    "package.json"
+  ],
   "scripts": {
     "dev": "portless run --force next dev",
     "build": "next build",
+    "prepack": "next build && cp -r .next/static .next/standalone/apps/web/.next/static",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",

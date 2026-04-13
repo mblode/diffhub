@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useDeferredValue, useRef, useState, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
+import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
+import { SidebarHelpMenu } from "./SidebarHelpMenu";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 import type { DiffFileStat } from "@/lib/git";
 import type { Comment, CommentTag } from "@/lib/comments";
 
@@ -24,10 +28,12 @@ interface FileDiff {
 
 const POLL_INTERVAL = 5000;
 
-export function DiffApp({ repoPath }: { repoPath: string }) {
+export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  // Ref mirror of selectedFile — lets pollFiles read it without a stale closure
+  const selectedFileRef = useRef<string | null>(null);
   const [fileDiff, setFileDiff] = useState<FileDiff | null>(null);
   // Per-file patch cache: avoids re-fetching when switching back to a previously viewed file
   const diffCacheRef = useRef<Map<string, FileDiff>>(new Map());
@@ -35,11 +41,48 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
   const [filterQuery, setFilterQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Diff mode — "all" shows mergeBase...HEAD, "uncommitted" shows git diff HEAD
+  const [diffMode, setDiffMode] = useState<DiffMode>("all");
+  // Ref so callbacks always read the latest mode without being recreated
+  const diffModeRef = useRef<DiffMode>("all");
   // Fingerprint of last-seen file stats to detect real changes between polls
   const lastStatsRef = useRef<string | null>(null);
   // In-flight guard: don't start a new poll if previous is still running
   const fetchingRef = useRef(false);
+  // Viewed files — persisted to localStorage per repo
+  const [viewedFiles, setViewedFiles] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") {
+      return new Set();
+    }
+    try {
+      const stored = localStorage.getItem(`diffr-viewed:${repoPath}`);
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    } catch {
+      // empty
+      return new Set();
+    }
+  });
+
+  const toggleViewed = useCallback(
+    (file: string) => {
+      setViewedFiles((prev) => {
+        const next = new Set(prev);
+        if (next.has(file)) {
+          next.delete(file);
+        } else {
+          next.add(file);
+        }
+        try {
+          localStorage.setItem(`diffr-viewed:${repoPath}`, JSON.stringify([...next]));
+        } catch {
+          // empty
+        }
+        return next;
+      });
+    },
+    [repoPath],
+  );
 
   // Deferred patch for DiffViewer — keeps sidebar responsive during large renders
   const deferredFileDiff = useDeferredValue(fileDiff);
@@ -52,69 +95,96 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
       return;
     }
     try {
-      const res = await fetch(`/api/diff?file=${encodeURIComponent(file)}`);
-      if (!res.ok) return;
+      const mode = diffModeRef.current;
+      const modeParam = mode === "uncommitted" ? "&mode=uncommitted" : "";
+      const res = await fetch(`/api/diff?file=${encodeURIComponent(file)}${modeParam}`);
+      if (!res.ok) {
+        return;
+      }
       const data = (await res.json()) as FileDiff;
       diffCacheRef.current.set(file, data);
       setFileDiff(data);
-    } catch {}
+    } catch {
+      // empty
+    }
   }, []);
 
+  const handleSelectFile = useCallback(
+    (file: string) => {
+      selectedFileRef.current = file;
+      startTransition(() => setSelectedFile(file));
+      fetchFileDiff(file);
+    },
+    [fetchFileDiff],
+  );
+
   // Poll /api/files for change detection (lightweight) + /api/comments
-  const pollFiles = useCallback(async (silent = false) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
-    if (!silent) setRefreshing(true);
-    setError(null);
-
-    try {
-      const [filesRes, commentsRes] = await Promise.all([
-        fetch("/api/files"),
-        fetch("/api/comments"),
-      ]);
-
-      if (!filesRes.ok) {
-        const err = await filesRes.json().catch(() => ({ error: "Network error" }));
-        setError(err.error ?? "Failed to load files");
+  const pollFiles = useCallback(
+    async (silent = false) => {
+      if (fetchingRef.current) {
         return;
       }
-
-      const [files, commentsData] = await Promise.all([
-        filesRes.json() as Promise<FilesData>,
-        commentsRes.json() as Promise<Comment[]>,
-      ]);
-
-      setFilesData(files);
-      setComments(commentsData);
-      setLastUpdated(new Date());
-
-      // Auto-select first file on initial load
-      setSelectedFile((prev) => {
-        if (!prev && files.files.length > 0) {
-          const first = files.files[0].file;
-          fetchFileDiff(first);
-          return first;
-        }
-        return prev;
-      });
-
-      // Detect if file stats changed — if so, invalidate cache and re-fetch selected file
-      const fingerprint = files.files.map((f) => `${f.file}:${f.insertions}:${f.deletions}`).join("|");
-      if (fingerprint !== lastStatsRef.current) {
-        lastStatsRef.current = fingerprint;
-        diffCacheRef.current.clear();
-        setSelectedFile((prev) => {
-          if (prev) fetchFileDiff(prev);
-          return prev;
-        });
+      fetchingRef.current = true;
+      if (!silent) {
+        setRefreshing(true);
       }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setRefreshing(false);
-      fetchingRef.current = false;
-    }
-  }, [fetchFileDiff]);
+      setLoadError(null);
+
+      try {
+        const mode = diffModeRef.current;
+        const modeParam = mode === "uncommitted" ? "?mode=uncommitted" : "";
+
+        const [filesRes, commentsRes] = await Promise.all([
+          fetch(`/api/files${modeParam}`),
+          fetch("/api/comments"),
+        ]);
+
+        if (!filesRes.ok) {
+          const err = await filesRes.json().catch(() => ({ error: "Network error" }));
+          setLoadError(err.error ?? "Failed to load files");
+          return;
+        }
+
+        const [files, commentsData] = await Promise.all([
+          filesRes.json() as Promise<FilesData>,
+          commentsRes.json() as Promise<Comment[]>,
+        ]);
+
+        setFilesData(files);
+        setComments(commentsData);
+        setLastUpdated(new Date());
+
+        // Auto-select first file on initial load
+        if (!selectedFileRef.current && files.files.length > 0) {
+          const first = files.files[0].file;
+          selectedFileRef.current = first;
+          setSelectedFile(first);
+          fetchFileDiff(first);
+        }
+
+        // Detect if file stats changed — if so, invalidate cache and re-fetch selected file
+        const fingerprint = files.files
+          .map((f) => `${f.file}:${f.insertions}:${f.deletions}`)
+          .join("|");
+        if (fingerprint !== lastStatsRef.current) {
+          lastStatsRef.current = fingerprint;
+          diffCacheRef.current.clear();
+          const curr = selectedFileRef.current;
+          if (curr) {
+            fetchFileDiff(curr);
+          }
+        }
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!silent) {
+          setRefreshing(false);
+        }
+        fetchingRef.current = false;
+      }
+    },
+    [fetchFileDiff],
+  );
 
   // Initial load
   useEffect(() => {
@@ -129,10 +199,12 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
 
   // Keyboard shortcuts
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+    // oxlint-disable-next-line complexity
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+        return;
+      }
 
-      if (e.key === "r") pollFiles();
       if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
         setLayout((l) => (l === "split" ? "stacked" : "split"));
       }
@@ -140,39 +212,53 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
         e.preventDefault();
         document.querySelector<HTMLInputElement>('input[placeholder="Filter files…"]')?.focus();
       }
+      if (e.key === "v" && !e.metaKey && !e.ctrlKey && selectedFile) {
+        toggleViewed(selectedFile);
+      }
+      if (e.key === "r" && !e.metaKey && !e.ctrlKey) {
+        pollFiles();
+      }
       if (e.key === "j" || e.key === "k") {
         const files = filesData?.files ?? [];
-        if (files.length === 0) return;
+        if (files.length === 0) {
+          return;
+        }
         const idx = files.findIndex((f) => f.file === selectedFile);
         const next = e.key === "j" ? files[idx + 1] : files[idx - 1];
-        if (next) handleSelectFile(next.file);
+        if (next) {
+          handleSelectFile(next.file);
+        }
       }
-    }
+    };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [filesData, selectedFile]);
+  }, [filesData, selectedFile, toggleViewed, pollFiles, handleSelectFile]);
 
-  const handleSelectFile = useCallback(
-    (file: string) => {
-      startTransition(() => setSelectedFile(file));
-      fetchFileDiff(file);
+  const handleDiffModeChange = useCallback(
+    (mode: DiffMode) => {
+      // update ref immediately so next poll/fetch uses it
+      diffModeRef.current = mode;
+      setDiffMode(mode);
+      diffCacheRef.current.clear();
+      lastStatsRef.current = null;
+      pollFiles(false);
     },
-    [fetchFileDiff]
+    [pollFiles],
   );
 
   const handleAddComment = useCallback(
     async (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => {
       const res = await fetch("/api/comments", {
-        method: "POST",
+        body: JSON.stringify({ body, file, lineNumber, side, tag }),
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file, lineNumber, side, body, tag }),
+        method: "POST",
       });
       if (res.ok) {
         const comment = (await res.json()) as Comment;
         setComments((prev) => [...prev, comment]);
       }
     },
-    []
+    [],
   );
 
   const handleDeleteComment = useCallback(async (id: string) => {
@@ -180,83 +266,98 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
     setComments((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  if (error) {
+  const handleDiscard = useCallback(
+    async (file: string) => {
+      const res = await fetch("/api/discard", {
+        body: JSON.stringify({ file }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (res.ok) {
+        // Bust cache for this file and re-poll
+        diffCacheRef.current.delete(file);
+        await pollFiles(false);
+      }
+    },
+    [pollFiles],
+  );
+
+  if (loadError) {
     return (
-      <div className="flex h-screen flex-col bg-[#0d1117] text-[#e6edf3]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <div className="rounded-lg border border-[#f85149]/30 bg-[#f85149]/10 px-6 py-4 text-sm text-[#f85149] max-w-md text-center">
+      <SidebarProvider className="h-svh">
+        <SidebarInset className="flex flex-col h-svh items-center justify-center gap-4">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-6 py-4 text-sm text-destructive max-w-md text-center">
             <p className="font-semibold mb-1">Failed to load diff</p>
-            <p className="text-xs opacity-80">{error}</p>
+            <p className="text-xs opacity-80">{loadError}</p>
           </div>
-          <button
+          <Button
+            variant="outline"
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onClick={() => pollFiles()}
-            className="rounded bg-[#21262d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#30363d] transition-colors"
           >
             Retry
-          </button>
-        </div>
-      </div>
+          </Button>
+        </SidebarInset>
+      </SidebarProvider>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#0d1117] text-[#e6edf3] overflow-hidden">
-      <StatusBar
-        branch={filesData?.branch ?? "…"}
-        baseBranch={filesData?.baseBranch ?? "main"}
-        insertions={filesData?.insertions ?? 0}
-        deletions={filesData?.deletions ?? 0}
-        fileCount={filesData?.files.length ?? 0}
-        layout={layout}
-        onLayoutToggle={() => setLayout((l) => (l === "split" ? "stacked" : "split"))}
-        onRefresh={() => pollFiles()}
-        refreshing={refreshing}
-        lastUpdated={lastUpdated}
+    <SidebarProvider className="h-svh">
+      <FileList
+        files={filesData?.files ?? []}
+        selectedFile={selectedFile}
+        onSelectFile={handleSelectFile}
         comments={comments}
+        repoPath={repoPath}
+        filterQuery={filterQuery}
+        onFilterChange={setFilterQuery}
+        viewedFiles={viewedFiles}
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        <FileList
-          files={filesData?.files ?? []}
-          selectedFile={selectedFile}
-          onSelectFile={handleSelectFile}
+      <SidebarInset className="flex flex-col h-svh overflow-hidden">
+        <StatusBar
+          branch={filesData?.branch ?? "…"}
+          baseBranch={filesData?.baseBranch ?? "main"}
+          insertions={filesData?.insertions ?? 0}
+          deletions={filesData?.deletions ?? 0}
+          fileCount={filesData?.files.length ?? 0}
+          refreshing={refreshing}
+          lastUpdated={lastUpdated}
           comments={comments}
-          onAddComment={async (file, lineNumber, body, tag) =>
-            handleAddComment(file, lineNumber, "right", body, tag)
-          }
-          onDeleteComment={handleDeleteComment}
-          repoPath={repoPath}
-          filterQuery={filterQuery}
-          onFilterChange={setFilterQuery}
+          diffMode={diffMode}
+          onDiffModeChange={handleDiffModeChange}
+          layout={layout}
+          onLayoutChange={setLayout}
         />
 
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           {deferredFileDiff ? (
             <DiffViewer
               patch={deferredFileDiff.patch}
+              mergeBase={deferredFileDiff.mergeBase}
               layout={layout}
               comments={comments}
               onAddComment={handleAddComment}
               onDeleteComment={handleDeleteComment}
               selectedFileId={selectedFile}
+              fileStats={filesData?.files ?? []}
+              viewedFiles={viewedFiles}
+              onToggleViewed={toggleViewed}
+              repoPath={repoPath}
+              onDiscard={diffMode === "uncommitted" ? handleDiscard : undefined}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-[#8b949e] text-sm animate-pulse">
-                Loading diff…
-              </div>
+            <div className="flex h-full items-center justify-center">
+              <div className="text-muted-foreground text-sm animate-pulse">Loading diff…</div>
             </div>
           )}
-        </main>
-      </div>
+        </div>
+      </SidebarInset>
 
-      <footer className="border-t border-white/5 px-4 py-1 text-[10px] text-[#8b949e] flex gap-4">
-        <span><kbd className="font-mono">j/k</kbd> navigate files</span>
-        <span><kbd className="font-mono">s</kbd> toggle split</span>
-        <span><kbd className="font-mono">/</kbd> filter</span>
-        <span><kbd className="font-mono">r</kbd> refresh</span>
-        <span><kbd className="font-mono">+</kbd> comment</span>
-      </footer>
-    </div>
+      <div className="fixed bottom-4 left-4 z-50">
+        <SidebarHelpMenu />
+      </div>
+    </SidebarProvider>
   );
-}
+};

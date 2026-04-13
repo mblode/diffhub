@@ -1,31 +1,39 @@
-import { exec } from "child_process";
-import path from "path";
+import { exec as execCallback } from "node:child_process";
+import { promisify } from "node:util";
+import path from "node:path";
 import { NextResponse } from "next/server";
+
+const exec = promisify(execCallback);
 
 type AppKey = "finder" | "zed" | "vscode" | "xcode" | "ghostty" | "terminal";
 
-function buildCommand(app: AppKey, filePath: string, line?: number): string {
+const buildCommand = (app: AppKey, filePath: string, line?: number): string => {
   switch (app) {
-    case "finder":
+    case "finder": {
       return `open -R "${filePath}"`;
-    case "zed":
+    }
+    case "zed": {
       return line ? `zed "${filePath}:${line}"` : `zed "${filePath}"`;
-    case "vscode":
-      return line
-        ? `code --goto "${filePath}:${line}"`
-        : `code "${filePath}"`;
-    case "xcode":
+    }
+    case "vscode": {
+      return line ? `code --goto "${filePath}:${line}"` : `code "${filePath}"`;
+    }
+    case "xcode": {
       return `xed "${filePath}"`;
-    case "ghostty":
+    }
+    case "ghostty": {
       return `open -a Ghostty`;
-    case "terminal":
+    }
+    case "terminal": {
       return `open -a Terminal "${path.dirname(filePath)}"`;
-    default:
+    }
+    default: {
       throw new Error(`Unknown app: ${app}`);
+    }
   }
-}
+};
 
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   const {
     path: filePath,
     app,
@@ -43,17 +51,14 @@ export async function POST(request: Request) {
   let cmd: string;
   try {
     cmd = buildCommand(app, filePath, line);
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 400 });
   }
 
-  return new Promise<NextResponse>((resolve) => {
-    exec(cmd, (err) => {
-      if (err) {
-        resolve(NextResponse.json({ error: err.message }, { status: 500 }));
-      } else {
-        resolve(NextResponse.json({ ok: true }));
-      }
-    });
-  });
-}
+  try {
+    await exec(cmd);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
+};

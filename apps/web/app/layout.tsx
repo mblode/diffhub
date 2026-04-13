@@ -1,21 +1,33 @@
 import { Agentation } from "agentation";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const glide = localFont({
+  display: "swap",
+  src: [
+    { path: "../public/glide-variable.woff2", style: "normal" },
+    { path: "../public/glide-variable-italic.woff2", style: "italic" },
+  ],
+  variable: "--font-glide",
+  weight: "400 900",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const operatorMono = localFont({
+  display: "swap",
+  src: [
+    { path: "../public/operator-mono-book.woff2", style: "normal", weight: "400" },
+    { path: "../public/operator-mono-book-italic.woff2", style: "italic", weight: "400" },
+    { path: "../public/operator-mono-medium.woff2", style: "normal", weight: "500" },
+    { path: "../public/operator-mono-medium-italic.woff2", style: "italic", weight: "500" },
+  ],
+  variable: "--font-operator-mono",
 });
 
 export const metadata: Metadata = {
-  title: "cmux-diff",
-  description: "GitHub PR-style local diff viewer for cmux",
+  description: "GitHub PR-style local diff viewer",
+  title: "diffr",
 };
 
 export default function RootLayout({
@@ -24,10 +36,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark h-full`}>
-      <body className="h-full overflow-hidden bg-[#0d1117] antialiased">
-        {children}
-        {process.env.NODE_ENV === "development" && <Agentation />}
+    <html
+      lang="en"
+      className={`${glide.variable} ${operatorMono.variable} h-full`}
+      suppressHydrationWarning
+    >
+      <body className="h-full overflow-hidden bg-background antialiased">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+          {children}
+          {process.env.NODE_ENV === "development" && <Agentation />}
+        </ThemeProvider>
       </body>
     </html>
   );

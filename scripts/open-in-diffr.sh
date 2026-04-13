@@ -1,29 +1,29 @@
 #!/bin/bash
 
 # =============================================================================
-# open-in-cmux.sh
-# Open cmux-diff in a cmux browser split pane for the current git repository.
+# open-in-diffr.sh
+# Open diffr in a cmux browser split pane for the current git repository.
 #
 # Dependencies:
 #   - cmux  https://cmux.app/
 #
 # Configure the project path (add to ~/.zshrc):
-#   export CMUX_DIFF_PROJECT="/path/to/cmux-diff"
+#   export DIFFR_PROJECT="/path/to/diffr"
 #
 # Setup:
-#   sudo cp scripts/open-in-cmux.sh /usr/local/bin/cmux-diff-open
+#   sudo cp scripts/open-in-diffr.sh /usr/local/bin/diffr-open
 #
 # Usage (run from inside any git repo):
-#   cmux-diff-open
-#   cmux-diff-open --base develop
-#   cmux-diff-open --port 3000
+#   diffr-open
+#   diffr-open --base develop
+#   diffr-open --port 3000
 # =============================================================================
 
 CMUX="/Applications/cmux.app/Contents/Resources/bin/cmux"
 BASE_BRANCH=""
-PROJECT_DIR="${CMUX_DIFF_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
+PROJECT_DIR="${DIFFR_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
 WEB_DIR="$PROJECT_DIR/apps/web"
-BIN="$WEB_DIR/bin/cmux-diff.mjs"
+BIN="$WEB_DIR/bin/diffr.mjs"
 NPM="$(command -v npm)"
 
 while [[ $# -gt 0 ]]; do
@@ -57,23 +57,23 @@ if true; then
   # Build if no production build exists
   if [[ ! -d "$WEB_DIR/.next" ]]; then
     echo "No build found — running npm run build..."
-    "$CMUX" notify --title "cmux-diff" --body "Building... (first run only)"
-    "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/cmux-diff-build.log 2>&1
+    "$CMUX" notify --title "diffr" --body "Building... (first run only)"
+    "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/diffr-build.log 2>&1
     if [[ $? -ne 0 ]]; then
-      echo "Error: Build failed. See /tmp/cmux-diff-build.log" >&2
-      "$CMUX" notify --title "cmux-diff" --body "Build failed — check /tmp/cmux-diff-build.log"
+      echo "Error: Build failed. See /tmp/diffr-build.log" >&2
+      "$CMUX" notify --title "diffr" --body "Build failed — check /tmp/diffr-build.log"
       exit 1
     fi
     echo "Build complete."
   fi
 
-  "$CMUX" notify --title "cmux-diff" --body "Starting server..."
+  "$CMUX" notify --title "diffr" --body "Starting server..."
 
-  CMUX_DIFF_REPO="$targetDir" \
-    ${BASE_BRANCH:+CMUX_DIFF_BASE="$BASE_BRANCH"} \
+  DIFFR_REPO="$targetDir" \
+    ${BASE_BRANCH:+DIFFR_BASE="$BASE_BRANCH"} \
     node "$BIN" --no-open --port "$PORT" --repo "$targetDir" \
     ${BASE_BRANCH:+--base "$BASE_BRANCH"} \
-    > /tmp/cmux-diff-server.log 2>&1 &
+    > /tmp/diffr-server.log 2>&1 &
 
   trap kill_server EXIT INT TERM
 
@@ -84,8 +84,8 @@ if true; then
       break
     fi
     if [[ $i -eq 40 ]]; then
-      echo "Error: Server did not start in 20 seconds. See /tmp/cmux-diff-server.log" >&2
-      "$CMUX" notify --title "cmux-diff" --body "Server failed to start"
+      echo "Error: Server did not start in 20 seconds. See /tmp/diffr-server.log" >&2
+      "$CMUX" notify --title "diffr" --body "Server failed to start"
       exit 1
     fi
     sleep 0.5
@@ -93,7 +93,7 @@ if true; then
 
 fi
 
-"$CMUX" notify --title "cmux-diff" --body "Opening diff: $targetDir"
+"$CMUX" notify --title "diffr" --body "Opening diff: $targetDir"
 
 cmuxOut=$("$CMUX" --json browser open-split "http://localhost:$PORT/" 2>&1)
 
