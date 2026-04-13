@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDiff, getDiffForFile } from "@/lib/git";
+import { preloadPatchHtmlByLayout } from "@/lib/diff-prerender";
 
 export const GET = async (request: Request) => {
   const { searchParams } = new URL(request.url);
@@ -11,7 +12,13 @@ export const GET = async (request: Request) => {
     const result = file
       ? await getDiffForFile(file, base, mode, whitespace)
       : await getDiff(base, mode, whitespace);
-    return NextResponse.json(result);
+    const prerenderedHTML =
+      file && result.patch ? await preloadPatchHtmlByLayout(result.patch) : undefined;
+
+    return NextResponse.json({
+      ...result,
+      ...(prerenderedHTML ? { prerenderedHTML } : {}),
+    });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

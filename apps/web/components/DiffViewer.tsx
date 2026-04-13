@@ -1,11 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
-import type { DiffLineAnnotation, AnnotationSide, FileDiffMetadata } from "@pierre/diffs";
+import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { DiffFileStat } from "@/lib/git";
+import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { FileDiffHeader } from "./FileDiffHeader";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
@@ -84,12 +85,6 @@ const DiffSkeleton = () => (
 const PatchDiff = dynamic(
   // oxlint-disable-next-line promise/prefer-await-to-then
   () => import("@pierre/diffs/react").then((m) => ({ default: m.PatchDiff })),
-  { loading: () => <DiffSkeleton />, ssr: false },
-);
-
-const FileDiffViewer = dynamic(
-  // oxlint-disable-next-line promise/prefer-await-to-then
-  () => import("@pierre/diffs/react").then((m) => ({ default: m.FileDiff })),
   { loading: () => <DiffSkeleton />, ssr: false },
 );
 
@@ -225,12 +220,12 @@ interface SingleFileDiffProps {
   file: string;
   filePatch: string;
   layout: "split" | "stacked";
+  prerenderedHTML?: string;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   viewed: boolean;
   onToggleViewed: () => void;
   repoPath: string;
-  mergeBase: string;
   onAddComment: (
     file: string,
     lineNumber: number,
@@ -246,12 +241,12 @@ const SingleFileDiff = ({
   file,
   filePatch,
   layout,
+  prerenderedHTML,
   comments,
   fileStat,
   viewed,
   onToggleViewed,
   repoPath,
-  mergeBase,
   onAddComment,
   onDeleteComment,
   onDiscard,
@@ -261,61 +256,6 @@ const SingleFileDiff = ({
     lineNumber: number;
     side: AnnotationSide;
   } | null>(null);
-
-  // Fetch both file versions and build a FileDiffMetadata so the library's
-  // isPartial = false, enabling the built-in collapse/expand feature.
-  const [fileDiffMetadata, setFileDiffMetadata] = useState<FileDiffMetadata | null>(null);
-  useEffect(() => {
-    if (fileStat?.binary) {
-      // keep PatchDiff for binary files
-      return;
-    }
-    setFileDiffMetadata(null);
-    let cancelled = false;
-    const oldRef = mergeBase;
-    // uncommitted mode has mergeBase="HEAD"; new content is the working tree
-    const newRef = mergeBase === "HEAD" ? "WORKING_TREE" : "HEAD";
-    const load = async () => {
-      try {
-        const [oldRes, newRes] = await Promise.all([
-          fetch(`/api/file?path=${encodeURIComponent(file)}&ref=${encodeURIComponent(oldRef)}`),
-          fetch(`/api/file?path=${encodeURIComponent(file)}&ref=${encodeURIComponent(newRef)}`),
-        ]);
-        if (cancelled) {
-          return;
-        }
-        const [oldJson, newJson] = await Promise.all([
-          oldRes.json() as Promise<{ content: string }>,
-          newRes.json() as Promise<{ content: string }>,
-        ]);
-        const oldContent = oldJson.content;
-        const newContent = newJson.content;
-        if (cancelled) {
-          return;
-        }
-        // Lazy-import to keep parseDiffFromFile out of the initial bundle
-        const { parseDiffFromFile } = await import("@pierre/diffs");
-        // context: 3 matches GitHub's default — keeps hunks separate so
-        // gaps produce collapsedBefore > 0, which triggers the expand chevrons.
-        // additionLines/deletionLines still hold the full file (isPartial=false)
-        // so expanding can reveal any line regardless of context size.
-        const metadata = parseDiffFromFile(
-          { contents: oldContent, name: file },
-          { contents: newContent, name: file },
-          { context: 3 },
-        );
-        if (!cancelled) {
-          setFileDiffMetadata(metadata);
-        }
-      } catch {
-        // silently fall back to PatchDiff
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [file, mergeBase, fileStat?.binary]);
 
   const fileComments = useMemo(() => comments.filter((c) => c.file === file), [comments, file]);
 
@@ -404,58 +344,36 @@ const SingleFileDiff = ({
         onDiscard={onDiscard ? () => onDiscard(file) : undefined}
       />
       <div className={cn("transition-opacity duration-200", viewed && "opacity-60")}>
-        {fileDiffMetadata ? (
-          <FileDiffViewer
-            fileDiff={fileDiffMetadata}
-            style={
-              { "--diffs-addition-color-override": "var(--diff-green)" } as React.CSSProperties
-            }
-            options={{
-              collapsedContextThreshold: 3,
-              diffStyle: layout === "split" ? "split" : "unified",
-              disableFileHeader: true,
-              disableLineNumbers: false,
-              enableGutterUtility: true,
-              expansionLineCount: 20,
-              hunkSeparators: "line-info",
-              lineDiffType: "char",
-              lineHoverHighlight: "line",
-              maxLineDiffLength: 500,
-              overflow: "scroll",
-              theme: { dark: "github-dark", light: "github-light" },
-              themeType: resolvedTheme === "light" ? "light" : "dark",
-              unsafeCSS: `[data-diff-span] { border-radius: 0; }`,
-            }}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={renderAnnotation}
-            renderGutterUtility={renderGutterUtility}
-          />
-        ) : (
-          <PatchDiff
-            patch={filePatch}
-            style={
-              { "--diffs-addition-color-override": "var(--diff-green)" } as React.CSSProperties
-            }
-            options={{
-              diffStyle: layout === "split" ? "split" : "unified",
-              disableFileHeader: true,
-              disableLineNumbers: false,
-              enableGutterUtility: true,
-              expansionLineCount: 20,
-              hunkSeparators: "line-info",
-              lineDiffType: "char",
-              lineHoverHighlight: "line",
-              maxLineDiffLength: 500,
-              overflow: "scroll",
-              theme: { dark: "github-dark", light: "github-light" },
-              themeType: resolvedTheme === "light" ? "light" : "dark",
-              unsafeCSS: `[data-diff-span] { border-radius: 0; }`,
-            }}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={renderAnnotation}
-            renderGutterUtility={renderGutterUtility}
-          />
-        )}
+        <PatchDiff
+          key={`${file}:${layout}`}
+          patch={filePatch}
+          prerenderedHTML={prerenderedHTML}
+          disableWorkerPool
+          style={
+            {
+              "--diffs-addition-color-override": "var(--diff-green)",
+              colorScheme: resolvedTheme === "light" ? "light" : "dark",
+            } as React.CSSProperties
+          }
+          options={{
+            diffStyle: layout === "split" ? "split" : "unified",
+            disableFileHeader: true,
+            disableLineNumbers: false,
+            enableGutterUtility: true,
+            expansionLineCount: 20,
+            hunkSeparators: "line-info",
+            lineDiffType: "char",
+            lineHoverHighlight: "line",
+            maxLineDiffLength: 500,
+            overflow: "scroll",
+            theme: { dark: "github-dark", light: "github-light" },
+            themeType: resolvedTheme === "light" ? "light" : "dark",
+            unsafeCSS: `[data-diff-span] { border-radius: 0; }`,
+          }}
+          lineAnnotations={lineAnnotations}
+          renderAnnotation={renderAnnotation}
+          renderGutterUtility={renderGutterUtility}
+        />
       </div>
     </div>
   );
@@ -463,7 +381,7 @@ const SingleFileDiff = ({
 
 interface DiffViewerProps {
   patch: string;
-  mergeBase: string;
+  prerenderedHTML?: PrerenderedDiffHtml;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -484,7 +402,7 @@ interface DiffViewerProps {
 
 export const DiffViewer = ({
   patch,
-  mergeBase,
+  prerenderedHTML,
   layout,
   comments,
   onAddComment,
@@ -531,13 +449,13 @@ export const DiffViewer = ({
         file={file}
         filePatch={patch}
         layout={layout}
+        prerenderedHTML={prerenderedHTML?.[layout]}
         comments={comments}
         fileStat={fileStatMap.get(file)}
         viewed={viewedFiles.has(file)}
         // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onToggleViewed={() => onToggleViewed(file)}
         repoPath={repoPath}
-        mergeBase={mergeBase}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
         onDiscard={onDiscard}

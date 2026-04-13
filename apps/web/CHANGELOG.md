@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.3
+
+### Patch Changes
+
+- Server-side pre-render diff HTML for faster initial load and CLI auto-syncs static assets at startup
+
 ## 0.1.2
 
 ### Patch Changes

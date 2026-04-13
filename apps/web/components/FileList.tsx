@@ -18,6 +18,7 @@ interface FileListProps {
   filterQuery: string;
   onFilterChange: (q: string) => void;
   viewedFiles: Set<string>;
+  isLoading?: boolean;
 }
 
 // ── Tree types ──────────────────────────────────────────────────────────────
@@ -257,6 +258,7 @@ export const FileList = ({
   filterQuery,
   onFilterChange,
   viewedFiles,
+  isLoading = false,
 }: FileListProps) => {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -412,25 +414,37 @@ export const FileList = ({
 
       {/* Tree */}
       <SidebarContent className="gap-0 py-1">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-            <p className="text-xs text-sidebar-foreground/50">No changes</p>
-            {filterQuery && (
-              <p className="text-[10px] text-sidebar-foreground/30">
-                No files match &ldquo;{filterQuery}&rdquo;
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            {renderTree(tree, 0)}
-            {filtered.length > MAX_FILES && (
-              <p className="px-3 py-2 text-[10px] text-sidebar-foreground/40">
-                Showing {MAX_FILES} of {filtered.length} files
-              </p>
-            )}
-          </>
-        )}
+        {(() => {
+          if (isLoading) {
+            return (
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <p className="animate-pulse text-xs text-sidebar-foreground/50">Loading…</p>
+              </div>
+            );
+          }
+          if (filtered.length === 0) {
+            return (
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <p className="text-xs text-sidebar-foreground/50">No changes</p>
+                {filterQuery && (
+                  <p className="text-[10px] text-sidebar-foreground/30">
+                    No files match &ldquo;{filterQuery}&rdquo;
+                  </p>
+                )}
+              </div>
+            );
+          }
+          return (
+            <>
+              {renderTree(tree, 0)}
+              {filtered.length > MAX_FILES && (
+                <p className="px-3 py-2 text-[10px] text-sidebar-foreground/40">
+                  Showing {MAX_FILES} of {filtered.length} files
+                </p>
+              )}
+            </>
+          );
+        })()}
       </SidebarContent>
 
       {/* Context menu */}

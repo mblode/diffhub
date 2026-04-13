@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { program } from "commander";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 
@@ -55,6 +55,29 @@ const waitForServer = async (port, maxMs = 15_000) => {
   return false;
 };
 
+const syncStandaloneAssets = (appDir, standaloneDir) => {
+  const copies = [
+    {
+      from: join(appDir, ".next", "static"),
+      to: join(standaloneDir, ".next", "static"),
+    },
+    {
+      from: join(appDir, "public"),
+      to: join(standaloneDir, "public"),
+    },
+  ];
+
+  for (const copy of copies) {
+    if (!existsSync(copy.from)) {
+      continue;
+    }
+
+    rmSync(copy.to, { force: true, recursive: true });
+    mkdirSync(resolve(copy.to, ".."), { recursive: true });
+    cpSync(copy.from, copy.to, { force: true, recursive: true });
+  }
+};
+
 // -- CLI setup ---------------------------------------------------------------
 
 program
@@ -91,6 +114,7 @@ if (!existsSync(serverPath)) {
 }
 
 const standaloneDir = resolve(serverPath, "..");
+syncStandaloneAssets(appDir, standaloneDir);
 const port = await findFreePort(Number.parseInt(opts.port, 10));
 
 // -- Startup banner ----------------------------------------------------------
