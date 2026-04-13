@@ -1,18 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useDeferredValue, useRef, useState, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
 import type { DiffFileStat } from "@/lib/git";
 import type { Comment, CommentTag } from "@/lib/comments";
-
-interface DiffData {
-  patch: string;
-  baseBranch: string;
-  mergeBase: string;
-  branch: string;
-}
 
 interface FilesData {
   files: DiffFileStat[];
@@ -22,81 +15,124 @@ interface FilesData {
   baseBranch: string;
 }
 
+interface FileDiff {
+  patch: string;
+  baseBranch: string;
+  mergeBase: string;
+  branch: string;
+}
+
 const POLL_INTERVAL = 5000;
 
 export function DiffApp({ repoPath }: { repoPath: string }) {
-  const [diffData, setDiffData] = useState<DiffData | null>(null);
   const [filesData, setFilesData] = useState<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<FileDiff | null>(null);
+  // Per-file patch cache: avoids re-fetching when switching back to a previously viewed file
+  const diffCacheRef = useRef<Map<string, FileDiff>>(new Map());
   const [layout, setLayout] = useState<"split" | "stacked">("split");
   const [filterQuery, setFilterQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const lastPatchRef = useRef<string | null>(null);
+  // Fingerprint of last-seen file stats to detect real changes between polls
+  const lastStatsRef = useRef<string | null>(null);
+  // In-flight guard: don't start a new poll if previous is still running
+  const fetchingRef = useRef(false);
 
-  async function fetchDiff(silent = false) {
+  // Deferred patch for DiffViewer — keeps sidebar responsive during large renders
+  const deferredFileDiff = useDeferredValue(fileDiff);
+
+  // Fetch the diff for a single file; uses local cache
+  const fetchFileDiff = useCallback(async (file: string) => {
+    const cached = diffCacheRef.current.get(file);
+    if (cached) {
+      setFileDiff(cached);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/diff?file=${encodeURIComponent(file)}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as FileDiff;
+      diffCacheRef.current.set(file, data);
+      setFileDiff(data);
+    } catch {}
+  }, []);
+
+  // Poll /api/files for change detection (lightweight) + /api/comments
+  const pollFiles = useCallback(async (silent = false) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     if (!silent) setRefreshing(true);
     setError(null);
+
     try {
-      const [diffRes, filesRes, commentsRes] = await Promise.all([
-        fetch("/api/diff"),
+      const [filesRes, commentsRes] = await Promise.all([
         fetch("/api/files"),
         fetch("/api/comments"),
       ]);
 
-      if (!diffRes.ok || !filesRes.ok) {
-        const err = await diffRes.json().catch(() => ({ error: "Network error" }));
-        setError(err.error ?? "Failed to load diff");
+      if (!filesRes.ok) {
+        const err = await filesRes.json().catch(() => ({ error: "Network error" }));
+        setError(err.error ?? "Failed to load files");
         return;
       }
 
-      const [diff, files, commentsData] = await Promise.all([
-        diffRes.json() as Promise<DiffData>,
+      const [files, commentsData] = await Promise.all([
         filesRes.json() as Promise<FilesData>,
         commentsRes.json() as Promise<Comment[]>,
       ]);
 
-      // Only update diff if patch changed (avoids re-render flicker)
-      if (diff.patch !== lastPatchRef.current) {
-        lastPatchRef.current = diff.patch;
-        setDiffData(diff);
-      }
       setFilesData(files);
       setComments(commentsData);
       setLastUpdated(new Date());
 
-      // Auto-select first file
-      if (!selectedFile && files.files.length > 0) {
-        setSelectedFile(files.files[0].file);
+      // Auto-select first file on initial load
+      setSelectedFile((prev) => {
+        if (!prev && files.files.length > 0) {
+          const first = files.files[0].file;
+          fetchFileDiff(first);
+          return first;
+        }
+        return prev;
+      });
+
+      // Detect if file stats changed — if so, invalidate cache and re-fetch selected file
+      const fingerprint = files.files.map((f) => `${f.file}:${f.insertions}:${f.deletions}`).join("|");
+      if (fingerprint !== lastStatsRef.current) {
+        lastStatsRef.current = fingerprint;
+        diffCacheRef.current.clear();
+        setSelectedFile((prev) => {
+          if (prev) fetchFileDiff(prev);
+          return prev;
+        });
       }
     } catch (err) {
       setError(String(err));
     } finally {
       setRefreshing(false);
+      fetchingRef.current = false;
     }
-  }
+  }, [fetchFileDiff]);
 
   // Initial load
   useEffect(() => {
-    fetchDiff();
-  }, []);
+    pollFiles();
+  }, [pollFiles]);
 
-  // Polling
+  // Polling — only /api/files, not the full patch
   useEffect(() => {
-    const interval = setInterval(() => fetchDiff(true), POLL_INTERVAL);
+    const interval = setInterval(() => pollFiles(true), POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, []);
+  }, [pollFiles]);
 
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
-      if (e.key === "r") {
-        fetchDiff();
-      }
+      if (e.key === "r") pollFiles();
       if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
         setLayout((l) => (l === "split" ? "stacked" : "split"));
       }
@@ -104,68 +140,28 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
         e.preventDefault();
         document.querySelector<HTMLInputElement>('input[placeholder="Filter files…"]')?.focus();
       }
-      // j/k navigate files
       if (e.key === "j" || e.key === "k") {
         const files = filesData?.files ?? [];
         if (files.length === 0) return;
         const idx = files.findIndex((f) => f.file === selectedFile);
-        if (e.key === "j") {
-          const next = files[idx + 1];
-          if (next) {
-            setSelectedFile(next.file);
-            scrollToFile(next.file);
-          }
-        } else {
-          const prev = files[idx - 1];
-          if (prev) {
-            setSelectedFile(prev.file);
-            scrollToFile(prev.file);
-          }
-        }
+        const next = e.key === "j" ? files[idx + 1] : files[idx - 1];
+        if (next) handleSelectFile(next.file);
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [filesData, selectedFile]);
 
-  function scrollToFile(file: string) {
-    const container = document.getElementById("diff-container");
-    if (!container) return;
-    const filename = file.split("/").pop() ?? file;
-    const elements = container.querySelectorAll("[data-filename]");
-    for (const el of elements) {
-      if (el.getAttribute("data-filename")?.includes(filename)) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-      }
-    }
-    // Fallback: search all text
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.textContent?.includes(filename)) {
-        node.parentElement?.scrollIntoView({ behavior: "smooth", block: "start" });
-        return;
-      }
-    }
-  }
-
   const handleSelectFile = useCallback(
     (file: string) => {
-      setSelectedFile(file);
-      scrollToFile(file);
+      startTransition(() => setSelectedFile(file));
+      fetchFileDiff(file);
     },
-    []
+    [fetchFileDiff]
   );
 
   const handleAddComment = useCallback(
-    async (
-      file: string,
-      lineNumber: number,
-      side: string,
-      body: string,
-      tag: CommentTag
-    ) => {
+    async (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => {
       const res = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,7 +189,7 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
             <p className="text-xs opacity-80">{error}</p>
           </div>
           <button
-            onClick={() => fetchDiff()}
+            onClick={() => pollFiles()}
             className="rounded bg-[#21262d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#30363d] transition-colors"
           >
             Retry
@@ -206,16 +202,14 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
   return (
     <div className="flex h-screen flex-col bg-[#0d1117] text-[#e6edf3] overflow-hidden">
       <StatusBar
-        branch={filesData?.branch ?? diffData?.branch ?? "…"}
-        baseBranch={filesData?.baseBranch ?? diffData?.baseBranch ?? "main"}
+        branch={filesData?.branch ?? "…"}
+        baseBranch={filesData?.baseBranch ?? "main"}
         insertions={filesData?.insertions ?? 0}
         deletions={filesData?.deletions ?? 0}
         fileCount={filesData?.files.length ?? 0}
         layout={layout}
-        onLayoutToggle={() =>
-          setLayout((l) => (l === "split" ? "stacked" : "split"))
-        }
-        onRefresh={() => fetchDiff()}
+        onLayoutToggle={() => setLayout((l) => (l === "split" ? "stacked" : "split"))}
+        onRefresh={() => pollFiles()}
         refreshing={refreshing}
         lastUpdated={lastUpdated}
         comments={comments}
@@ -237,9 +231,9 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
         />
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          {diffData ? (
+          {deferredFileDiff ? (
             <DiffViewer
-              patch={diffData.patch}
+              patch={deferredFileDiff.patch}
               layout={layout}
               comments={comments}
               onAddComment={handleAddComment}
@@ -256,7 +250,6 @@ export function DiffApp({ repoPath }: { repoPath: string }) {
         </main>
       </div>
 
-      {/* Keyboard shortcuts hint */}
       <footer className="border-t border-white/5 px-4 py-1 text-[10px] text-[#8b949e] flex gap-4">
         <span><kbd className="font-mono">j/k</kbd> navigate files</span>
         <span><kbd className="font-mono">s</kbd> toggle split</span>

@@ -1,11 +1,16 @@
 "use client";
 
-import { PatchDiff } from "@pierre/diffs/react";
+import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
 import type {
   DiffLineAnnotation,
   AnnotationSide,
 } from "@pierre/diffs";
+
+const PatchDiff = dynamic(
+  () => import("@pierre/diffs/react").then((m) => ({ default: m.PatchDiff })),
+  { ssr: false, loading: () => <div className="p-4 text-sm text-[#8b949e] animate-pulse">Rendering diff…</div> }
+);
 import type { Comment, CommentTag } from "@/lib/comments";
 
 const TAGS: CommentTag[] = [
