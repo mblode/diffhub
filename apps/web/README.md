@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-green)](https://nodejs.org)
 
-GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
+GitHub PR-style diff viewer. Opens in the browser and shows tracked changes relative to your merge-base by default, with a UI toggle for uncommitted-only changes, split/unified diff views, inline comments, and live auto-refresh.
 
 ## Install
 
@@ -25,7 +25,7 @@ Run inside any git repository:
 diffhub
 ```
 
-Opens `http://localhost:2047` and shows all changes between your current branch and `main` (or `master` / `develop`, auto-detected).
+Opens `http://localhost:2047` and shows tracked changes relative to your branch merge-base (`main`, `master`, `develop`, or `dev`, auto-detected).
 
 ```bash
 # Use a different base branch
@@ -43,12 +43,19 @@ diffhub --no-open
 
 ## Features
 
-- **PR-style diff** — diffs against the merge-base of your base branch, matching GitHub's "Files Changed" view exactly
+- **PR-style diff** — defaults to merge-base diffs and also supports an uncommitted-only mode from the UI
 - **Split and unified views** — toggle with `s`, keyboard-navigable with `j` / `k`
+- **Whitespace filtering** — ignore whitespace-only changes from the top bar when reviewing formatting-heavy diffs
 - **Inline AI comments** — add `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]` notes on any diff line; copy all comments as a formatted prompt
 - **"Open in" context menu** — right-click any file to open in Zed, VS Code, Ghostty, Terminal, Finder, or copy the path
 - **Live refresh** — polls for changes every 5 seconds; manual refresh with `r`
 - **File sidebar** — filter files with `/`, see per-file `+`/`-` stats at a glance
+
+## Development notes
+
+- The standalone CLI injects `DIFFHUB_REPO` into the Next.js server process.
+- Local development can also point at a repo through `DIFFHUB_REPO` or the `/tmp/diffhub-active-repo` pointer file used by `diffhub-point`.
+- The app ships a standalone Next.js build via `bin/diffhub.mjs`, not `next start`.
 
 ## Keyboard shortcuts
 

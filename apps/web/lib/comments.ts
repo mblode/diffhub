@@ -1,10 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { getConfiguredRepoPath } from "./repo-path";
 
-const getCommentsPath = (): string => {
-  const repoPath = process.env.DIFFHUB_REPO ?? process.cwd();
-  return join(repoPath, ".git", "diffhub-comments.json");
-};
+const getCommentsPath = (): string => join(getConfiguredRepoPath(), ".git", "diffhub-comments.json");
 
 export type CommentTag = "[must-fix]" | "[suggestion]" | "[nit]" | "[question]" | "";
 

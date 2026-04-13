@@ -28,7 +28,7 @@ cp -r .next/static .next/standalone/apps/web/.next/static
 ## Gotchas
 
 **`PatchDiff` only accepts single-file patches.**
-`PatchDiff` calls `getSingularPatch()` internally and throws `"FileDiff: Provided patch must contain exactly 1 file diff"` if the patch has >1 file. Split the full multi-file patch with `/(?=^diff --git )/gm` and render one `PatchDiff` per file. See `components/DiffViewer.tsx` → `splitPatch()`.
+`PatchDiff` calls `getSingularPatch()` internally and throws `"FileDiff: Provided patch must contain exactly 1 file diff"` if the patch has >1 file. `DiffApp` currently fetches one file patch at a time, and `DiffViewer` renders a single `SingleFileDiff`. If you ever reintroduce a repo-wide patch path, split it before handing patches to `PatchDiff`.
 
 **@pierre/diffs annotations use `metadata`, not `data`.**
 `DiffLineAnnotation<T>` has a `metadata` field. Using `data` compiles silently but the annotation never renders.
@@ -45,6 +45,12 @@ Valid values: `'split' | 'unified'`. The prop `layout` does not exist and is sil
 **`DIFFHUB_REPO` must be set for API routes to resolve the correct repo.**
 Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server directory, not the target repo. Set it in `.env.local` for dev or via the CLI env injection for production.
 
+**Page-level repo resolution must use the same resolver as the server helpers.**
+`app/page.tsx`, `lib/git.ts`, and `lib/comments.ts` should all read the same configured repo path so localStorage keys, context-menu open actions, and comment storage stay aligned.
+
+**Whitespace filtering is wired through both diff routes.**
+`/api/diff` and `/api/files` both accept `ws=ignore`, and `DiffApp` is responsible for keeping the current whitespace mode in sync across file stats and the selected-file patch fetch.
+
 **`outputFileTracingRoot` must be the monorepo root, not `__dirname`.**
 `next.config.ts` sets `outputFileTracingRoot: join(__dirname, "../..")`. Using `__dirname` (the app directory) breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/web/server.js` — not a flat `server.js`.
 
@@ -56,5 +62,5 @@ Because `outputFileTracingRoot` is the repo root, the standalone server lives at
 - API routes (`app/api/*/route.ts`) are server-only — no `"use client"` directive there
 - Icons come from `blode-icons-react`, not `lucide-react`
 - Comments are stored in `.git/diffhub-comments.json` (gitignored in the target repo, not this one)
-- Diff is always `mergeBase...HEAD` — never `HEAD~1` or uncommitted changes
+- Diff defaults to merge-base changes, with a UI toggle for uncommitted-only changes
 - Base branch prefers `origin/main` over local `main` so unpushed commits are visible even when on main
