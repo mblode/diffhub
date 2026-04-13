@@ -414,7 +414,6 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           />
         </div>
       </SidebarInset>
-
     </SidebarProvider>
   );
 };

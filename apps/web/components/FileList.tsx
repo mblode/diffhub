@@ -160,7 +160,12 @@ const FileRow = memo(function FileRow({
           : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         isViewed && "opacity-50",
       )}
-      style={{ paddingLeft: indent, paddingRight: 8, contentVisibility: "auto", containIntrinsicBlockSize: "26px" }}
+      style={{
+        containIntrinsicBlockSize: "26px",
+        contentVisibility: "auto",
+        paddingLeft: indent,
+        paddingRight: 8,
+      }}
       // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
       onClick={() => onSelect(node.path)}
       // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
