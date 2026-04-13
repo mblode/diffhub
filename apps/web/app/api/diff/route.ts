@@ -6,8 +6,11 @@ export const GET = async (request: Request) => {
   const base = searchParams.get("base") ?? undefined;
   const file = searchParams.get("file") ?? undefined;
   const mode = searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
+  const whitespace = searchParams.get("ws") === "ignore" ? ("ignore" as const) : undefined;
   try {
-    const result = file ? await getDiffForFile(file, base, mode) : await getDiff(base, mode);
+    const result = file
+      ? await getDiffForFile(file, base, mode, whitespace)
+      : await getDiff(base, mode, whitespace);
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

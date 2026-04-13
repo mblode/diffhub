@@ -216,16 +216,10 @@ const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () 
   );
 };
 
-// PatchDiff only handles single-file patches. Split the full multi-file patch
-// on "diff --git" boundaries and render one PatchDiff per file.
-const splitPatch = (patch: string): { file: string; patch: string }[] =>
-  patch
-    .split(/(?=^diff --git )/gm)
-    .filter((s) => s.trimStart().startsWith("diff --git "))
-    .map((filePatch) => {
-      const match = filePatch.match(/^diff --git a\/(.+?) b\//m);
-      return { file: match?.[1] ?? "", patch: filePatch };
-    });
+const getPatchFile = (patch: string): string | null => {
+  const match = patch.match(/^diff --git a\/(.+?) b\//m);
+  return match?.[1] ?? null;
+};
 
 interface SingleFileDiffProps {
   file: string;
@@ -502,17 +496,6 @@ export const DiffViewer = ({
   repoPath,
   onDiscard,
 }: DiffViewerProps) => {
-  const filePatches = useMemo(() => splitPatch(patch), [patch]);
-
-  // Must be computed before any conditional return (rules of hooks)
-  const visible = useMemo(() => {
-    if (!selectedFileId) {
-      return filePatches.slice(0, 1);
-    }
-    const match = filePatches.filter((f) => f.file === selectedFileId);
-    return match.length > 0 ? match : filePatches.slice(0, 1);
-  }, [filePatches, selectedFileId]);
-
   const fileStatMap = useMemo(() => {
     const map = new Map<string, DiffFileStat>();
     for (const s of fileStats) {
@@ -521,7 +504,12 @@ export const DiffViewer = ({
     return map;
   }, [fileStats]);
 
-  if (!patch || filePatches.length === 0) {
+  const file = useMemo(
+    () => selectedFileId ?? getPatchFile(patch),
+    [patch, selectedFileId],
+  );
+
+  if (!patch || !file) {
     return (
       <Empty className="h-full">
         <EmptyHeader>
@@ -542,24 +530,21 @@ export const DiffViewer = ({
 
   return (
     <div className="h-full overflow-auto" id="diff-container">
-      {visible.map(({ file, patch: filePatch }) => (
-        <SingleFileDiff
-          key={file}
-          file={file}
-          filePatch={filePatch}
-          layout={layout}
-          comments={comments}
-          fileStat={fileStatMap.get(file)}
-          viewed={viewedFiles.has(file)}
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onToggleViewed={() => onToggleViewed(file)}
-          repoPath={repoPath}
-          mergeBase={mergeBase}
-          onAddComment={onAddComment}
-          onDeleteComment={onDeleteComment}
-          onDiscard={onDiscard}
-        />
-      ))}
+      <SingleFileDiff
+        file={file}
+        filePatch={patch}
+        layout={layout}
+        comments={comments}
+        fileStat={fileStatMap.get(file)}
+        viewed={viewedFiles.has(file)}
+        // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+        onToggleViewed={() => onToggleViewed(file)}
+        repoPath={repoPath}
+        mergeBase={mergeBase}
+        onAddComment={onAddComment}
+        onDeleteComment={onDeleteComment}
+        onDiscard={onDiscard}
+      />
     </div>
   );
 };

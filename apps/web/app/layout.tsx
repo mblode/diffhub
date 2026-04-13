@@ -1,6 +1,7 @@
 import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { DiffsWorkerProvider } from "@/components/DiffsWorkerProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -43,7 +44,7 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          {children}
+          <DiffsWorkerProvider>{children}</DiffsWorkerProvider>
           {process.env.NODE_ENV === "development" && <Agentation />}
         </ThemeProvider>
       </body>

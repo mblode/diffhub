@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useDeferredValue, useRef, useState, startTransition } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  startTransition,
+} from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
@@ -16,6 +24,7 @@ interface FilesData {
   deletions: number;
   branch: string;
   baseBranch: string;
+  fingerprint: string;
 }
 
 interface FileDiff {
@@ -28,6 +37,7 @@ interface FileDiff {
 interface MainPanelProps {
   filesData: FilesData | null;
   deferredFileDiff: FileDiff | null;
+  fileDiffPending: boolean;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -45,7 +55,12 @@ interface MainPanelProps {
   onDiscard: ((file: string) => Promise<void>) | undefined;
 }
 
-const Placeholder = ({ text, pulse = false }: { text: string; pulse?: boolean }) => (
+interface PlaceholderProps {
+  text: string;
+  pulse?: boolean;
+}
+
+const Placeholder = ({ text, pulse = false }: PlaceholderProps): React.JSX.Element => (
   <div className="flex h-full items-center justify-center">
     <div className={`text-muted-foreground text-sm${pulse ? " animate-pulse" : ""}`}>{text}</div>
   </div>
@@ -54,6 +69,7 @@ const Placeholder = ({ text, pulse = false }: { text: string; pulse?: boolean })
 const MainPanel = ({
   filesData,
   deferredFileDiff,
+  fileDiffPending,
   layout,
   comments,
   onAddComment,
@@ -63,14 +79,14 @@ const MainPanel = ({
   onToggleViewed,
   repoPath,
   onDiscard,
-}: MainPanelProps) => {
+}: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
   }
   if (filesData.files.length === 0) {
     return <Placeholder text="No changes" />;
   }
-  if (!deferredFileDiff) {
+  if (!deferredFileDiff || fileDiffPending) {
     return <Placeholder text="Loading diff…" pulse />;
   }
   return (
@@ -92,6 +108,34 @@ const MainPanel = ({
 };
 
 const POLL_INTERVAL = 5000;
+const MAX_DIFF_CACHE_ENTRIES = 50;
+
+const getCachedDiff = (cache: Map<string, FileDiff>, file: string): FileDiff | null => {
+  const cached = cache.get(file);
+  if (!cached) {
+    return null;
+  }
+
+  cache.delete(file);
+  cache.set(file, cached);
+  return cached;
+};
+
+const setCachedDiff = (cache: Map<string, FileDiff>, file: string, diff: FileDiff): void => {
+  if (cache.has(file)) {
+    cache.delete(file);
+  }
+  cache.set(file, diff);
+
+  if (cache.size <= MAX_DIFF_CACHE_ENTRIES) {
+    return;
+  }
+
+  const oldestKey = cache.keys().next().value;
+  if (oldestKey) {
+    cache.delete(oldestKey);
+  }
+};
 
 export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
@@ -111,10 +155,15 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const [diffMode, setDiffMode] = useState<DiffMode>("all");
   // Ref so callbacks always read the latest mode without being recreated
   const diffModeRef = useRef<DiffMode>("all");
-  // Fingerprint of last-seen file stats to detect real changes between polls
-  const lastStatsRef = useRef<string | null>(null);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
+  const ignoreWhitespaceRef = useRef(false);
+  // Fingerprint of the current diff tree. Unlike summary counts, this changes on renames
+  // and mode-only edits as well as regular content changes.
+  const lastDiffFingerprintRef = useRef<string | null>(null);
   // In-flight guard: don't start a new poll if previous is still running
   const fetchingRef = useRef(false);
+  const latestDiffRequestRef = useRef(0);
+  const [isFileDiffPending, startFileDiffTransition] = useTransition();
   // Viewed files — persisted to localStorage per repo
   const [viewedFiles, setViewedFiles] = useState<Set<string>>(() => {
     if (typeof window === "undefined") {
@@ -152,27 +201,50 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   // Deferred patch for DiffViewer — keeps sidebar responsive during large renders
   const deferredFileDiff = useDeferredValue(fileDiff);
 
+  const buildDiffQuery = useCallback((file?: string): string => {
+    const params = new URLSearchParams();
+    if (file) {
+      params.set("file", file);
+    }
+    if (diffModeRef.current === "uncommitted") {
+      params.set("mode", "uncommitted");
+    }
+    if (ignoreWhitespaceRef.current) {
+      params.set("ws", "ignore");
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }, []);
+
   // Fetch the diff for a single file; uses local cache
   const fetchFileDiff = useCallback(async (file: string) => {
-    const cached = diffCacheRef.current.get(file);
+    latestDiffRequestRef.current += 1;
+    const requestId = latestDiffRequestRef.current;
+    const cached = getCachedDiff(diffCacheRef.current, file);
     if (cached) {
-      setFileDiff(cached);
+      if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+        return;
+      }
+      startFileDiffTransition(() => setFileDiff(cached));
       return;
     }
     try {
-      const mode = diffModeRef.current;
-      const modeParam = mode === "uncommitted" ? "&mode=uncommitted" : "";
-      const res = await fetch(`/api/diff?file=${encodeURIComponent(file)}${modeParam}`);
+      const res = await fetch(`/api/diff${buildDiffQuery(file)}`);
       if (!res.ok) {
         return;
       }
       const data = (await res.json()) as FileDiff;
-      diffCacheRef.current.set(file, data);
-      setFileDiff(data);
+      if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+        return;
+      }
+      startFileDiffTransition(() => {
+        setCachedDiff(diffCacheRef.current, file, data);
+        setFileDiff(data);
+      });
     } catch {
       // empty
     }
-  }, []);
+  }, [buildDiffQuery, startFileDiffTransition]);
 
   const handleSelectFile = useCallback(
     (file: string) => {
@@ -182,6 +254,61 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     },
     [fetchFileDiff],
   );
+
+  const reconcileSelectedFile = useCallback(
+    (files: FilesData) => {
+      if (files.files.length === 0) {
+        selectedFileRef.current = null;
+        latestDiffRequestRef.current += 1;
+        startTransition(() => {
+          setSelectedFile(null);
+          setFileDiff(null);
+        });
+        lastDiffFingerprintRef.current = files.fingerprint;
+        return;
+      }
+
+      if (!selectedFileRef.current) {
+        const first = files.files[0].file;
+        selectedFileRef.current = first;
+        startTransition(() => setSelectedFile(first));
+        fetchFileDiff(first);
+      }
+
+      const currentSelection = selectedFileRef.current;
+      if (currentSelection && !files.files.some((file) => file.file === currentSelection)) {
+        const nextFile = files.files[0]?.file ?? null;
+        selectedFileRef.current = nextFile;
+        latestDiffRequestRef.current += 1;
+        startTransition(() => {
+          setSelectedFile(nextFile);
+          setFileDiff(null);
+        });
+        if (nextFile) {
+          fetchFileDiff(nextFile);
+        }
+      }
+
+      if (files.fingerprint === lastDiffFingerprintRef.current) {
+        return;
+      }
+
+      lastDiffFingerprintRef.current = files.fingerprint;
+      latestDiffRequestRef.current += 1;
+      diffCacheRef.current.clear();
+      const curr = selectedFileRef.current;
+      if (curr) {
+        fetchFileDiff(curr);
+      }
+    },
+    [fetchFileDiff],
+  );
+
+  const invalidateDiffState = useCallback(() => {
+    latestDiffRequestRef.current += 1;
+    diffCacheRef.current.clear();
+    lastDiffFingerprintRef.current = null;
+  }, []);
 
   // Poll /api/files for change detection (lightweight) + /api/comments
   const pollFiles = useCallback(
@@ -196,11 +323,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       setLoadError(null);
 
       try {
-        const mode = diffModeRef.current;
-        const modeParam = mode === "uncommitted" ? "?mode=uncommitted" : "";
-
         const [filesRes, commentsRes] = await Promise.all([
-          fetch(`/api/files${modeParam}`),
+          fetch(`/api/files${buildDiffQuery()}`),
           fetch("/api/comments"),
         ]);
 
@@ -220,27 +344,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           setComments(commentsData);
         });
         setLastUpdated(new Date());
-
-        // Auto-select first file on initial load
-        if (!selectedFileRef.current && files.files.length > 0) {
-          const first = files.files[0].file;
-          selectedFileRef.current = first;
-          setSelectedFile(first);
-          fetchFileDiff(first);
-        }
-
-        // Detect if file stats changed — if so, invalidate cache and re-fetch selected file
-        const fingerprint = files.files
-          .map((f) => `${f.file}:${f.insertions}:${f.deletions}`)
-          .join("|");
-        if (fingerprint !== lastStatsRef.current) {
-          lastStatsRef.current = fingerprint;
-          diffCacheRef.current.clear();
-          const curr = selectedFileRef.current;
-          if (curr) {
-            fetchFileDiff(curr);
-          }
-        }
+        reconcileSelectedFile(files);
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : String(error));
       } finally {
@@ -250,7 +354,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         fetchingRef.current = false;
       }
     },
-    [fetchFileDiff],
+    [buildDiffQuery, reconcileSelectedFile],
   );
 
   // Initial load
@@ -306,11 +410,20 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       // update ref immediately so next poll/fetch uses it
       diffModeRef.current = mode;
       setDiffMode(mode);
-      diffCacheRef.current.clear();
-      lastStatsRef.current = null;
+      invalidateDiffState();
       pollFiles(false);
     },
-    [pollFiles],
+    [invalidateDiffState, pollFiles],
+  );
+
+  const handleIgnoreWhitespaceChange = useCallback(
+    (nextIgnoreWhitespace: boolean) => {
+      ignoreWhitespaceRef.current = nextIgnoreWhitespace;
+      setIgnoreWhitespace(nextIgnoreWhitespace);
+      invalidateDiffState();
+      pollFiles(false);
+    },
+    [invalidateDiffState, pollFiles],
   );
 
   const handleAddComment = useCallback(
@@ -394,6 +507,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           comments={comments}
           diffMode={diffMode}
           onDiffModeChange={handleDiffModeChange}
+          ignoreWhitespace={ignoreWhitespace}
+          onIgnoreWhitespaceChange={handleIgnoreWhitespaceChange}
           layout={layout}
           onLayoutChange={setLayout}
         />
@@ -402,6 +517,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           <MainPanel
             filesData={filesData}
             deferredFileDiff={deferredFileDiff}
+            fileDiffPending={isFileDiffPending}
             layout={layout}
             comments={comments}
             onAddComment={handleAddComment}

@@ -1,15 +1,15 @@
 import { simpleGit } from "simple-git";
 import type { SimpleGit } from "simple-git";
+import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-
-const REPO_POINTER = "/tmp/diffhub-active-repo";
+import { getConfiguredRepoPath, REPO_POINTER } from "./repo-path";
 
 // TTL cache — avoids spawning git subprocesses on every poll
 const cache = new Map<string, { value: unknown; expires: number }>();
 let lastPointerMtime = 0;
 
-const bustCacheIfRepoChanged = () => {
+const bustCacheIfRepoChanged = (): void => {
   try {
     const mtime = statSync(REPO_POINTER).mtimeMs;
     if (mtime !== lastPointerMtime) {
@@ -32,21 +32,14 @@ const cached = async <T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
   return value;
 };
 
-const getRepoPath = (): string => {
-  // Temp file from diffhub-point takes priority (dev workflow)
-  try {
-    const p = readFileSync(REPO_POINTER, "utf-8").trim();
-    if (p) {
-      return p;
-    }
-  } catch {
-    // empty
-  }
-  // Fallback: env var (set by CLI in production, or .env.local)
-  return process.env.DIFFHUB_REPO ?? process.cwd();
-};
+const getRepoPath = (): string => getConfiguredRepoPath();
 
 const git = (): SimpleGit => simpleGit(getRepoPath());
+
+const getDiffFingerprint = async (g: SimpleGit, args: string[]): Promise<string> => {
+  const raw = await g.raw(["diff", "--raw", "-M", ...args]);
+  return createHash("sha1").update(raw).digest("hex");
+};
 
 export const getBaseBranch = (): Promise<string> => {
   const repoPath = getRepoPath();
@@ -84,19 +77,28 @@ export interface DiffResult {
   branch: string;
 }
 
-export const getDiff = (base?: string, mode?: "uncommitted"): Promise<DiffResult> => {
+export type WhitespaceMode = "ignore";
+
+const addWhitespaceArgs = (args: string[], whitespace?: WhitespaceMode): string[] =>
+  whitespace === "ignore" ? ["-w", ...args] : args;
+
+export const getDiff = (
+  base?: string,
+  mode?: "uncommitted",
+  whitespace?: WhitespaceMode,
+): Promise<DiffResult> => {
   const repoPath = getRepoPath();
-  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}`, 2000, async () => {
+  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}`, 2000, async () => {
     const g = git();
     const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
     const branch = raw.trim();
     if (mode === "uncommitted") {
-      const patch = await g.diff(["HEAD"]);
+      const patch = await g.diff(addWhitespaceArgs(["HEAD"], whitespace));
       return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
     }
     const baseBranch = base ?? (await getBaseBranch());
     const mergeBase = await getMergeBase(baseBranch);
-    const patch = await g.diff([mergeBase]);
+    const patch = await g.diff(addWhitespaceArgs([mergeBase], whitespace));
     return { baseBranch, branch, mergeBase, patch };
   });
 };
@@ -105,21 +107,26 @@ export const getDiffForFile = (
   file: string,
   base?: string,
   mode?: "uncommitted",
+  whitespace?: WhitespaceMode,
 ): Promise<DiffResult> => {
   const repoPath = getRepoPath();
-  return cached(`diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${file}`, 2000, async () => {
-    const g = git();
-    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
-    const branch = raw.trim();
-    if (mode === "uncommitted") {
-      const patch = await g.diff(["HEAD", "--", file]);
-      return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
-    }
-    const baseBranch = base ?? (await getBaseBranch());
-    const mergeBase = await getMergeBase(baseBranch);
-    const patch = await g.diff([mergeBase, "--", file]);
-    return { baseBranch, branch, mergeBase, patch };
-  });
+  return cached(
+    `diff:${repoPath}:${base ?? ""}:${mode ?? ""}:${file}:${whitespace ?? ""}`,
+    2000,
+    async () => {
+      const g = git();
+      const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+      const branch = raw.trim();
+      if (mode === "uncommitted") {
+        const patch = await g.diff(addWhitespaceArgs(["HEAD", "--", file], whitespace));
+        return { baseBranch: "HEAD", branch, mergeBase: "HEAD", patch };
+      }
+      const baseBranch = base ?? (await getBaseBranch());
+      const mergeBase = await getMergeBase(baseBranch);
+      const patch = await g.diff(addWhitespaceArgs([mergeBase, "--", file], whitespace));
+      return { baseBranch, branch, mergeBase, patch };
+    },
+  );
 };
 
 export interface DiffFileStat {
@@ -136,36 +143,49 @@ export interface DiffStatsResult {
   deletions: number;
   branch: string;
   baseBranch: string;
+  fingerprint: string;
 }
 
-export const getDiffStats = (base?: string, mode?: "uncommitted"): Promise<DiffStatsResult> => {
+export const getDiffStats = (
+  base?: string,
+  mode?: "uncommitted",
+  whitespace?: WhitespaceMode,
+): Promise<DiffStatsResult> => {
   const repoPath = getRepoPath();
-  return cached(`stats:${repoPath}:${base ?? ""}:${mode ?? ""}`, 2000, async () => {
-    const g = git();
-    const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
-    const branch = raw.trim();
-    if (mode === "uncommitted") {
-      const baseBranch = "HEAD";
-      const summary = await g.diffSummary(["HEAD"]);
+  return cached(
+    `stats:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}`,
+    2000,
+    async () => {
+      const g = git();
+      const raw = await g.revparse(["--abbrev-ref", "HEAD"]);
+      const branch = raw.trim();
+      if (mode === "uncommitted") {
+        const baseBranch = "HEAD";
+        const summary = await g.diffSummary(addWhitespaceArgs(["HEAD"], whitespace));
+        const fingerprint = await getDiffFingerprint(g, addWhitespaceArgs(["HEAD"], whitespace));
+        return {
+          baseBranch,
+          branch,
+          deletions: summary.deletions,
+          files: summary.files as DiffFileStat[],
+          fingerprint,
+          insertions: summary.insertions,
+        };
+      }
+      const baseBranch = base ?? (await getBaseBranch());
+      const mergeBase = await getMergeBase(baseBranch);
+      const summary = await g.diffSummary(addWhitespaceArgs([mergeBase], whitespace));
+      const fingerprint = await getDiffFingerprint(g, addWhitespaceArgs([mergeBase], whitespace));
       return {
         baseBranch,
         branch,
         deletions: summary.deletions,
         files: summary.files as DiffFileStat[],
+        fingerprint,
         insertions: summary.insertions,
       };
-    }
-    const baseBranch = base ?? (await getBaseBranch());
-    const mergeBase = await getMergeBase(baseBranch);
-    const summary = await g.diffSummary([mergeBase]);
-    return {
-      baseBranch,
-      branch,
-      deletions: summary.deletions,
-      files: summary.files as DiffFileStat[],
-      insertions: summary.insertions,
-    };
-  });
+    },
+  );
 };
 
 /**

@@ -34,6 +34,8 @@ interface StatusBarProps {
   comments: Comment[];
   diffMode: DiffMode;
   onDiffModeChange: (mode: DiffMode) => void;
+  ignoreWhitespace: boolean;
+  onIgnoreWhitespaceChange: (ignoreWhitespace: boolean) => void;
   layout: "split" | "stacked";
   onLayoutChange: (l: "split" | "stacked") => void;
 }
@@ -49,6 +51,8 @@ export const StatusBar = ({
   comments,
   diffMode,
   onDiffModeChange,
+  ignoreWhitespace,
+  onIgnoreWhitespaceChange,
   layout,
   onLayoutChange,
 }: StatusBarProps) => {
@@ -162,6 +166,17 @@ export const StatusBar = ({
             </div>
           )}
         </div>
+
+        <Button
+          variant={ignoreWhitespace ? "secondary" : "ghost"}
+          size="xs"
+          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+          onClick={() => onIgnoreWhitespaceChange(!ignoreWhitespace)}
+          className="text-muted-foreground hover:text-foreground"
+          title={ignoreWhitespace ? "Show whitespace changes" : "Ignore whitespace changes"}
+        >
+          Ignore whitespace
+        </Button>
 
         {/* Comments export */}
         {comments.length > 0 && (
