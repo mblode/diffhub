@@ -160,7 +160,7 @@
    * inline styles `position:absolute; top:0; bottom:0` but NO width. We use
    * a fixed pixel size so the button is always visible regardless of parent.
    */
-  .diffr-gutter-btn {
+  .diffhub-gutter-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -174,14 +174,14 @@
     font-weight: bold;
     line-height: 1;
     cursor: pointer;
-    animation: diffr-gutter-in 0.08s ease-out both;
+    animation: diffhub-gutter-in 0.08s ease-out both;
   }
 
-  .diffr-gutter-btn:hover {
+  .diffhub-gutter-btn:hover {
     background: color-mix(in srgb, var(--primary) 85%, black);
   }
 
-  @keyframes diffr-gutter-in {
+  @keyframes diffhub-gutter-in {
     from {
       opacity: 0;
     }
@@ -191,7 +191,7 @@
   }
 }
 
-@keyframes diffr-menu-in {
+@keyframes diffhub-menu-in {
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.97);
@@ -202,8 +202,8 @@
   }
 }
 
-.diffr-menu-animate {
-  animation: diffr-menu-in 120ms ease-out forwards;
+.diffhub-menu-animate {
+  animation: diffhub-menu-in 120ms ease-out forwards;
 }
 
 /* ── Hunk expand separator ──────────────────────────────────────────────── */

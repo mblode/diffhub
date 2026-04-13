@@ -59,7 +59,7 @@ export const SidebarHelpMenu = () => {
       </button>
 
       {menuOpen && (
-        <div className="diffr-menu-animate absolute bottom-full left-0 mb-1.5 z-50 min-w-[180px] rounded-lg border border-border bg-card shadow-lg dark:shadow-none py-1">
+        <div className="diffhub-menu-animate absolute bottom-full left-0 mb-1.5 z-50 min-w-[180px] rounded-lg border border-border bg-card shadow-lg dark:shadow-none py-1">
           <button
             type="button"
             className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"

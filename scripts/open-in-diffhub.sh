@@ -1,29 +1,29 @@
 #!/bin/bash
 
 # =============================================================================
-# open-in-diffr.sh
-# Open diffr in a cmux browser split pane for the current git repository.
+# open-in-diffhub.sh
+# Open diffhub in a cmux browser split pane for the current git repository.
 #
 # Dependencies:
 #   - cmux  https://cmux.app/
 #
 # Configure the project path (add to ~/.zshrc):
-#   export DIFFR_PROJECT="/path/to/diffr"
+#   export DIFFHUB_PROJECT="/path/to/diffhub"
 #
 # Setup:
-#   sudo cp scripts/open-in-diffr.sh /usr/local/bin/diffr-open
+#   sudo cp scripts/open-in-diffhub.sh /usr/local/bin/diffhub-open
 #
 # Usage (run from inside any git repo):
-#   diffr-open
-#   diffr-open --base develop
-#   diffr-open --port 3000
+#   diffhub-open
+#   diffhub-open --base develop
+#   diffhub-open --port 3000
 # =============================================================================
 
 CMUX="/Applications/cmux.app/Contents/Resources/bin/cmux"
 BASE_BRANCH=""
-PROJECT_DIR="${DIFFR_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
+PROJECT_DIR="${DIFFHUB_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
 WEB_DIR="$PROJECT_DIR/apps/web"
-BIN="$WEB_DIR/bin/diffr.mjs"
+BIN="$WEB_DIR/bin/diffhub.mjs"
 NPM="$(command -v npm)"
 
 while [[ $# -gt 0 ]]; do
@@ -57,23 +57,23 @@ if true; then
   # Build if no production build exists
   if [[ ! -d "$WEB_DIR/.next" ]]; then
     echo "No build found — running npm run build..."
-    "$CMUX" notify --title "diffr" --body "Building... (first run only)"
-    "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/diffr-build.log 2>&1
+    "$CMUX" notify --title "diffhub" --body "Building... (first run only)"
+    "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/diffhub-build.log 2>&1
     if [[ $? -ne 0 ]]; then
-      echo "Error: Build failed. See /tmp/diffr-build.log" >&2
-      "$CMUX" notify --title "diffr" --body "Build failed — check /tmp/diffr-build.log"
+      echo "Error: Build failed. See /tmp/diffhub-build.log" >&2
+      "$CMUX" notify --title "diffhub" --body "Build failed — check /tmp/diffhub-build.log"
       exit 1
     fi
     echo "Build complete."
   fi
 
-  "$CMUX" notify --title "diffr" --body "Starting server..."
+  "$CMUX" notify --title "diffhub" --body "Starting server..."
 
-  DIFFR_REPO="$targetDir" \
-    ${BASE_BRANCH:+DIFFR_BASE="$BASE_BRANCH"} \
+  DIFFHUB_REPO="$targetDir" \
+    ${BASE_BRANCH:+DIFFHUB_BASE="$BASE_BRANCH"} \
     node "$BIN" --no-open --port "$PORT" --repo "$targetDir" \
     ${BASE_BRANCH:+--base "$BASE_BRANCH"} \
-    > /tmp/diffr-server.log 2>&1 &
+    > /tmp/diffhub-server.log 2>&1 &
 
   trap kill_server EXIT INT TERM
 
@@ -84,8 +84,8 @@ if true; then
       break
     fi
     if [[ $i -eq 40 ]]; then
-      echo "Error: Server did not start in 20 seconds. See /tmp/diffr-server.log" >&2
-      "$CMUX" notify --title "diffr" --body "Server failed to start"
+      echo "Error: Server did not start in 20 seconds. See /tmp/diffhub-server.log" >&2
+      "$CMUX" notify --title "diffhub" --body "Server failed to start"
       exit 1
     fi
     sleep 0.5
@@ -93,7 +93,7 @@ if true; then
 
 fi
 
-"$CMUX" notify --title "diffr" --body "Opening diff: $targetDir"
+"$CMUX" notify --title "diffhub" --body "Opening diff: $targetDir"
 
 cmuxOut=$("$CMUX" --json browser open-split "http://localhost:$PORT/" 2>&1)
 

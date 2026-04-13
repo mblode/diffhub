@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Point the diffr dev server at the current git repository.
+# Point the diffhub dev server at the current git repository.
 # The dev server reads this file on every request — no restart needed.
 #
 # Setup:
-#   sudo cp scripts/diffr-point.sh /usr/local/bin/diffr-point
+#   sudo cp scripts/diffhub-point.sh /usr/local/bin/diffhub-point
 #
 # Usage (run from inside any git repo):
-#   diffr-point
+#   diffhub-point
 
-REPO_POINTER="/tmp/diffr-active-repo"
+REPO_POINTER="/tmp/diffhub-active-repo"
 
 targetDir="$PWD"
 
@@ -19,4 +19,4 @@ if ! git -C "$targetDir" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 
 echo "$targetDir" > "$REPO_POINTER"
-echo "diffr → $targetDir"
+echo "diffhub → $targetDir"

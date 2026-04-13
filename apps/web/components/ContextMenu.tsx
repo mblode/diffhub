@@ -109,7 +109,7 @@ export const ContextMenu = ({ x, y, filePath, repoPath, onClose, onDiscard }: Co
     <div
       ref={ref}
       style={style}
-      className="diffr-menu-animate min-w-[160px] rounded-lg border border-border bg-popover shadow-xl dark:shadow-none py-1 text-sm"
+      className="diffhub-menu-animate min-w-[160px] rounded-lg border border-border bg-popover shadow-xl dark:shadow-none py-1 text-sm"
     >
       {/* File path header */}
       <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border mb-1 font-mono truncate max-w-[200px]">

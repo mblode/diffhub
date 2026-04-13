@@ -56,7 +56,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       return new Set();
     }
     try {
-      const stored = localStorage.getItem(`diffr-viewed:${repoPath}`);
+      const stored = localStorage.getItem(`diffhub-viewed:${repoPath}`);
       return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
     } catch {
       // empty
@@ -74,7 +74,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           next.add(file);
         }
         try {
-          localStorage.setItem(`diffr-viewed:${repoPath}`, JSON.stringify([...next]));
+          localStorage.setItem(`diffhub-viewed:${repoPath}`, JSON.stringify([...next]));
         } catch {
           // empty
         }
