@@ -73,6 +73,10 @@
     "typescript": "^5",
     "ultracite": "^7.5.6"
   },
+  "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "1.32.0",
+    "lightningcss-linux-arm64-gnu": "1.32.0"
+  },
   "engines": {
     "node": ">=18"
   }
