@@ -123,8 +123,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
-  html {
-    @apply font-sans;
+  code, kbd, pre, samp {
+    font-family: var(--font-geist-mono), ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
   }
 }

@@ -24,11 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
-    >
-      <body className="h-full overflow-hidden bg-[#0d1117]">
+    <html lang="en" className="dark h-full">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden bg-[#0d1117] antialiased`}
+      >
         {children}
         {process.env.NODE_ENV === "development" && <Agentation />}
       </body>
