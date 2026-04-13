@@ -1,13 +1,14 @@
 import { preloadPatchDiff } from "@pierre/diffs/ssr";
 
 export type DiffLayout = "split" | "stacked";
+export type ThemeType = "light" | "dark";
 
 export interface PrerenderedDiffHtml {
-  split: string;
-  stacked: string;
+  split: { dark: string; light: string };
+  stacked: { dark: string; light: string };
 }
 
-const getPrerenderOptions = (layout: DiffLayout) => ({
+const getPrerenderOptions = (layout: DiffLayout, themeType: ThemeType) => ({
   diffStyle: layout === "split" ? ("split" as const) : ("unified" as const),
   disableFileHeader: true,
   disableLineNumbers: false,
@@ -17,17 +18,20 @@ const getPrerenderOptions = (layout: DiffLayout) => ({
   maxLineDiffLength: 500,
   overflow: "scroll" as const,
   theme: { dark: "github-dark", light: "github-light" } as const,
+  themeType,
   unsafeCSS: `[data-diff-span] { border-radius: 0; }`,
 });
 
 export const preloadPatchHtmlByLayout = async (patch: string): Promise<PrerenderedDiffHtml> => {
-  const [split, stacked] = await Promise.all([
-    preloadPatchDiff({ options: getPrerenderOptions("split"), patch }),
-    preloadPatchDiff({ options: getPrerenderOptions("stacked"), patch }),
+  const [splitLight, splitDark, stackedLight, stackedDark] = await Promise.all([
+    preloadPatchDiff({ options: getPrerenderOptions("split", "light"), patch }),
+    preloadPatchDiff({ options: getPrerenderOptions("split", "dark"), patch }),
+    preloadPatchDiff({ options: getPrerenderOptions("stacked", "light"), patch }),
+    preloadPatchDiff({ options: getPrerenderOptions("stacked", "dark"), patch }),
   ]);
 
   return {
-    split: split.prerenderedHTML,
-    stacked: stacked.prerenderedHTML,
+    split: { dark: splitDark.prerenderedHTML, light: splitLight.prerenderedHTML },
+    stacked: { dark: stackedDark.prerenderedHTML, light: stackedLight.prerenderedHTML },
   };
 };
