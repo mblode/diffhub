@@ -160,7 +160,7 @@ const FileRow = memo(function FileRow({
           : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         isViewed && "opacity-50",
       )}
-      style={{ paddingLeft: indent, paddingRight: 8 }}
+      style={{ paddingLeft: indent, paddingRight: 8, contentVisibility: "auto", containIntrinsicBlockSize: "26px" }}
       // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
       onClick={() => onSelect(node.path)}
       // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
@@ -308,7 +308,12 @@ export const FileList = ({
     [files, filterQuery],
   );
 
-  const tree = useMemo(() => compactTree(buildTree(filtered)), [filtered]);
+  const MAX_FILES = 500;
+  const cappedFiles = useMemo(
+    () => (filtered.length > MAX_FILES ? filtered.slice(0, MAX_FILES) : filtered),
+    [filtered],
+  );
+  const tree = useMemo(() => compactTree(buildTree(cappedFiles)), [cappedFiles]);
 
   const commentsByFile = useMemo(() => {
     const map = new Map<string, number>();
@@ -412,7 +417,14 @@ export const FileList = ({
             )}
           </div>
         ) : (
-          renderTree(tree, 0)
+          <>
+            {renderTree(tree, 0)}
+            {filtered.length > MAX_FILES && (
+              <p className="px-3 py-2 text-[10px] text-sidebar-foreground/40">
+                Showing {MAX_FILES} of {filtered.length} files
+              </p>
+            )}
+          </>
         )}
       </SidebarContent>
 

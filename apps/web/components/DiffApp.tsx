@@ -5,7 +5,6 @@ import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer } from "./DiffViewer";
-import { SidebarHelpMenu } from "./SidebarHelpMenu";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import type { DiffFileStat } from "@/lib/git";
@@ -216,8 +215,10 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           commentsRes.json() as Promise<Comment[]>,
         ]);
 
-        setFilesData(files);
-        setComments(commentsData);
+        startTransition(() => {
+          setFilesData(files);
+          setComments(commentsData);
+        });
         setLastUpdated(new Date());
 
         // Auto-select first file on initial load
@@ -414,9 +415,6 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         </div>
       </SidebarInset>
 
-      <div className="fixed bottom-4 left-4 z-50">
-        <SidebarHelpMenu />
-      </div>
     </SidebarProvider>
   );
 };
