@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.5
+
+### Patch Changes
+
+- Fix CLI to work from any subdirectory within a git repository
+
 ## 0.1.4
 
 ### Patch Changes
