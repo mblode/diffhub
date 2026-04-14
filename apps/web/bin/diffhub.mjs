@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { program } from "commander";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -91,12 +91,25 @@ program
   .parse(process.argv);
 
 const opts = program.opts();
-const repoPath = resolve(opts.repo ?? process.cwd());
+const inputPath = resolve(opts.repo ?? process.cwd());
 const baseBranch = opts.base ?? "";
 
-// Verify it's a git repo
-if (!existsSync(join(repoPath, ".git"))) {
-  console.error(`❌ Not a git repository: ${repoPath}`);
+// Find git repo root (works from any subdirectory)
+const findRepoRoot = (startPath) => {
+  try {
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: startPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return null;
+  }
+};
+
+const repoPath = findRepoRoot(inputPath);
+if (!repoPath) {
+  console.error(`❌ Not a git repository: ${inputPath}`);
   console.error(`   Run from inside a git repo, or pass --repo:`);
   console.error(`   diffhub --repo /path/to/your-repo`);
   process.exit(1);
