@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.7
+
+### Patch Changes
+
+- Fix scroll position jumping when viewing diffs with multiple files and use muted text styling across sidebar, diff headers, and navbar
+
 ## 0.1.6
 
 ### Patch Changes

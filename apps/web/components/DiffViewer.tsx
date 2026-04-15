@@ -13,6 +13,7 @@ import { FileDiffHeader } from "./FileDiffHeader";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Empty,
   EmptyHeader,
@@ -190,30 +191,44 @@ const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () 
         )}
         <p className="flex-1 text-sm text-foreground leading-relaxed">{comment.body}</p>
         {/* Action buttons — hover-revealed */}
-        <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <button
-            type="button"
-            onClick={handleCopy}
-            title={copied ? "Copied!" : "Copy comment"}
-            className={cn(
-              "rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
-              copied
-                ? "text-diff-green"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary",
-            )}
-          >
-            {copied ? <CheckIcon size={12} /> : <CopySimpleIcon size={12} />}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            title="Delete comment"
-            aria-label="Delete comment"
-            className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-          >
-            <TrashIcon size={12} />
-          </button>
-        </div>
+        <TooltipProvider delay={400}>
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className={cn(
+                      "rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+                      copied
+                        ? "text-diff-green"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                    )}
+                  />
+                }
+              >
+                {copied ? <CheckIcon size={12} /> : <CopySimpleIcon size={12} />}
+              </TooltipTrigger>
+              <TooltipContent side="top">{copied ? "Copied!" : "Copy comment"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    aria-label="Delete comment"
+                    className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                  />
+                }
+              >
+                <TrashIcon size={12} />
+              </TooltipTrigger>
+              <TooltipContent side="top">Delete comment</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
       {/* Footer strip */}
       <div className="border-t border-border/40 px-3 py-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
@@ -297,7 +312,6 @@ interface SingleFileDiffProps {
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
   active?: boolean;
-  shouldRenderBody: boolean;
   sectionId: string;
   onToggleCollapse: () => void;
   repoPath: string;
@@ -350,7 +364,6 @@ const SingleFileDiff = memo(function SingleFileDiff({
   fileStat,
   collapsed,
   active = false,
-  shouldRenderBody,
   sectionId,
   onToggleCollapse,
   repoPath,
@@ -426,50 +439,37 @@ const SingleFileDiff = memo(function SingleFileDiff({
   let panelContent: React.ReactNode = null;
 
   if (!hidePanel) {
-    if (shouldRenderBody) {
-      panelContent = filePatch ? (
-        <PatchDiff
-          key={`${file}:${layout}:${resolvedTheme}`}
-          patch={filePatch}
-          prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
-          disableWorkerPool
-          style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
-          options={{
-            diffStyle: layout === "split" ? "split" : "unified",
-            disableFileHeader: true,
-            disableLineNumbers: false,
-            enableGutterUtility: true,
-            expansionLineCount: 20,
-            hunkSeparators: "line-info",
-            lineDiffType: "word",
-            lineHoverHighlight: "line",
-            maxLineDiffLength: 500,
-            overflow: "wrap",
-            theme: { dark: "github-dark", light: "github-light" },
-            themeType: resolvedTheme === "light" ? "light" : "dark",
-            unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
-          }}
-          lineAnnotations={lineAnnotations}
-          renderAnnotation={renderAnnotation}
-          renderGutterUtility={renderGutterUtility}
-        />
-      ) : (
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          No textual patch available for this file.
-        </div>
-      );
-    } else {
-      panelContent = (
-        <div
-          aria-hidden
-          className="border-t border-border/60 bg-background/30"
-          style={{
-            containIntrinsicBlockSize: "240px",
-            contentVisibility: "auto",
-          }}
-        />
-      );
-    }
+    panelContent = filePatch ? (
+      <PatchDiff
+        key={`${file}:${layout}:${resolvedTheme}`}
+        patch={filePatch}
+        prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
+        disableWorkerPool
+        style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
+        options={{
+          diffStyle: layout === "split" ? "split" : "unified",
+          disableFileHeader: true,
+          disableLineNumbers: false,
+          enableGutterUtility: true,
+          expansionLineCount: 20,
+          hunkSeparators: "line-info",
+          lineDiffType: "word",
+          lineHoverHighlight: "line",
+          maxLineDiffLength: 500,
+          overflow: "wrap",
+          theme: { dark: "github-dark", light: "github-light" },
+          themeType: resolvedTheme === "light" ? "light" : "dark",
+          unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
+        }}
+        lineAnnotations={lineAnnotations}
+        renderAnnotation={renderAnnotation}
+        renderGutterUtility={renderGutterUtility}
+      />
+    ) : (
+      <div className="px-4 py-6 text-sm text-muted-foreground">
+        No textual patch available for this file.
+      </div>
+    );
   }
 
   return (
@@ -517,7 +517,6 @@ interface DiffViewerProps {
 interface CollapsibleFileDiffProps {
   file: string;
   filePatch: string;
-  index: number;
   layout: "split" | "stacked";
   prerenderedHTML?: PrerenderedDiffHtml;
   comments: Comment[];
@@ -537,12 +536,9 @@ interface CollapsibleFileDiffProps {
   onDeleteComment: (id: string) => Promise<void>;
 }
 
-const INITIAL_EAGER_FILE_COUNT = 4;
-
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   file,
   filePatch,
-  index,
   layout,
   prerenderedHTML,
   comments,
@@ -557,16 +553,6 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
-  const [hasRenderedBody, setHasRenderedBody] = useState(
-    index < INITIAL_EAGER_FILE_COUNT || active || !collapsed,
-  );
-
-  // When a file is expanded, ensure the body will render
-  useEffect(() => {
-    if (!collapsed) {
-      setHasRenderedBody(true);
-    }
-  }, [collapsed]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -581,9 +567,6 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         if (!entry) {
           return;
         }
-        if (entry.isIntersecting) {
-          setHasRenderedBody(true);
-        }
         if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
           onVisible(file);
         }
@@ -591,7 +574,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
       {
         root,
         rootMargin: "-72px 0px -55% 0px",
-        threshold: [0.15, 0.35, 0.6],
+        threshold: [0.35, 0.6],
       },
     );
 
@@ -600,10 +583,18 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   }, [file, onVisible]);
 
   const sectionId = getDiffSectionId(file);
-  const shouldRenderBody = hasRenderedBody && (!collapsed || commentTarget !== null);
 
   return (
-    <section ref={sectionRef} id={sectionId} data-file-section={file} className="scroll-mt-16">
+    <section
+      ref={sectionRef}
+      id={sectionId}
+      data-file-section={file}
+      className="scroll-mt-16"
+      style={{
+        containIntrinsicBlockSize: "auto 300px",
+        contentVisibility: "auto",
+      }}
+    >
       <SingleFileDiff
         file={file}
         filePatch={filePatch}
@@ -613,7 +604,6 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         fileStat={fileStat}
         collapsed={collapsed}
         active={active}
-        shouldRenderBody={shouldRenderBody}
         sectionId={sectionId}
         onToggleCollapse={onToggleCollapse}
         repoPath={repoPath}
@@ -683,12 +673,11 @@ export const DiffViewer = ({
 
   return (
     <div className="h-full min-h-0 overflow-auto" id="diff-container">
-      {orderedFiles.map((file, index) => (
+      {orderedFiles.map((file) => (
         <CollapsibleFileDiff
           key={file}
           file={file}
           filePatch={patchesByFile[file] ?? ""}
-          index={index}
           layout={layout}
           prerenderedHTML={prerenderedHTMLByFile?.[file]}
           comments={comments}

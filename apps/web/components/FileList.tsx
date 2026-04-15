@@ -10,7 +10,8 @@ import {
 import { FileAddedIcon, FileDiffIcon, FileRemovedIcon } from "./icons/file-status-icons";
 import type { DiffFileStat } from "@/lib/git";
 import type { Comment } from "@/lib/comments";
-import { cn } from "@/lib/utils";
+import { cn, truncateFilePath } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
 
 const FILE_NAVIGATE_EVENT = "diffhub:file:navigate";
@@ -202,7 +203,16 @@ const FileRow = memo(function FileRow({
       onClick={() => onNavigate(node.path)}
     >
       <FileStatusIcon size={16} className={iconClass} />
-      <span className="flex-1 truncate text-[12px] leading-tight">{node.name}</span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="flex-1 truncate text-[12px] leading-tight text-muted-foreground" />
+          }
+        >
+          {node.name}
+        </TooltipTrigger>
+        <TooltipContent side="right">{node.path}</TooltipContent>
+      </Tooltip>
       {commentCount > 0 && (
         <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-sidebar-foreground/50">
           <BubbleDotsIcon size={10} />
@@ -239,7 +249,8 @@ const FolderRow = memo(function FolderRow({
   children,
 }: FolderRowProps) {
   const indent = depth * 16 + 8;
-  const segments = node.name.split("/");
+  const truncatedName = truncateFilePath(node.name);
+  const segments = truncatedName.split("/");
 
   return (
     <>
@@ -256,18 +267,21 @@ const FolderRow = memo(function FolderRow({
         ) : (
           <FolderOpenFilledIcon size={16} className="shrink-0 text-sidebar-foreground/50" />
         )}
-        <span className="truncate text-[12px] text-sidebar-foreground/70">
-          {segments.map((seg, i) => {
-            const key = segments.slice(0, i + 1).join("/");
+        <Tooltip>
+          <TooltipTrigger render={<span className="truncate text-[12px] text-muted-foreground" />}>
+            {segments.map((seg, i) => {
+              const key = segments.slice(0, i + 1).join("/");
 
-            return (
-              <Fragment key={key}>
-                {seg}
-                {i < segments.length - 1 && <span className="text-sidebar-foreground/30">/</span>}
-              </Fragment>
-            );
-          })}
-        </span>
+              return (
+                <Fragment key={key}>
+                  {seg}
+                  {i < segments.length - 1 && <span className="text-sidebar-foreground/30">/</span>}
+                </Fragment>
+              );
+            })}
+          </TooltipTrigger>
+          {node.name !== truncatedName && <TooltipContent side="right">{node.name}</TooltipContent>}
+        </Tooltip>
       </button>
       {!isCollapsed && (
         <div className="relative">
@@ -484,61 +498,63 @@ export const FileList = ({
   }
 
   return (
-    <Sidebar
-      collapsible="none"
-      className="relative overflow-hidden border-r border-sidebar-border"
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-    >
-      {/* Filter */}
-      <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center py-0 px-2">
-        <div className="relative flex w-full items-center">
-          <MagnifyingGlassIcon
-            size={12}
-            className="pointer-events-none absolute left-2.5 text-sidebar-foreground/40"
-          />
-          <input
-            type="text"
-            value={filterQuery}
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onChange={(e) => onFilterChange(e.target.value)}
-            placeholder="Filter files…"
-            aria-label="Filter files"
-            className="w-full rounded-md border border-sidebar-border bg-sidebar-accent py-1.5 pl-7 pr-7 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 transition-colors focus:border-sidebar-ring/50 focus:outline-none"
-          />
-          {filterQuery && (
-            <button
-              type="button"
+    <TooltipProvider delay={400}>
+      <Sidebar
+        collapsible="none"
+        className="relative overflow-hidden border-r border-sidebar-border"
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+      >
+        {/* Filter */}
+        <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center py-0 px-2">
+          <div className="relative flex w-full items-center">
+            <MagnifyingGlassIcon
+              size={12}
+              className="pointer-events-none absolute left-2.5 text-sidebar-foreground/40"
+            />
+            <input
+              type="text"
+              value={filterQuery}
               // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-              onClick={() => onFilterChange("")}
-              aria-label="Clear filter"
-              className="absolute right-2 text-sm leading-none text-sidebar-foreground/40 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
-            >
-              ×
-            </button>
-          )}
-        </div>
-      </SidebarHeader>
+              onChange={(e) => onFilterChange(e.target.value)}
+              placeholder="Filter files…"
+              aria-label="Filter files"
+              className="w-full rounded-md border border-sidebar-border bg-sidebar-accent py-1.5 pl-7 pr-7 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 transition-colors focus:border-sidebar-ring/50 focus:outline-none"
+            />
+            {filterQuery && (
+              <button
+                type="button"
+                // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                onClick={() => onFilterChange("")}
+                aria-label="Clear filter"
+                className="absolute right-2 text-sm leading-none text-sidebar-foreground/40 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </SidebarHeader>
 
-      {/* Tree */}
-      <SidebarContent className="gap-0 py-1">{treeContent}</SidebarContent>
+        {/* Tree */}
+        <SidebarContent className="gap-0 py-1">{treeContent}</SidebarContent>
 
-      {/* Stats footer */}
-      <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
-        <div className="flex items-center gap-2 text-[11px] font-mono text-sidebar-foreground/60">
-          <span>
-            {files.length} {files.length === 1 ? "file" : "files"}
-          </span>
-          {insertions > 0 && <span className="text-diff-green">+{insertions}</span>}
-          {deletions > 0 && <span className="text-destructive">−{deletions}</span>}
-        </div>
-      </SidebarFooter>
+        {/* Stats footer */}
+        <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
+          <div className="flex items-center gap-2 text-[12px] font-mono text-sidebar-foreground/60">
+            <span>
+              {files.length} {files.length === 1 ? "file" : "files"}
+            </span>
+            {insertions > 0 && <span className="text-diff-green">+{insertions}</span>}
+            {deletions > 0 && <span className="text-destructive">−{deletions}</span>}
+          </div>
+        </SidebarFooter>
 
-      {/* Resize rail */}
-      <div
-        aria-hidden
-        className="absolute inset-y-0 right-0 z-20 w-[5px] cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:transition-colors hover:after:bg-sidebar-border"
-        onMouseDown={handleRailMouseDown}
-      />
-    </Sidebar>
+        {/* Resize rail */}
+        <div
+          aria-hidden
+          className="absolute inset-y-0 right-0 z-20 w-[5px] cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:transition-colors hover:after:bg-sidebar-border"
+          onMouseDown={handleRailMouseDown}
+        />
+      </Sidebar>
+    </TooltipProvider>
   );
 };

@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 export type DiffMode = "all" | "uncommitted";
 
 const DIFF_MODES: { value: DiffMode; label: string }[] = [
-  { label: "All changes", value: "all" },
+  { label: "All", value: "all" },
   { label: "Uncommitted changes", value: "uncommitted" },
 ];
 
@@ -188,9 +188,9 @@ export const StatusBar = ({
   const { className: watchStateClass, label: watchStateLabel } = getWatchStateMeta(fileWatchState);
 
   return (
-    <header className="flex h-[52px] items-center gap-2 border-b border-border bg-card px-4 text-sm">
-      {/* Branch comparison badges */}
-      <TooltipProvider delay={400}>
+    <TooltipProvider delay={400}>
+      <header className="flex h-[52px] items-center gap-2 border-b border-border bg-card px-4 text-sm">
+        {/* Branch comparison badges */}
         <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger
@@ -199,7 +199,7 @@ export const StatusBar = ({
                   type="button"
                   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={() => copyBranch(branch, "branch")}
-                  className="relative whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs font-medium text-foreground cursor-pointer hover:bg-secondary"
+                  className="relative whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-secondary"
                 />
               }
             >
@@ -258,112 +258,136 @@ export const StatusBar = ({
             </TooltipContent>
           </Tooltip>
         </div>
-      </TooltipProvider>
 
-      <div className="flex-1" />
+        <div className="flex-1" />
 
-      <div className="flex items-center gap-0.5">
-        {/* Live indicator */}
-        <div className="flex items-center gap-1.5 pr-1.5">
-          <span
-            className={cn(
-              "mx-1 size-1.5 rounded-full",
-              watchStateClass,
-              refreshing && "animate-pulse",
+        <div className="flex items-center gap-0.5">
+          {/* Live indicator */}
+          <Tooltip>
+            <TooltipTrigger render={<div className="flex items-center pr-1.5" />}>
+              <span
+                className={cn(
+                  "mx-1 size-1.5 rounded-full",
+                  watchStateClass,
+                  refreshing && "animate-pulse",
+                )}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{watchStateLabel}</TooltipContent>
+          </Tooltip>
+
+          <SyncNoticeChip syncNotice={syncNotice} />
+
+          {/* Diff mode dropdown */}
+          <div className="relative" ref={modeMenuRef}>
+            <Button
+              variant="ghost"
+              size="xs"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setModeMenuOpen((o) => !o)}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1"
+            >
+              {diffMode === "uncommitted" ? "Uncommitted" : "All"}
+              <ChevronDownIcon
+                size={10}
+                className={cn("transition-transform duration-150", modeMenuOpen && "rotate-180")}
+              />
+            </Button>
+
+            {modeMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-card shadow-lg dark:shadow-none py-1 overflow-hidden">
+                {DIFF_MODES.map(({ value, label }) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className="flex w-full items-center justify-between px-3 py-2 text-sm text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                    onClick={() => {
+                      onDiffModeChange(value);
+                      setModeMenuOpen(false);
+                    }}
+                  >
+                    <span className={cn("text-foreground", diffMode === value && "font-medium")}>
+                      {label}
+                    </span>
+                    {diffMode === value && (
+                      <CheckIcon size={14} className="text-diff-green shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
-          />
-          <span className="text-[11px] text-muted-foreground">{watchStateLabel}</span>
-        </div>
+          </div>
 
-        <SyncNoticeChip syncNotice={syncNotice} />
+          {/* Comments export */}
+          {comments.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={copyCommentsAsPrompt}
+                    className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  />
+                }
+              >
+                {copied ? (
+                  <CheckIcon data-icon="inline-start" />
+                ) : (
+                  <CopySimpleIcon data-icon="inline-start" />
+                )}
+                {copied
+                  ? "Copied!"
+                  : `Copy ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy all comments as AI prompt</TooltipContent>
+            </Tooltip>
+          )}
 
-        {/* Diff mode dropdown */}
-        <div className="relative" ref={modeMenuRef}>
-          <Button
-            variant="ghost"
-            size="xs"
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setModeMenuOpen((o) => !o)}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1"
-          >
-            {diffMode === "uncommitted" ? "Uncommitted" : "All changes"}
-            <ChevronDownIcon
-              size={10}
-              className={cn("transition-transform duration-150", modeMenuOpen && "rotate-180")}
-            />
-          </Button>
-
-          {modeMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-card shadow-lg dark:shadow-none py-1 overflow-hidden">
-              {DIFF_MODES.map(({ value, label }) => (
-                <button
-                  type="button"
-                  key={value}
-                  className="flex w-full items-center justify-between px-3 py-2 text-sm text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+          {/* Layout toggle */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                  onClick={() => {
-                    onDiffModeChange(value);
-                    setModeMenuOpen(false);
-                  }}
-                >
-                  <span className={cn("text-foreground", diffMode === value && "font-medium")}>
-                    {label}
-                  </span>
-                  {diffMode === value && (
-                    <CheckIcon size={14} className="text-diff-green shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
+                  onClick={() => onLayoutChange(layout === "split" ? "stacked" : "split")}
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                />
+              }
+            >
+              <SplitIcon size={14} />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {layout === "split" ? "Switch to unified view (S)" : "Switch to split view (S)"}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Theme toggle - only render after mount to avoid hydration mismatch */}
+          {mounted && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                    onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                    className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  />
+                }
+              >
+                {resolvedTheme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
-
-        {/* Comments export */}
-        {comments.length > 0 && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={copyCommentsAsPrompt}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-            title="Copy all comments as AI prompt"
-          >
-            {copied ? (
-              <CheckIcon data-icon="inline-start" />
-            ) : (
-              <CopySimpleIcon data-icon="inline-start" />
-            )}
-            {copied
-              ? "Copied!"
-              : `Copy ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
-          </Button>
-        )}
-
-        {/* Layout toggle */}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClick={() => onLayoutChange(layout === "split" ? "stacked" : "split")}
-          className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-          title={layout === "split" ? "Switch to unified view (S)" : "Switch to split view (S)"}
-        >
-          <SplitIcon size={14} />
-        </Button>
-
-        {/* Theme toggle - only render after mount to avoid hydration mismatch */}
-        {mounted && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-            title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {resolvedTheme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-          </Button>
-        )}
-      </div>
-    </header>
+      </header>
+    </TooltipProvider>
   );
 };
