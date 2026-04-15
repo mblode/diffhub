@@ -13,26 +13,11 @@
     "groups": [
       {
         "group": "Getting Started",
-        "pages": ["index", "installation", "usage"]
+        "pages": ["index", "usage"]
       },
       {
         "group": "Features",
-        "pages": [
-          "features/diff-views",
-          "features/file-tree",
-          "features/comments",
-          "features/whitespace",
-          "features/live-refresh",
-          "features/keyboard"
-        ]
-      },
-      {
-        "group": "Configuration",
-        "pages": ["configuration"]
-      },
-      {
-        "group": "Integrations",
-        "pages": ["integrations/cmux", "integrations/scripts"]
+        "pages": ["features/diff-views", "features/comments"]
       }
     ]
   }

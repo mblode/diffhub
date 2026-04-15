@@ -1,4 +1,4 @@
 {
   "title": "Features",
-  "pages": ["diff-views", "file-tree", "comments", "whitespace", "live-refresh", "keyboard"]
+  "pages": ["diff-views", "comments"]
 }

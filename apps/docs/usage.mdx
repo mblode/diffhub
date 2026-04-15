@@ -17,19 +17,19 @@ This starts a local server and opens the diff viewer in your browser.
 
 ## Commands
 
-| Command | Description |
-| ------- | ----------- |
-| `serve` | Start DiffHub server (default) |
-| `cmux` | Open in cmux browser split pane |
+| Command | Description                     |
+| ------- | ------------------------------- |
+| `serve` | Start DiffHub server (default)  |
+| `cmux`  | Open in cmux browser split pane |
 
 ## Options
 
-| Flag | Default | Description |
-| ---- | ------- | ----------- |
-| `-p, --port <port>` | `2047` | Port to serve on |
-| `-r, --repo <path>` | `cwd` | Path to the git repository |
-| `-b, --base <branch>` | auto | Base branch to diff against |
-| `--no-open` | — | Skip automatic browser open |
+| Flag                  | Default | Description                 |
+| --------------------- | ------- | --------------------------- |
+| `-p, --port <port>`   | `2047`  | Port to serve on            |
+| `-r, --repo <path>`   | `cwd`   | Path to the git repository  |
+| `-b, --base <branch>` | auto    | Base branch to diff against |
+| `--no-open`           | —       | Skip automatic browser open |
 
 ## Examples
 
@@ -58,3 +58,25 @@ DiffHub auto-detects the base branch in this priority order:
 5. Local `main`, `master`, `develop`, `dev`
 
 Override with `--base <branch>` or the `DIFFHUB_BASE` environment variable.
+
+## Keyboard shortcuts
+
+| Key        | Action                         |
+| ---------- | ------------------------------ |
+| `j`        | Next file                      |
+| `k`        | Previous file                  |
+| `s`        | Toggle split / unified view    |
+| `/` or `t` | Focus file filter              |
+| `r`        | Refresh diff                   |
+| `c`        | Collapse / expand current file |
+| `Shift+C`  | Collapse all files             |
+| `Shift+E`  | Expand all files               |
+
+## Environment variables
+
+| Variable                | Description                                     |
+| ----------------------- | ----------------------------------------------- |
+| `DIFFHUB_REPO`          | Path to the git repository (overrides cwd)      |
+| `DIFFHUB_BASE`          | Base branch override (overrides auto-detection) |
+| `DIFFHUB_DEBUG`         | Set to `1` for verbose git command logging      |
+| `DIFFHUB_DISABLE_WATCH` | Set to `1` to disable file system watching      |
