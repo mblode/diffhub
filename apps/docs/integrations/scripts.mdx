@@ -1,0 +1,29 @@
+---
+title: Scripts
+description: Shell scripts for quick launch.
+---
+
+# Scripts
+
+## open-in-diffhub
+
+A shell script that opens diffhub in a cmux browser split pane for the current git repository.
+
+### Setup
+
+```bash
+sudo cp scripts/open-in-diffhub.sh /usr/local/bin/diffhub-open
+```
+
+Configure the project path in your shell profile:
+
+```bash
+export DIFFHUB_PROJECT="/path/to/diffhub"
+```
+
+### Usage
+
+```bash
+diffhub-open
+diffhub-open --base develop
+```

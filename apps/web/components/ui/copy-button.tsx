@@ -1,63 +1,46 @@
 "use client";
 
+import { Checkmark1Icon as CheckIcon, CopySimpleIcon as CopyIcon } from "blode-icons-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useState } from "react";
-import { CheckIcon, CopySimpleIcon } from "blode-icons-react";
-
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
 interface CopyButtonProps {
-  value: string;
-  label?: string;
-  copiedLabel?: string;
-  delay?: number;
-  className?: string;
+  content: string;
 }
 
-export const CopyButton = ({
-  value,
-  label = "Copy file path",
-  copiedLabel = "Copied!",
-  delay = 400,
-  className,
-}: CopyButtonProps) => {
+export const CopyButton = ({ content }: CopyButtonProps) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(content);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard API unavailable — fail silently
+      setTimeout(() => setCopied(false), 3000);
+    } catch (error) {
+      console.error("Failed to copy", error);
     }
-  }, [value]);
+  }, [content]);
+
+  const Icon = copied ? CheckIcon : CopyIcon;
 
   return (
-    <TooltipProvider delay={delay}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={handleCopy}
-              aria-label={copied ? copiedLabel : label}
-              className={cn(
-                "size-6",
-                copied
-                  ? "text-diff-green"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary",
-                className,
-              )}
-            />
-          }
+    <button
+      aria-label={copied ? "Copied" : "Copy to clipboard"}
+      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 [&_svg]:size-3.5"
+      onClick={handleCopy}
+      type="button"
+    >
+      <AnimatePresence mode="popLayout">
+        <motion.span
+          animate={{ filter: "blur(0px)", opacity: 1, scale: 1 }}
+          exit={{ filter: "blur(4px)", opacity: 0.4, scale: 0 }}
+          initial={false}
+          key={copied ? "check" : "copy"}
+          transition={{ duration: 0.25 }}
         >
-          {copied ? <CheckIcon size={12} /> : <CopySimpleIcon size={12} />}
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{copied ? copiedLabel : label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          <Icon />
+        </motion.span>
+      </AnimatePresence>
+    </button>
   );
 };

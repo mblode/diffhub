@@ -1,0 +1,27 @@
+---
+title: Comments
+description: Add inline review comments on any diff line.
+---
+
+# Comments
+
+## Adding comments
+
+Click on any line in the diff to open the comment input. Type your comment and press Enter to save.
+
+## Comment tags
+
+| Tag | Purpose |
+| --- | ------- |
+| `[must-fix]` | Critical issue that must be resolved |
+| `[suggestion]` | Improvement suggestion |
+| `[nit]` | Minor style or formatting note |
+| `[question]` | Question about the code |
+
+## Copy as prompt
+
+Click the copy button in the status bar to copy all comments as a formatted markdown prompt. This is useful for sharing review feedback with AI agents or teammates.
+
+## Storage
+
+Comments are stored in `.git/diffhub-comments.json` inside the target repository. This file is gitignored by default and persists across sessions.

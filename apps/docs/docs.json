@@ -1,0 +1,38 @@
+{
+  "$schema": "https://blode.md/docs.json",
+  "name": "diffhub",
+  "description": "GitHub PR-style local diff viewer",
+  "navbar": {
+    "links": [
+      { "label": "Website", "href": "https://diffhub.blode.co" },
+      { "label": "GitHub", "href": "https://github.com/mblode/diffhub" }
+    ]
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": ["index", "installation", "usage"]
+      },
+      {
+        "group": "Features",
+        "pages": [
+          "features/diff-views",
+          "features/file-tree",
+          "features/comments",
+          "features/whitespace",
+          "features/live-refresh",
+          "features/keyboard"
+        ]
+      },
+      {
+        "group": "Configuration",
+        "pages": ["configuration"]
+      },
+      {
+        "group": "Integrations",
+        "pages": ["integrations/cmux", "integrations/scripts"]
+      }
+    ]
+  }
+}

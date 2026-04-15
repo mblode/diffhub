@@ -1,0 +1,26 @@
+---
+title: cmux
+description: Open diffhub in a cmux browser split pane.
+---
+
+# cmux
+
+## Usage
+
+```bash
+diffhub cmux
+```
+
+Or with options:
+
+```bash
+diffhub cmux --repo /path/to/repo --base develop
+```
+
+## How it works
+
+The `cmux` command starts a detached server, derives a consistent port from the repo path (so each worktree gets its own server), opens a cmux browser split pane, and cleans up when the pane is closed.
+
+## Requirements
+
+- [cmux](https://cmux.app/) installed at `/Applications/cmux.app`

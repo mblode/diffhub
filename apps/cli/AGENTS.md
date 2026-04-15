@@ -10,7 +10,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ```bash
 npm run dev          # portless run next dev → https://diffhub.localhost
-npm run build        # next build → .next/standalone/apps/web/server.js
+npm run build        # next build → .next/standalone/apps/cli/server.js
 npm run start        # next start --port 2047 (production)
 npm run lint         # oxlint .
 npm run check-types  # tsc --noEmit
@@ -20,7 +20,7 @@ npm run test         # vitest run
 After `npm run build`, copy static assets before running the standalone server:
 
 ```bash
-cp -r .next/static .next/standalone/apps/web/.next/static
+cp -r .next/static .next/standalone/apps/cli/.next/static
 ```
 
 `npm run prepack` (and `npm publish` / `npm pack`) does this automatically.
@@ -52,10 +52,10 @@ Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server di
 `/api/diff` and `/api/files` both accept `ws=ignore`, and `DiffApp` is responsible for keeping the current whitespace mode in sync across file stats and the selected-file patch fetch.
 
 **`outputFileTracingRoot` must be the monorepo root, not the app directory.**
-`next.config.ts` sets `outputFileTracingRoot: join(import.meta.dirname, "../..")`. Using the app directory breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/web/server.js` — not a flat `server.js`.
+`next.config.ts` sets `outputFileTracingRoot: join(import.meta.dirname, "../..")`. Using the app directory breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/cli/server.js` — not a flat `server.js`.
 
 **Standalone server path mirrors the monorepo workspace.**
-Because `outputFileTracingRoot` is the repo root, the standalone server lives at `.next/standalone/apps/web/server.js`, and static files must be at `.next/standalone/apps/web/.next/static/`. The CLI handles this automatically.
+Because `outputFileTracingRoot` is the repo root, the standalone server lives at `.next/standalone/apps/cli/server.js`, and static files must be at `.next/standalone/apps/cli/.next/static/`. The CLI handles this automatically.
 
 ## Conventions
 

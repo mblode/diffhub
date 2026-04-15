@@ -1,34 +1,102 @@
-import { Agentation } from "agentation";
-import type { Metadata } from "next";
+import { GeistMono } from "geist/font/mono";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { DiffsWorkerProvider } from "@/components/DiffsWorkerProvider";
-import { ThemeProvider } from "@/components/theme-provider";
+
+import { JsonLd } from "@/components/shared/json-ld";
+import { siteConfig } from "@/lib/config";
+
 import "./globals.css";
 
 const glide = localFont({
   display: "swap",
-  src: [
-    { path: "../public/glide-variable.woff2", style: "normal" },
-    { path: "../public/glide-variable-italic.woff2", style: "italic" },
-  ],
+  src: [{ path: "../public/glide-variable.woff2" }],
   variable: "--font-glide",
   weight: "400 900",
 });
 
-const operatorMono = localFont({
-  display: "swap",
-  src: [
-    { path: "../public/operator-mono-book.woff2", style: "normal", weight: "400" },
-    { path: "../public/operator-mono-book-italic.woff2", style: "italic", weight: "400" },
-    { path: "../public/operator-mono-medium.woff2", style: "normal", weight: "500" },
-    { path: "../public/operator-mono-medium-italic.woff2", style: "italic", weight: "500" },
-  ],
-  variable: "--font-operator-mono",
-});
+const siteTitle = `${siteConfig.name} | GitHub PR-style local diff viewer`;
+
+export const viewport: Viewport = {
+  width: "device-width",
+};
 
 export const metadata: Metadata = {
-  description: "GitHub PR-style local diff viewer",
-  title: "diffhub",
+  alternates: {
+    canonical: "/",
+  },
+  description: siteConfig.description,
+  keywords: [
+    "diff viewer",
+    "git diff",
+    "code review",
+    "pull request",
+    "split diff",
+    "unified diff",
+    "cli tool",
+    "diffhub",
+  ],
+  metadataBase: new URL(siteConfig.url),
+  openGraph: {
+    description: siteConfig.description,
+    images: [
+      {
+        alt: siteTitle,
+        height: 630,
+        url: "/opengraph-image.png",
+        width: 1200,
+      },
+    ],
+    siteName: siteConfig.name,
+    title: siteTitle,
+    type: "website",
+    url: siteConfig.url,
+  },
+  title: siteTitle,
+  twitter: {
+    card: "summary_large_image",
+    description: siteConfig.description,
+    images: ["/opengraph-image.png"],
+    title: siteTitle,
+  },
+};
+
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  logo: `${siteConfig.url}/icon0.svg`,
+  name: siteConfig.name,
+  sameAs: [siteConfig.links.github],
+  url: siteConfig.url,
+};
+
+const webSiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: siteConfig.name,
+  url: siteConfig.url,
+};
+
+const softwareJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  applicationCategory: "DeveloperApplication",
+  author: {
+    "@type": "Person",
+    name: "Matthew Blode",
+    url: siteConfig.links.author,
+  },
+  description: siteConfig.description,
+  downloadUrl: siteConfig.links.npm,
+  license: "https://opensource.org/licenses/MIT",
+  name: siteConfig.name,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  operatingSystem: "macOS, Windows, Linux",
+  softwareVersion: process.env.DIFFHUB_VERSION,
+  url: siteConfig.links.npm,
 };
 
 export default function RootLayout({
@@ -38,15 +106,14 @@ export default function RootLayout({
 }>) {
   return (
     <html
+      className={`${glide.variable} ${GeistMono.variable} min-h-screen font-sans antialiased`}
       lang="en"
-      className={`${glide.variable} ${operatorMono.variable} h-full`}
-      suppressHydrationWarning
     >
-      <body className="h-full overflow-hidden bg-background antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <DiffsWorkerProvider>{children}</DiffsWorkerProvider>
-          {process.env.NODE_ENV === "development" && <Agentation />}
-        </ThemeProvider>
+      <body className="flex min-h-screen flex-col">
+        <JsonLd data={organizationJsonLd} />
+        <JsonLd data={webSiteJsonLd} />
+        <JsonLd data={softwareJsonLd} />
+        {children}
       </body>
     </html>
   );

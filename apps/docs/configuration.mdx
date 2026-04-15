@@ -1,0 +1,23 @@
+---
+title: Configuration
+description: Environment variables and repo resolution.
+---
+
+# Configuration
+
+## Environment variables
+
+| Variable | Description |
+| -------- | ----------- |
+| `DIFFHUB_REPO` | Path to the git repository (overrides cwd) |
+| `DIFFHUB_BASE` | Base branch override (overrides auto-detection) |
+| `DIFFHUB_DEBUG` | Set to `1` for verbose git command logging |
+| `DIFFHUB_DISABLE_WATCH` | Set to `1` to disable file system watching |
+
+## Port
+
+The default port is `2047`. Change it with `--port`:
+
+```bash
+diffhub --port 3000
+```

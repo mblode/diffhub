@@ -5,7 +5,7 @@
 
 GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
 
-![diffhub screenshot](apps/web/public/screenshot.png)
+![diffhub screenshot](apps/cli/public/screenshot.png)
 
 ## Features
 

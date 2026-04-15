@@ -102,7 +102,7 @@ const waitForServer = async (
 // -- Shared setup ------------------------------------------------------------
 
 const appDir = resolve(__dirname, "..");
-const serverPath = join(appDir, ".next", "standalone", "apps", "web", "server.js");
+const serverPath = join(appDir, ".next", "standalone", "apps", "cli", "server.js");
 const standaloneDir = resolve(serverPath, "..");
 const CMUX_PATH = "/Applications/cmux.app/Contents/Resources/bin/cmux";
 

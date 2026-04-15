@@ -1,0 +1,60 @@
+---
+title: Usage
+description: CLI commands, flags, and examples.
+---
+
+# Usage
+
+## Basic usage
+
+Run inside any git repository:
+
+```bash
+diffhub
+```
+
+This starts a local server and opens the diff viewer in your browser.
+
+## Commands
+
+| Command | Description |
+| ------- | ----------- |
+| `serve` | Start diffhub server (default) |
+| `cmux` | Open in cmux browser split pane |
+
+## Options
+
+| Flag | Default | Description |
+| ---- | ------- | ----------- |
+| `-p, --port <port>` | `2047` | Port to serve on |
+| `-r, --repo <path>` | `cwd` | Path to the git repository |
+| `-b, --base <branch>` | auto | Base branch to diff against |
+| `--no-open` | — | Skip automatic browser open |
+
+## Examples
+
+```bash
+# Use a different base branch
+diffhub --base develop
+
+# Point at a repo in another directory
+diffhub --repo ~/projects/my-app
+
+# Use a different port
+diffhub --port 3000
+
+# Don't open the browser automatically
+diffhub --no-open
+```
+
+## Base branch detection
+
+diffhub auto-detects the base branch in this priority order:
+
+1. `origin/main`
+2. `origin/master`
+3. `origin/develop`
+4. `origin/dev`
+5. Local `main`, `master`, `develop`, `dev`
+
+Override with `--base <branch>` or the `DIFFHUB_BASE` environment variable.

@@ -1,0 +1,23 @@
+---
+title: Live Refresh
+description: Automatic diff updates when files change.
+---
+
+# Live Refresh
+
+## File watching
+
+diffhub watches your working tree for changes using native file system events. When a tracked file, `.git/HEAD`, `.git/index`, or `.git/refs/` changes, the diff updates automatically.
+
+## Manual refresh
+
+Press `r` to force a refresh at any time.
+
+## Ignored paths
+
+The following paths are excluded from file watching:
+
+- `.next/`
+- `.turbo/`
+- `node_modules/`
+- Most `.git/` internals

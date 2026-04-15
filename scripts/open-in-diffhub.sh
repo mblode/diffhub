@@ -22,8 +22,8 @@
 CMUX="/Applications/cmux.app/Contents/Resources/bin/cmux"
 BASE_BRANCH=""
 PROJECT_DIR="${DIFFHUB_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
-WEB_DIR="$PROJECT_DIR/apps/web"
-BIN="$WEB_DIR/bin/diffhub.mjs"
+CLI_DIR="$PROJECT_DIR/apps/cli"
+BIN="$CLI_DIR/bin/diffhub.mjs"
 NPM="$(command -v npm)"
 
 while [[ $# -gt 0 ]]; do
@@ -55,7 +55,7 @@ lsof -ti:"$PORT" | xargs kill -9 2>/dev/null
 if true; then
 
   # Build if no production build exists
-  if [[ ! -d "$WEB_DIR/.next" ]]; then
+  if [[ ! -d "$CLI_DIR/.next" ]]; then
     echo "No build found — running npm run build..."
     "$CMUX" notify --title "diffhub" --body "Building... (first run only)"
     "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/diffhub-build.log 2>&1

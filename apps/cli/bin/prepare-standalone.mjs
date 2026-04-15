@@ -6,7 +6,7 @@ import {
 } from "./standalone-helpers.mjs";
 
 const appDir = resolve(import.meta.dirname, "..");
-const standaloneDir = join(appDir, ".next", "standalone", "apps", "web");
+const standaloneDir = join(appDir, ".next", "standalone", "apps", "cli");
 
 const materializedAliases = syncStandaloneAssets(appDir, standaloneDir);
 if (materializedAliases.length > 0) {

@@ -1,15 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-glide), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-operator-mono), ui-monospace, monospace;
-  --font-heading: var(--font-glide), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-glide), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,11 +48,20 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  /* Diff-specific semantic tokens */
-  --color-diff-green: var(--diff-green);
-  --color-diff-purple: var(--diff-purple);
-  --color-diff-selected: var(--diff-selected);
-  --color-diff-success: var(--diff-success);
+  --font-display: var(--font-glide);
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-inset: var(--shadow-inset);
+  --shadow-switch: var(--shadow-switch);
+  --color-glass: var(--glass-bg);
+  --color-glass-dim: var(--glass-bg-dim);
+  --color-glass-bright: var(--glass-bg-bright);
+  --duration-fast: var(--duration-fast);
+  --duration-normal: var(--duration-normal);
+  --color-input-hover: var(--input-hover);
+  --color-placeholder-foreground: var(--placeholder-foreground);
+  --shadow-input: var(--shadow-input);
+  --shadow-soft: var(--shadow-soft);
 }
 
 :root {
@@ -60,7 +71,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.648 0.197 0.733);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -69,67 +80,98 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.885 0 0);
+  --input: oklch(0.885 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: oklch(0.85 0 0);
+  --chart-2: oklch(0.7 0 0);
+  --chart-3: oklch(0.55 0 0);
+  --chart-4: oklch(0.4 0 0);
+  --chart-5: oklch(0.25 0 0);
   --radius: 0.625rem;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --shadow-switch: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-dim: rgba(255, 255, 255, 0.78);
+  --glass-bg-bright: rgba(255, 255, 255, 0.72);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --input-hover: oklch(0.85 0 0);
+  --placeholder-foreground: oklch(0.6 0 0);
+  --shadow-input: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.648 0.197 0.733);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* Diff-specific tokens */
-  --diff-green: oklch(0.696 0.17 145);
-  --diff-purple: oklch(0.78 0.12 300);
-  --diff-selected: oklch(0.93 0 0);
-  --diff-success: oklch(0.573 0.15 145);
+  color-scheme: light dark;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.922 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  /* Diff-specific tokens */
-  --diff-green: oklch(0.696 0.15 145);
-  --diff-purple: oklch(0.78 0.12 300);
-  --diff-selected: oklch(0.269 0 0);
-  --diff-success: oklch(0.573 0.15 145);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.648 0.197 0.733);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.85 0 0);
+    --chart-2: oklch(0.7 0 0);
+    --chart-3: oklch(0.55 0 0);
+    --chart-4: oklch(0.4 0 0);
+    --chart-5: oklch(0.25 0 0);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.18);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --shadow-switch: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-bg-dim: rgba(255, 255, 255, 0.04);
+    --glass-bg-bright: rgba(255, 255, 255, 0.08);
+    --input-hover: oklch(0.35 0 0);
+    --placeholder-foreground: oklch(0.5 0 0);
+    --shadow-input: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.25);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.648 0.197 0.733);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
+}
+
+/* Shiki dual-theme: map CSS variables to prefers-color-scheme */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+  background-color: var(--shiki-light-bg);
+}
+@media (prefers-color-scheme: dark) {
+  .shiki,
+  .shiki span {
+    color: var(--shiki-dark);
+    background-color: var(--shiki-dark-bg);
+  }
 }
 
 @layer base {
@@ -139,76 +181,55 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
-
-  kbd {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 16px;
-    padding: 1px 4px;
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    background: var(--muted);
-    font-size: 10px;
-    font-family: var(--font-mono);
-    line-height: 1.4;
-    color: var(--muted-foreground);
-  }
-
-  /*
-   * Gutter "+" button: the library renders a light-DOM slot wrapper with
-   * inline styles `position:absolute; top:0; bottom:0` but NO width. We use
-   * a fixed pixel size so the button is always visible regardless of parent.
-   */
-  .diffhub-gutter-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border: none;
-    border-radius: 3px;
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-size: 14px;
-    font-weight: bold;
-    line-height: 1;
+  button,
+  [role="button"],
+  summary {
     cursor: pointer;
-    animation: diffhub-gutter-in 0.08s ease-out both;
+  }
+}
+
+@layer components {
+  .h1 {
+    @apply scroll-m-20 text-3xl font-semibold tracking-tight lg:text-4xl leading-[1.15];
   }
 
-  .diffhub-gutter-btn:hover {
-    background: color-mix(in srgb, var(--primary) 85%, black);
+  .feature-card {
+    transition: border-color 200ms ease;
   }
 
-  @keyframes diffhub-gutter-in {
-    from {
-      opacity: 0;
+  @media (hover: hover) and (pointer: fine) {
+    .feature-card:hover {
+      border-color: var(--foreground);
     }
-    to {
-      opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feature-card {
+      transition: none;
+    }
+
+    .animate-in {
+      opacity: 1 !important;
+      transform: none !important;
+      animation: none !important;
+    }
+  }
+
+  .hero-glow {
+    background: radial-gradient(
+      ellipse 80% 60% at 50% 40%,
+      oklch(0.648 0.197 0.733 / 0.08),
+      transparent
+    );
+  }
+
+  @variant dark {
+    .hero-glow {
+      background: radial-gradient(
+        ellipse 80% 60% at 50% 40%,
+        oklch(0.648 0.197 0.733 / 0.15),
+        transparent
+      );
     }
   }
 }
-
-@keyframes diffhub-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.diffhub-menu-animate {
-  animation: diffhub-menu-in 120ms ease-out forwards;
-}
-
-/* ── Hunk expand separator ──────────────────────────────────────────────── */
-/*
-  @pierre/diffs renders expand buttons inside Shadow DOM — global CSS cannot
-  reach them. The library provides its own expand-button styling. No overrides
-  are needed here.
-*/

@@ -1,0 +1,35 @@
+---
+title: Introduction
+description: See your branch changes as a PR-style diff — locally, without pushing.
+---
+
+# Introduction
+
+When your workflow moves away from GitHub pull requests — maybe you switched to conductor, or trunk-based development — you lose the "Files Changed" view. You can't see everything you changed relative to main in one place.
+
+diffhub brings that view back. Run one command inside any git repo and it opens a browser-based diff of every change since your branch diverged from main.
+
+[Watch the demo (2 min)](https://www.loom.com/share/e0203dd97b354508a791ecd339094a02)
+
+## What you get
+
+- **PR-style diffs** — diffs against the merge-base, matching GitHub's "Files Changed" view
+- **Split and unified views** — toggle with `s`
+- **Inline comments** — tag lines as `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]`
+- **File sidebar** — filter files with `/`, see per-file `+`/`-` stats
+- **Live refresh** — watches your working tree and updates automatically
+- **Context menu** — right-click to open in Zed, VS Code, Terminal, or Finder
+
+## Quick start
+
+```bash
+npx diffhub@latest
+```
+
+Run inside any git repository. Opens `http://localhost:2047` with all changes between your branch and `main`.
+
+## Next steps
+
+- [Installation](/installation) — install globally or run with npx
+- [Usage](/usage) — CLI flags and examples
+- [Features](/features/diff-views) — explore all features
