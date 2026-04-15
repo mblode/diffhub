@@ -1,11 +1,5 @@
 # diffhub
 
-## 0.1.9
-
-### Patch Changes
-
-- Improve standalone packaging and diff review handling
-
 ## 0.1.8
 
 ### Patch Changes
