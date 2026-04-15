@@ -620,11 +620,13 @@ const getDiffSnapshot = (
         patchByFile: splitPatchByFile(fullPatch),
       };
 
-      console.info("[diffhub] snapshot cache miss", {
-        generation,
-        repoPath,
-        source: "recomputed",
-      });
+      if (isDebugLogging) {
+        console.info("[diffhub] snapshot cache miss", {
+          generation,
+          repoPath,
+          source: "recomputed",
+        });
+      }
       writeSnapshotToDisk(repoPath, base, mode, whitespace, snapshot);
       return snapshot;
     },

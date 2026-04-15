@@ -4,10 +4,8 @@ import { program } from "commander";
 import { execFile as execFileCb, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  cpSync,
   createWriteStream,
   existsSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -18,6 +16,10 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import {
+  findMissingStandaloneNodeModuleAliases,
+  syncStandaloneAssets,
+} from "./standalone-helpers.mjs";
 
 const execFile = promisify(execFileCb);
 const __dirname = import.meta.dirname;
@@ -95,29 +97,6 @@ const waitForServer = async (
     });
   }
   return false;
-};
-
-const syncStandaloneAssets = (appDir, standaloneDir) => {
-  const copies = [
-    {
-      from: join(appDir, ".next", "static"),
-      to: join(standaloneDir, ".next", "static"),
-    },
-    {
-      from: join(appDir, "public"),
-      to: join(standaloneDir, "public"),
-    },
-  ];
-
-  for (const copy of copies) {
-    if (!existsSync(copy.from)) {
-      continue;
-    }
-
-    rmSync(copy.to, { force: true, recursive: true });
-    mkdirSync(resolve(copy.to, ".."), { recursive: true });
-    cpSync(copy.from, copy.to, { force: true, recursive: true });
-  }
 };
 
 // -- Shared setup ------------------------------------------------------------
@@ -767,11 +746,20 @@ const startServer = (repoPath, baseBranch, port, options = {}) => {
     stdio = ["ignore", "pipe", "pipe"];
   }
 
+  const missingStandaloneAliases = findMissingStandaloneNodeModuleAliases(standaloneDir);
+  if (missingStandaloneAliases.length > 0) {
+    console.warn("[diffhub] disabling prerender because standalone module aliases are missing", {
+      aliases: missingStandaloneAliases,
+    });
+  }
+
+  const shouldDisablePrerender = Boolean(logPath) || missingStandaloneAliases.length > 0;
+
   const serverEnv = {
     ...process.env,
     ...(baseBranch ? { DIFFHUB_BASE: baseBranch } : {}),
     ...(cmux ? { DIFFHUB_CMUX: "1" } : {}),
-    ...(logPath ? { DIFFHUB_DISABLE_PRERENDER: "1" } : {}),
+    ...(shouldDisablePrerender ? { DIFFHUB_DISABLE_PRERENDER: "1" } : {}),
     DIFFHUB_REPO: repoPath,
     DIFFHUB_SERVER_BOOT_ID: serverBootId,
     HOSTNAME: "127.0.0.1",

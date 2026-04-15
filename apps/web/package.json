@@ -1,6 +1,6 @@
 {
   "name": "diffhub",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "GitHub PR-style local diff viewer — review your git changes in the browser",
   "keywords": [
     "ai",
@@ -29,7 +29,8 @@
   "scripts": {
     "dev": "portless run --force next dev",
     "build": "next build",
-    "prepack": "next build && cp -r .next/static .next/standalone/apps/web/.next/static",
+    "prepare:standalone": "node ./bin/prepare-standalone.mjs",
+    "prepack": "next build && npm run prepare:standalone",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -40,7 +41,7 @@
     "test:watch": "vitest",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "release": "next build && cp -r .next/static .next/standalone/apps/web/.next/static && changeset publish"
+    "release": "next build && npm run prepare:standalone && changeset publish"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

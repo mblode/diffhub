@@ -8,7 +8,7 @@ import type { Comment } from "@/lib/comments";
 interface MockAnnotation {
   lineNumber: number;
   metadata?: unknown;
-  side: "left" | "right";
+  side: "deletions" | "additions";
 }
 
 const { MockDynamicPatch } = vi.hoisted(() => ({
@@ -22,12 +22,12 @@ const { MockDynamicPatch } = vi.hoisted(() => ({
     lineAnnotations?: MockAnnotation[];
     renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
     renderGutterUtility?: (
-      getHoveredLine: () => { lineNumber: number; side: "left" | "right" } | undefined,
+      getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined,
     ) => React.ReactNode;
   }) => (
     <div data-testid={`patch:${patch.slice(0, 12)}`}>
       <div>{patch}</div>
-      {renderGutterUtility?.(() => ({ lineNumber: 12, side: "right" }))}
+      {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }))}
       {lineAnnotations?.map((annotation) => {
         const metadataKey =
           typeof annotation.metadata === "object" && annotation.metadata !== null
@@ -219,6 +219,17 @@ describe("DiffApp review flow", () => {
       "/api/comments",
       expect.objectContaining({ method: "POST" }),
     );
+    const addCommentRequest = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/comments" && init?.method === "POST",
+    );
+    expect(addCommentRequest).toBeTruthy();
+    expect(JSON.parse(String(addCommentRequest?.[1]?.body ?? "{}"))).toStrictEqual({
+      body: "Investigate this diff",
+      file: "src/b.ts",
+      lineNumber: 12,
+      side: "right",
+      tag: "",
+    });
 
     await user.click(within(secondSection).getByRole("button", { name: /delete comment/i }));
 
