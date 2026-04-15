@@ -193,21 +193,7 @@
     @apply scroll-m-20 text-3xl font-semibold tracking-tight lg:text-4xl leading-[1.15];
   }
 
-  .feature-card {
-    transition: border-color 200ms ease;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .feature-card:hover {
-      border-color: var(--foreground);
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .feature-card {
-      transition: none;
-    }
-
     .animate-in {
       opacity: 1 !important;
       transform: none !important;
@@ -216,18 +202,54 @@
   }
 
   .hero-glow {
+    position: relative;
+  }
+
+  .hero-glow::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
     background: radial-gradient(
-      ellipse 80% 60% at 50% 40%,
-      oklch(0.5 0.134 242.749 / 0.08),
+      ellipse 70% 50% at 50% 40%,
+      oklch(0.5 0.134 242.749 / 0.12),
       transparent
     );
+    z-index: -1;
+    pointer-events: none;
   }
 
   @variant dark {
-    .hero-glow {
+    .hero-glow::before {
       background: radial-gradient(
-        ellipse 80% 60% at 50% 40%,
-        oklch(0.443 0.11 240.79 / 0.15),
+        ellipse 70% 50% at 50% 40%,
+        oklch(0.443 0.11 240.79 / 0.2),
+        transparent
+      );
+    }
+  }
+
+  .cta-glow {
+    position: relative;
+  }
+
+  .cta-glow::before {
+    content: "";
+    position: absolute;
+    inset: -15%;
+    background: radial-gradient(
+      ellipse 60% 50% at 50% 50%,
+      oklch(0.5 0.134 242.749 / 0.06),
+      transparent
+    );
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  @variant dark {
+    .cta-glow::before {
+      background: radial-gradient(
+        ellipse 60% 50% at 50% 50%,
+        oklch(0.443 0.11 240.79 / 0.12),
         transparent
       );
     }
