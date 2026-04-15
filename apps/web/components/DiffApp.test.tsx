@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
 import type { Comment } from "@/lib/comments";
 
@@ -124,13 +124,19 @@ const diffPayload = {
 };
 
 const jsonResponse = (value: unknown, init?: ResponseInit): Response => Response.json(value, init);
+const getDiffSection = (file: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`[data-filename="${file}"]`);
 
 describe("DiffApp review flow", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("loads diffs, collapses viewed files, and supports comment add/delete", async () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("loads diffs, collapses files, and supports comment add/delete", async () => {
     const user = userEvent.setup();
     let comments: Comment[] = [];
 
@@ -179,14 +185,14 @@ describe("DiffApp review flow", () => {
       expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/diff"));
     });
 
-    const firstSection = document.querySelector<HTMLElement>('[data-filename="src/a.ts"]');
+    const firstSection = getDiffSection("src/a.ts");
     expect(firstSection).not.toBeNull();
     if (!firstSection) {
       throw new Error("Missing first diff section");
     }
 
     const viewedToggle = within(firstSection).getByRole("button", {
-      name: /mark as viewed/i,
+      name: /collapse file section/i,
     });
     await user.click(viewedToggle);
 
@@ -195,7 +201,7 @@ describe("DiffApp review flow", () => {
       expect(firstPanel.hidden).toBeTruthy();
     });
 
-    const secondSection = document.querySelector<HTMLElement>('[data-filename="src/b.ts"]');
+    const secondSection = getDiffSection("src/b.ts");
     expect(secondSection).not.toBeNull();
     if (!secondSection) {
       throw new Error("Missing second diff section");
@@ -206,7 +212,7 @@ describe("DiffApp review flow", () => {
 
     const commentInput = within(secondSection).getByPlaceholderText("Add a comment for the AI");
     await user.type(commentInput, "Investigate this diff");
-    await user.click(within(secondSection).getByRole("button", { name: /comment ↵/i }));
+    await user.click(within(secondSection).getByRole("button", { name: /^comment$/i }));
 
     await screen.findByText("Investigate this diff");
     expect(fetchMock).toHaveBeenCalledWith(
@@ -223,5 +229,116 @@ describe("DiffApp review flow", () => {
       "/api/comments?id=comment-1",
       expect.objectContaining({ method: "DELETE" }),
     );
+  });
+
+  it("keeps the inline draft open when comment creation fails", async () => {
+    const user = userEvent.setup();
+
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      if (url === "/api/comments" && method === "POST") {
+        return Promise.resolve(jsonResponse({ error: "save failed" }, { status: 500 }));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    const commentSection = getDiffSection("src/b.ts");
+    expect(commentSection).not.toBeNull();
+    if (!commentSection) {
+      throw new Error("Missing second diff section");
+    }
+
+    await user.click(within(commentSection).getByTitle("Add comment for AI"));
+
+    const commentInput = within(commentSection).getByPlaceholderText("Add a comment for the AI");
+    await user.type(commentInput, "Investigate this diff");
+    await user.click(within(commentSection).getByRole("button", { name: /^comment$/i }));
+
+    await screen.findByText("Failed to save comment.");
+    expect((commentInput as HTMLTextAreaElement).value).toBe("Investigate this diff");
+    expect(screen.queryByRole("button", { name: /delete comment/i })).toBeNull();
+  });
+
+  it("keeps the saved comment visible when deletion fails", async () => {
+    const user = userEvent.setup();
+    let comments: Comment[] = [];
+
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse(comments));
+      }
+
+      if (url === "/api/comments" && method === "POST") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Omit<Comment, "createdAt" | "id">;
+        const createdComment: Comment = {
+          ...body,
+          createdAt: "2026-04-15T00:00:00.000Z",
+          id: "comment-1",
+        };
+        comments = [createdComment];
+        return Promise.resolve(jsonResponse(createdComment));
+      }
+
+      if (url === "/api/comments?id=comment-1" && method === "DELETE") {
+        return Promise.resolve(jsonResponse({ error: "delete failed" }, { status: 500 }));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    const commentSection = getDiffSection("src/b.ts");
+    expect(commentSection).not.toBeNull();
+    if (!commentSection) {
+      throw new Error("Missing second diff section");
+    }
+
+    await user.click(within(commentSection).getByTitle("Add comment for AI"));
+
+    const commentInput = within(commentSection).getByPlaceholderText("Add a comment for the AI");
+    await user.type(commentInput, "Investigate this diff");
+    await user.click(within(commentSection).getByRole("button", { name: /^comment$/i }));
+
+    await screen.findByText("Investigate this diff");
+
+    await user.click(screen.getByRole("button", { name: /delete comment/i }));
+
+    await screen.findByText("Failed to delete comment.");
+    expect(screen.getByText("Investigate this diff")).toBeTruthy();
   });
 });

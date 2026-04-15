@@ -1,10 +1,10 @@
 {
   "name": "diffhub",
   "private": true,
-  "packageManager": "npm@10.9.3",
   "workspaces": [
     "apps/*"
   ],
+  "type": "module",
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
@@ -22,7 +22,5 @@
     "turbo": "^2",
     "ultracite": "^7.5.6"
   },
-  "dependencies": {
-    "next-themes": "^0.4.6"
-  }
+  "packageManager": "npm@10.9.3"
 }

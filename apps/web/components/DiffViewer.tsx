@@ -105,15 +105,38 @@ const PatchDiff = dynamic(
 /* oxlint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
 
 interface InlineCommentInputProps {
-  onSubmit: (body: string, tag: CommentTag) => void;
+  onSubmit: (body: string, tag: CommentTag) => Promise<boolean>;
   onCancel: () => void;
 }
 
 const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => {
   const [body, setBody] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const focusInput = useCallback((node: HTMLTextAreaElement | null) => {
     node?.focus({ preventScroll: true });
   }, []);
+
+  const handleSubmit = useCallback(async (): Promise<void> => {
+    const trimmedBody = body.trim();
+    if (!trimmedBody || isSubmitting) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const saved = await onSubmit(trimmedBody, "");
+      if (!saved) {
+        setErrorMessage("Failed to save comment.");
+      }
+    } catch {
+      setErrorMessage("Failed to save comment.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [body, isSubmitting, onSubmit]);
 
   return (
     <div className="my-1 mx-4 rounded-md border border-border bg-background p-3 shadow-lg dark:shadow-none">
@@ -127,7 +150,7 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
         // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
         onKeyDown={(e) => {
           if (((e.key === "Enter" && e.metaKey) || e.key === "Return") && body.trim()) {
-            onSubmit(body.trim(), "");
+            void handleSubmit();
           }
           if (e.key === "Escape") {
             onCancel();
@@ -141,30 +164,77 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
         </Button>
         <Button
           size="sm"
-          disabled={!body.trim()}
+          disabled={!body.trim() || isSubmitting}
           // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClick={() => body.trim() && onSubmit(body.trim(), "")}
+          onClick={() => void handleSubmit()}
         >
-          Comment
+          {isSubmitting ? "Saving…" : "Comment"}
         </Button>
       </div>
+      {errorMessage && <p className="mt-2 text-xs text-destructive">{errorMessage}</p>}
     </div>
   );
 };
 
-const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () => void }) => {
+const CommentDisplay = ({
+  comment,
+  onDelete,
+}: {
+  comment: Comment;
+  onDelete: () => Promise<boolean>;
+}) => {
   const [copied, setCopied] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const handleCopy = () => {
+  const handleCopy = async (): Promise<void> => {
     const text = comment.tag ? `${comment.tag} ${comment.body}` : comment.body;
-    // oxlint-disable-next-line promise/prefer-await-to-then
-    navigator.clipboard.writeText(text).catch(() => {
-      // empty
-    });
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(text);
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
+      setCopied(true);
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false);
+        copiedTimerRef.current = null;
+      }, 1500);
+    } catch {
+      // clipboard unavailable
+    }
   };
+
+  const handleDelete = useCallback(async (): Promise<void> => {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      const deleted = await onDelete();
+      if (!deleted) {
+        setDeleteError("Failed to delete comment.");
+      }
+    } catch {
+      setDeleteError("Failed to delete comment.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isDeleting, onDelete]);
 
   const borderAccent = comment.tag
     ? (TAG_META[comment.tag]?.border ?? "border-l-ring/40")
@@ -199,6 +269,7 @@ const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () 
                   <button
                     type="button"
                     onClick={handleCopy}
+                    aria-label={copied ? "Comment copied" : "Copy comment"}
                     className={cn(
                       "rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
                       copied
@@ -217,8 +288,9 @@ const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () 
                 render={
                   <button
                     type="button"
-                    onClick={onDelete}
+                    onClick={handleDelete}
                     aria-label="Delete comment"
+                    disabled={isDeleting}
                     className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
                   />
                 }
@@ -240,6 +312,7 @@ const CommentDisplay = ({ comment, onDelete }: { comment: Comment; onDelete: () 
           </>
         )}
       </div>
+      {deleteError && <p className="px-3 pb-2 text-xs text-destructive">{deleteError}</p>}
     </div>
   );
 };
@@ -323,8 +396,8 @@ interface SingleFileDiffProps {
     side: string,
     body: string,
     tag: CommentTag,
-  ) => Promise<void>;
-  onDeleteComment: (id: string) => Promise<void>;
+  ) => Promise<boolean>;
+  onDeleteComment: (id: string) => Promise<boolean>;
 }
 
 interface GutterButtonProps {
@@ -407,8 +480,17 @@ const SingleFileDiff = memo(function SingleFileDiff({
           <InlineCommentInput
             // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onSubmit={async (body, tag) => {
-              await onAddComment(file, annotation.lineNumber, annotation.side, body, tag);
-              onCommentTargetChange(null);
+              const saved = await onAddComment(
+                file,
+                annotation.lineNumber,
+                annotation.side,
+                body,
+                tag,
+              );
+              if (saved) {
+                onCommentTargetChange(null);
+              }
+              return saved;
             }}
             // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onCancel={() => onCommentTargetChange(null)}
@@ -504,8 +586,8 @@ interface DiffViewerProps {
     side: string,
     body: string,
     tag: CommentTag,
-  ) => Promise<void>;
-  onDeleteComment: (id: string) => Promise<void>;
+  ) => Promise<boolean>;
+  onDeleteComment: (id: string) => Promise<boolean>;
   activeFileId: string | null;
   fileStats: DiffFileStat[];
   collapsedFiles: Set<string>;
@@ -532,8 +614,8 @@ interface CollapsibleFileDiffProps {
     side: string,
     body: string,
     tag: CommentTag,
-  ) => Promise<void>;
-  onDeleteComment: (id: string) => Promise<void>;
+  ) => Promise<boolean>;
+  onDeleteComment: (id: string) => Promise<boolean>;
 }
 
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({

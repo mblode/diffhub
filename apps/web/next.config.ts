@@ -6,8 +6,9 @@ const nextConfig: NextConfig = {
   logging: {
     browserToTerminal: true,
   },
-  // Standalone output: produces .next/standalone/server.js — a self-contained server
-  // that works without a full Next.js install. Shipped in the npm package.
+  // Standalone output: produces .next/standalone/apps/web/server.js — a
+  // self-contained server that works without a full Next.js install and ships
+  // in the npm package.
   output: "standalone",
   // Monorepo: point tracing root at the repo root so Next.js can resolve packages
   // hoisted to the root node_modules. The standalone output lands at

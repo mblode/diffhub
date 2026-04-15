@@ -10,6 +10,9 @@ export const GET = async (request: Request) => {
     const result = await getDiffStats(base, mode, whitespace);
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    );
   }
 };

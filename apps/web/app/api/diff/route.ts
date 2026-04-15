@@ -130,6 +130,9 @@ export const GET = async (request: Request) => {
     });
   } catch (error) {
     console.error("[diffhub] /api/diff failed", { error, ...logContext });
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    );
   }
 };

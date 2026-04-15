@@ -51,8 +51,8 @@ Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server di
 **Whitespace filtering is wired through both diff routes.**
 `/api/diff` and `/api/files` both accept `ws=ignore`, and `DiffApp` is responsible for keeping the current whitespace mode in sync across file stats and the selected-file patch fetch.
 
-**`outputFileTracingRoot` must be the monorepo root, not `__dirname`.**
-`next.config.ts` sets `outputFileTracingRoot: join(__dirname, "../..")`. Using `__dirname` (the app directory) breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/web/server.js` — not a flat `server.js`.
+**`outputFileTracingRoot` must be the monorepo root, not the app directory.**
+`next.config.ts` sets `outputFileTracingRoot: join(import.meta.dirname, "../..")`. Using the app directory breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/web/server.js` — not a flat `server.js`.
 
 **Standalone server path mirrors the monorepo workspace.**
 Because `outputFileTracingRoot` is the repo root, the standalone server lives at `.next/standalone/apps/web/server.js`, and static files must be at `.next/standalone/apps/web/.next/static/`. The CLI handles this automatically.

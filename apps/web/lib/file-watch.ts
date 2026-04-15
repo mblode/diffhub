@@ -1,7 +1,9 @@
 import { existsSync, watch } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { createDeferred } from "./deferred";
 import { clearGitMemoryCache, invalidateGitCache, primeGitSnapshots } from "./git";
+import { getGitDirectory } from "./git-paths";
 import { getConfiguredRepoPath } from "./repo-path";
 
 type FileWatchListener = () => void;
@@ -120,7 +122,7 @@ const closeWatcher = (): void => {
 };
 
 const createWatcher = (repoPath: string): FSWatcher[] => {
-  const gitDir = join(repoPath, ".git");
+  const gitDir = getGitDirectory(repoPath);
   const watchTargets = [repoPath].filter(existsSync);
   const recursiveSupported = process.platform === "darwin" || process.platform === "win32";
   const nextWatchers: FSWatcher[] = [];
@@ -223,7 +225,7 @@ export const waitForFileWatch = (
   signal: AbortSignal,
   timeoutMs: number,
 ): Promise<"change" | "timeout"> => {
-  const { promise, resolve } = Promise.withResolvers<"change" | "timeout">();
+  const { promise, resolve } = createDeferred<"change" | "timeout">();
   let settled = false;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let unsubscribe = noop;

@@ -133,20 +133,6 @@ const collectFolderPaths = (nodes: TreeNode[], paths: string[] = []) => {
   return paths;
 };
 
-// Escape string for use in CSS attribute selector value
-const escapeAttributeValue = (value: string): string =>
-  value
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("\n", "\\n")
-    .replaceAll("\r", "\\r")
-    .replaceAll("\f", "\\f");
-
-const _getRenderedFileSection = (file: string) => {
-  const escapedFile = escapeAttributeValue(file);
-  return document.querySelector<HTMLElement>(`[data-filename="${escapedFile}"]`);
-};
-
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 interface FileRowProps {
@@ -364,6 +350,12 @@ export const FileList = ({
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
+    const clearDragState = () => {
+      dragRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragRef.current) {
         return;
@@ -378,15 +370,16 @@ export const FileList = ({
       if (!dragRef.current) {
         return;
       }
-      dragRef.current = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
+      clearDragState();
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("blur", handleMouseUp);
     return () => {
+      clearDragState();
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("blur", handleMouseUp);
     };
   }, []);
 

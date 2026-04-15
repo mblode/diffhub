@@ -17,6 +17,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
+import { splitPatchByFile } from "@/lib/split-patch";
 import { useFileWatch } from "@/lib/use-file-watch";
 import { useLocalStorage } from "@/lib/use-local-storage";
 
@@ -84,8 +85,8 @@ interface MainPanelProps {
     side: string,
     body: string,
     tag: CommentTag,
-  ) => Promise<void>;
-  onDeleteComment: (id: string) => Promise<void>;
+  ) => Promise<boolean>;
+  onDeleteComment: (id: string) => Promise<boolean>;
   selectedFile: string | null;
   collapsedFiles: Set<string>;
   onToggleCollapse: (file: string) => void;
@@ -100,6 +101,8 @@ interface PlaceholderProps {
 
 const FALLBACK_POLL_INTERVAL_MS = 5000;
 const LIVE_POLL_INTERVAL_MS = 30_000;
+const LAYOUT_OPTIONS = ["split", "stacked"] as const;
+const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
   if (typeof window === "undefined") {
@@ -123,26 +126,6 @@ const hashString = (value: string): string => {
   return Math.abs(hash).toString(36);
 };
 
-const splitPatchByFile = (patch: string): Record<string, string> => {
-  const patches: Record<string, string> = {};
-  const headerPattern = /^diff --git a\/(.+?) b\/(.+)$/gm;
-  const entries: { file: string; start: number }[] = [];
-
-  let match = headerPattern.exec(patch);
-  while (match) {
-    entries.push({ file: match[2], start: match.index });
-    match = headerPattern.exec(patch);
-  }
-
-  for (const [index, entry] of entries.entries()) {
-    const nextStart = entries[index + 1]?.start ?? patch.length;
-    const filePatch = patch.slice(entry.start, nextStart).trimEnd();
-    patches[entry.file] = filePatch ? `${filePatch}\n` : "";
-  }
-
-  return patches;
-};
-
 const createReviewKeysByFile = (
   patchesByFile: Record<string, string>,
   generation: string,
@@ -158,7 +141,8 @@ const normalizeDiffResponse = (
   response: MultiFileDiffResponse,
   sourceFingerprint: string,
 ): MultiFileDiffData => {
-  const patchesByFile = response.patchesByFile ?? splitPatchByFile(response.patch ?? "");
+  const patchesByFile =
+    response.patchesByFile ?? Object.fromEntries(splitPatchByFile(response.patch ?? ""));
   return {
     baseBranch: response.baseBranch,
     branch: response.branch,
@@ -299,19 +283,17 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
-  const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", [
-    "split",
-    "stacked",
-  ] as const);
+  const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", LAYOUT_OPTIONS);
   const [filterQuery, setFilterQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffRequestPending, setDiffRequestPending] = useState(false);
-  const [diffMode, setDiffMode] = useLocalStorage<DiffMode>("diffhub-diffMode", "all", [
+  const [diffMode, setDiffMode] = useLocalStorage<DiffMode>(
+    "diffhub-diffMode",
     "all",
-    "uncommitted",
-  ] as const);
+    DIFF_MODE_OPTIONS,
+  );
   const diffModeRef = useRef<DiffMode>(diffMode);
   const activeFileLockRef = useRef<{ file: string; until: number } | null>(null);
   const lastDiffFingerprintRef = useRef<string | null>(null);
@@ -796,17 +778,37 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         method: "POST",
       });
 
-      if (response.ok) {
-        const comment = (await response.json()) as Comment;
-        setComments((previous) => [...previous, comment]);
+      if (!response.ok) {
+        const errorBody = (await response
+          .json()
+          .catch(() => ({ error: "Failed to save comment" }))) as DiffErrorResponse;
+        console.error("[diffhub] add comment failed", {
+          error: errorBody.error ?? `Failed to save comment (${response.status})`,
+        });
+        return false;
       }
+
+      const comment = (await response.json()) as Comment;
+      setComments((previous) => [...previous, comment]);
+      return true;
     },
     [],
   );
 
   const handleDeleteComment = useCallback(async (id: string) => {
-    await fetch(`/api/comments?id=${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/comments?id=${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const errorBody = (await response
+        .json()
+        .catch(() => ({ error: "Failed to delete comment" }))) as DiffErrorResponse;
+      console.error("[diffhub] delete comment failed", {
+        error: errorBody.error ?? `Failed to delete comment (${response.status})`,
+      });
+      return false;
+    }
+
     setComments((previous) => previous.filter((comment) => comment.id !== id));
+    return true;
   }, []);
 
   const syncNotice = getSyncNotice(

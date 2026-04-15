@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createDeferred } from "./deferred";
+import { resolveRepoFilePath } from "./git-paths";
 import { getConfiguredRepoPath, REPO_POINTER } from "./repo-path";
 
 // TTL cache — avoids spawning git subprocesses on every poll
@@ -136,7 +138,7 @@ const runGitUnqueued = async (args: string[]): Promise<string> => {
   }
 
   try {
-    const { promise, reject, resolve } = Promise.withResolvers<string>();
+    const { promise, reject, resolve } = createDeferred<string>();
     {
       const child = spawn("git", args, {
         cwd: getRepoPath(),
@@ -738,7 +740,7 @@ export const getFileAtRef = (filePath: string, ref: string): Promise<string> => 
   const repoPath = getRepoPath();
   if (ref === "WORKING_TREE") {
     try {
-      return Promise.resolve(readFileSync(join(repoPath, filePath), "utf-8"));
+      return Promise.resolve(readFileSync(resolveRepoFilePath(repoPath, filePath), "utf-8"));
     } catch {
       // empty
       return Promise.resolve("");

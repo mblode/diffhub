@@ -24,9 +24,17 @@ const __dirname = import.meta.dirname;
 const PREFERRED_BASE_BRANCHES = ["main", "master", "develop", "dev"];
 
 // Fast-fail on unsupported Node.js versions
-const nodeMajor = Number.parseInt(process.version.slice(1).split(".")[0], 10);
-if (nodeMajor < 18) {
-  process.stderr.write(`❌ diffhub requires Node.js 18+. You have ${process.version}.\n`);
+const [nodeMajor, nodeMinor] = process.versions.node
+  .split(".")
+  .slice(0, 2)
+  .map((value) => Number.parseInt(value, 10));
+const isSupportedNode =
+  Number.isFinite(nodeMajor) &&
+  Number.isFinite(nodeMinor) &&
+  (nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 11));
+
+if (!isSupportedNode) {
+  process.stderr.write(`❌ diffhub requires Node.js 20.11+. You have ${process.version}.\n`);
   process.stderr.write(`   Download: https://nodejs.org\n`);
   process.exit(1);
 }
@@ -992,7 +1000,8 @@ const cmuxAction = async (opts) => {
 
 // -- CLI setup ---------------------------------------------------------------
 
-program.name("diffhub").description("GitHub PR-style local diff viewer").version("0.1.0");
+const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
+program.name("diffhub").description("GitHub PR-style local diff viewer").version(pkg.version);
 
 program
   .command("serve", { isDefault: true })
