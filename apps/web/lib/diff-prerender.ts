@@ -1,7 +1,9 @@
 import { preloadPatchDiff } from "@pierre/diffs/ssr";
+import type { DiffTheme } from "./diff-colors";
+import { getDiffUnsafeCSS } from "./diff-colors";
 
-export type DiffLayout = "split" | "stacked";
-export type ThemeType = "light" | "dark";
+type DiffLayout = "split" | "stacked";
+type ThemeType = "light" | "dark";
 
 export interface PrerenderedDiffHtml {
   split: { dark: string; light: string };
@@ -12,14 +14,16 @@ const getPrerenderOptions = (layout: DiffLayout, themeType: ThemeType) => ({
   diffStyle: layout === "split" ? ("split" as const) : ("unified" as const),
   disableFileHeader: true,
   disableLineNumbers: false,
+  enableGutterUtility: true,
   expansionLineCount: 20,
   hunkSeparators: "line-info" as const,
-  lineDiffType: "char" as const,
+  lineDiffType: "word" as const,
+  lineHoverHighlight: "line" as const,
   maxLineDiffLength: 500,
-  overflow: "scroll" as const,
+  overflow: "wrap" as const,
   theme: { dark: "github-dark", light: "github-light" } as const,
   themeType,
-  unsafeCSS: `[data-diff-span] { border-radius: 0; }`,
+  unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
 });
 
 export const preloadPatchHtmlByLayout = async (patch: string): Promise<PrerenderedDiffHtml> => {

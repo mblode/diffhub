@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.6
+
+### Patch Changes
+
+- Remove dead code: delete unused components, un-export internal-only symbols, and clean up cascading unused UI primitives
+
 ## 0.1.5
 
 ### Patch Changes

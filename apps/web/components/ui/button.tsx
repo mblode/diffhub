@@ -87,4 +87,4 @@ const Button = ({
     },
   });
 
-export { Button, buttonVariants };
+export { Button };

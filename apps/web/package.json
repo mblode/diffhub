@@ -1,6 +1,6 @@
 {
   "name": "diffhub",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "GitHub PR-style local diff viewer — review your git changes in the browser",
   "keywords": [
     "ai",
@@ -25,6 +25,7 @@
     ".next/standalone/",
     "package.json"
   ],
+  "type": "module",
   "scripts": {
     "dev": "portless run --force next dev",
     "build": "next build",
@@ -34,7 +35,7 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt .",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit -p tsconfig.check.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "changeset": "changeset",
@@ -46,6 +47,7 @@
     "@pierre/diffs": "^1.1.15",
     "agentation": "^3.0.2",
     "blode-icons-react": "^0.3.10",
+    "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "commander": "^14.0.3",
@@ -54,24 +56,28 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shadcn": "^4.2.0",
-    "simple-git": "^3.36.0",
     "tailwind-merge": "^3.5.0",
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "jsdom": "^29.0.2",
     "lefthook": "^2.1.5",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0",
     "portless": "^0.10.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "ultracite": "^7.5.6"
+    "ultracite": "^7.5.6",
+    "vitest": "^4.1.4"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-arm64-gnu": "4.2.2",

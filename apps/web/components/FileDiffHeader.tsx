@@ -1,15 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
-import {
-  DotGrid1x3HorizontalIcon,
-  EyeOpenIcon,
-  EyeSlashIcon,
-  BubbleDotsIcon,
-} from "blode-icons-react";
-import { ContextMenu } from "./ContextMenu";
+import { ChevronDownIcon, BubbleDotsIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
+import { CopyButton } from "@/components/ui/copy-button";
 import { cn } from "@/lib/utils";
 
 interface FileDiffHeaderProps {
@@ -18,9 +11,11 @@ interface FileDiffHeaderProps {
   deletions: number;
   commentCount: number;
   repoPath: string;
-  viewed: boolean;
-  onToggleViewed: () => void;
-  onDiscard?: () => Promise<void>;
+  collapsed?: boolean;
+  active?: boolean;
+  onToggleCollapse?: () => void;
+  headingId?: string;
+  panelId?: string;
 }
 
 export const FileDiffHeader = ({
@@ -29,45 +24,75 @@ export const FileDiffHeader = ({
   deletions,
   commentCount,
   repoPath,
-  viewed,
-  onToggleViewed,
-  onDiscard,
+  collapsed = false,
+  active = false,
+  onToggleCollapse,
+  headingId,
+  panelId,
 }: FileDiffHeaderProps) => {
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-
   const lastSlash = file.lastIndexOf("/");
   const dir = lastSlash === -1 ? "" : file.slice(0, lastSlash);
   const filename = lastSlash === -1 ? file : file.slice(lastSlash + 1);
 
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const handleOpenMenu = () => {
-    const rect = menuButtonRef.current?.getBoundingClientRect();
-    if (!rect) {
+  const handleToggleCollapse = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
       return;
     }
-    setContextMenu({ x: rect.left, y: rect.bottom + 4 });
+
+    window.dispatchEvent(
+      new CustomEvent("diffhub:file:toggle-collapse", {
+        detail: { file },
+      }),
+    );
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 h-9 border-b border-border bg-card sticky top-0 z-10">
-      {/* File path + stats (left group) */}
-      <div className="flex items-center gap-2 min-w-0 flex-1 text-[13px]">
-        <div className="flex items-baseline gap-0 min-w-0">
-          {dir && <span className="text-muted-foreground truncate shrink">{dir}/</span>}
-          <span className="text-foreground font-medium shrink-0">{filename}</span>
-        </div>
+    <div
+      data-active={active ? "true" : undefined}
+      data-state={collapsed ? "collapsed" : "expanded"}
+      className="flex items-center gap-2 px-3 h-9 border-b border-border bg-card sticky top-0 z-10"
+    >
+      <h3 id={headingId} className="flex min-w-0 flex-1 items-center gap-2 text-[12px] font-normal">
+        {/* Collapse affordance */}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={handleToggleCollapse}
+          aria-expanded={!collapsed}
+          aria-controls={panelId}
+          aria-label={collapsed ? "Expand file section" : "Collapse file section"}
+          title={collapsed ? "Expand file section" : "Collapse file section"}
+          className="text-muted-foreground"
+        >
+          <ChevronDownIcon
+            size={14}
+            className={cn("transition-transform duration-150", collapsed && "-rotate-90")}
+          />
+        </Button>
 
-        {/* Stats inline after filename */}
-        <div className="flex items-center gap-1 shrink-0">
-          {insertions > 0 && (
-            <span className="font-mono text-[12px] text-diff-green">+{insertions}</span>
-          )}
-          {deletions > 0 && (
-            <span className="font-mono text-[12px] text-destructive">−{deletions}</span>
-          )}
-        </div>
-      </div>
+        {/* File path + stats (left group) */}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="flex min-w-0 items-baseline gap-0 font-mono">
+              {dir && <span className="text-muted-foreground truncate shrink">{dir}/</span>}
+              <span className="text-foreground font-medium shrink-0">{filename}</span>
+            </span>
+            <CopyButton value={`${repoPath}/${file}`} />
+          </span>
+
+          {/* Stats inline after filename */}
+          <span className="flex items-center gap-1 shrink-0">
+            {insertions > 0 && (
+              <span className="font-mono text-[12px] text-diff-green">+{insertions}</span>
+            )}
+            {deletions > 0 && (
+              <span className="font-mono text-[12px] text-destructive">−{deletions}</span>
+            )}
+          </span>
+        </span>
+      </h3>
 
       {/* Comment badge */}
       {commentCount > 0 && (
@@ -75,44 +100,6 @@ export const FileDiffHeader = ({
           <BubbleDotsIcon size={10} />
           {commentCount}
         </div>
-      )}
-
-      {/* Open in… button */}
-      <Button
-        ref={menuButtonRef}
-        variant="ghost"
-        size="icon-xs"
-        onClick={handleOpenMenu}
-        className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-        title="Open in…"
-      >
-        <DotGrid1x3HorizontalIcon />
-      </Button>
-
-      {/* Viewed toggle */}
-      <Toggle
-        pressed={viewed}
-        onPressedChange={onToggleViewed}
-        className={cn(
-          viewed ? "text-ring hover:text-ring/80" : "text-muted-foreground hover:text-foreground",
-        )}
-        title={viewed ? "Mark as not viewed" : "Mark as viewed"}
-        aria-label={viewed ? "Mark as not viewed" : "Mark as viewed"}
-      >
-        {viewed ? <EyeOpenIcon /> : <EyeSlashIcon />}
-      </Toggle>
-
-      {/* Context menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          filePath={file}
-          repoPath={repoPath}
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClose={() => setContextMenu(null)}
-          onDiscard={onDiscard}
-        />
       )}
     </div>
   );

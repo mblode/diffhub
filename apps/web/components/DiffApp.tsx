@@ -12,34 +12,70 @@ import {
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
-import { DiffViewer } from "./DiffViewer";
+import { DiffViewer, getDiffSectionId } from "./DiffViewer";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import type { DiffFileStat } from "@/lib/git";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
+import { useFileWatch } from "@/lib/use-file-watch";
+import { useLocalStorage } from "@/lib/use-local-storage";
 
 interface FilesData {
-  files: DiffFileStat[];
+  files: {
+    file: string;
+    changes: number;
+    insertions: number;
+    deletions: number;
+    binary: boolean;
+  }[];
   insertions: number;
   deletions: number;
   branch: string;
   baseBranch: string;
   fingerprint: string;
+  generation: string;
 }
 
-interface FileDiff {
-  patch: string;
+interface MultiFileDiffResponse {
+  patch?: string;
+  patchesByFile?: Record<string, string>;
+  prerenderedHTMLByFile?: Record<string, PrerenderedDiffHtml>;
+  reviewKeysByFile?: Record<string, string>;
   baseBranch: string;
   mergeBase: string;
   branch: string;
-  prerenderedHTML?: PrerenderedDiffHtml;
+  generation: string;
+  fingerprint?: string;
+}
+
+interface MultiFileDiffData {
+  patchesByFile: Record<string, string>;
+  prerenderedHTMLByFile?: Record<string, PrerenderedDiffHtml>;
+  reviewKeysByFile: Record<string, string>;
+  baseBranch: string;
+  mergeBase: string;
+  branch: string;
+  generation: string;
+  sourceFingerprint: string;
+}
+
+interface DiffErrorResponse {
+  error?: string;
+}
+
+type SyncNoticeTone = "neutral" | "warning" | "destructive";
+
+interface SyncNotice {
+  label: string;
+  detail?: string;
+  tone: SyncNoticeTone;
 }
 
 interface MainPanelProps {
   filesData: FilesData | null;
-  deferredFileDiff: FileDiff | null;
-  fileDiffPending: boolean;
+  deferredDiffData: MultiFileDiffData | null;
+  diffError: string | null;
+  syncNotice: SyncNotice | null;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -51,10 +87,10 @@ interface MainPanelProps {
   ) => Promise<void>;
   onDeleteComment: (id: string) => Promise<void>;
   selectedFile: string | null;
-  viewedFiles: Set<string>;
-  onToggleViewed: (file: string) => void;
+  collapsedFiles: Set<string>;
+  onToggleCollapse: (file: string) => void;
+  onActiveFileChange: (file: string) => void;
   repoPath: string;
-  onDiscard: ((file: string) => Promise<void>) | undefined;
 }
 
 interface PlaceholderProps {
@@ -62,25 +98,163 @@ interface PlaceholderProps {
   pulse?: boolean;
 }
 
+const FALLBACK_POLL_INTERVAL_MS = 5000;
+const LIVE_POLL_INTERVAL_MS = 30_000;
+
+const readStoredJson = <T,>(key: string, fallback: T): T => {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? (JSON.parse(stored) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const hashString = (value: string): string => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.trunc(Math.imul(31, hash) + (value.codePointAt(index) ?? 0));
+  }
+
+  return Math.abs(hash).toString(36);
+};
+
+const splitPatchByFile = (patch: string): Record<string, string> => {
+  const patches: Record<string, string> = {};
+  const headerPattern = /^diff --git a\/(.+?) b\/(.+)$/gm;
+  const entries: { file: string; start: number }[] = [];
+
+  let match = headerPattern.exec(patch);
+  while (match) {
+    entries.push({ file: match[2], start: match.index });
+    match = headerPattern.exec(patch);
+  }
+
+  for (const [index, entry] of entries.entries()) {
+    const nextStart = entries[index + 1]?.start ?? patch.length;
+    const filePatch = patch.slice(entry.start, nextStart).trimEnd();
+    patches[entry.file] = filePatch ? `${filePatch}\n` : "";
+  }
+
+  return patches;
+};
+
+const createReviewKeysByFile = (
+  patchesByFile: Record<string, string>,
+  generation: string,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(patchesByFile).map(([file, patch]) => [
+      file,
+      `${generation}:${hashString(`${file}:${patch}`)}`,
+    ]),
+  );
+
+const normalizeDiffResponse = (
+  response: MultiFileDiffResponse,
+  sourceFingerprint: string,
+): MultiFileDiffData => {
+  const patchesByFile = response.patchesByFile ?? splitPatchByFile(response.patch ?? "");
+  return {
+    baseBranch: response.baseBranch,
+    branch: response.branch,
+    generation: response.generation,
+    mergeBase: response.mergeBase,
+    patchesByFile,
+    prerenderedHTMLByFile: response.prerenderedHTMLByFile,
+    reviewKeysByFile:
+      response.reviewKeysByFile ?? createReviewKeysByFile(patchesByFile, response.generation),
+    sourceFingerprint,
+  };
+};
+
 const Placeholder = ({ text, pulse = false }: PlaceholderProps): React.JSX.Element => (
   <div className="flex h-full items-center justify-center">
     <div className={`text-muted-foreground text-sm${pulse ? " animate-pulse" : ""}`}>{text}</div>
   </div>
 );
 
+const getFileSectionSelector = (file: string): string => {
+  const sectionId = getDiffSectionId(file);
+  if (typeof window !== "undefined" && window.CSS?.escape) {
+    return `#${window.CSS.escape(sectionId)}`;
+  }
+
+  // Full CSS identifier escaping fallback for browsers without CSS.escape
+  const escaped = sectionId.replaceAll(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, "\\$&");
+  return `#${escaped}`;
+};
+
+const SyncBanner = ({ notice }: { notice: SyncNotice }): React.JSX.Element => {
+  let toneClass = "border-border bg-muted/40 text-muted-foreground";
+  if (notice.tone === "destructive") {
+    toneClass = "border-destructive/30 bg-destructive/10 text-destructive";
+  } else if (notice.tone === "warning") {
+    toneClass = "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  }
+
+  return (
+    <div className={`border-b px-4 py-2 text-xs ${toneClass}`}>
+      <div className="flex items-center gap-2">
+        <span className="font-medium">{notice.label}</span>
+        {notice.detail && <span className="text-xs opacity-80">{notice.detail}</span>}
+      </div>
+    </div>
+  );
+};
+
+const getSyncNotice = (
+  loadError: string | null,
+  filesData: FilesData | null,
+  deferredDiffData: MultiFileDiffData | null,
+  diffError: string | null,
+  fileWatchState: "connecting" | "live" | "fallback",
+): SyncNotice | null => {
+  if (loadError && filesData !== null) {
+    return {
+      detail: loadError,
+      label: "Background refresh failed",
+      tone: "destructive",
+    };
+  }
+
+  if (diffError && deferredDiffData) {
+    return {
+      detail: diffError,
+      label: "Diff refresh failed",
+      tone: "destructive",
+    };
+  }
+
+  if (fileWatchState === "fallback") {
+    return {
+      detail: "Live watch is unavailable, so the app is polling every 5 seconds",
+      label: "Polling fallback",
+      tone: "warning",
+    };
+  }
+
+  return null;
+};
+
 const MainPanel = ({
   filesData,
-  deferredFileDiff,
-  fileDiffPending,
+  deferredDiffData,
+  diffError,
+  syncNotice,
   layout,
   comments,
   onAddComment,
   onDeleteComment,
   selectedFile,
-  viewedFiles,
-  onToggleViewed,
+  collapsedFiles,
+  onToggleCollapse,
+  onActiveFileChange,
   repoPath,
-  onDiscard,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
@@ -88,109 +262,90 @@ const MainPanel = ({
   if (filesData.files.length === 0) {
     return <Placeholder text="No changes" />;
   }
-  if (!deferredFileDiff || fileDiffPending) {
+  if (!deferredDiffData) {
+    if (diffError) {
+      return <Placeholder text={diffError} />;
+    }
     return <Placeholder text="Loading diff…" pulse />;
   }
+
   return (
-    <DiffViewer
-      patch={deferredFileDiff.patch}
-      prerenderedHTML={deferredFileDiff.prerenderedHTML}
-      layout={layout}
-      comments={comments}
-      onAddComment={onAddComment}
-      onDeleteComment={onDeleteComment}
-      selectedFileId={selectedFile}
-      fileStats={filesData.files}
-      viewedFiles={viewedFiles}
-      onToggleViewed={onToggleViewed}
-      repoPath={repoPath}
-      onDiscard={onDiscard}
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      {syncNotice && <SyncBanner notice={syncNotice} />}
+      <div className="min-h-0 flex-1">
+        <DiffViewer
+          patchesByFile={deferredDiffData.patchesByFile}
+          prerenderedHTMLByFile={deferredDiffData.prerenderedHTMLByFile}
+          layout={layout}
+          comments={comments}
+          onAddComment={onAddComment}
+          onDeleteComment={onDeleteComment}
+          activeFileId={selectedFile}
+          fileStats={filesData.files}
+          collapsedFiles={collapsedFiles}
+          onToggleCollapse={onToggleCollapse}
+          onActiveFileChange={onActiveFileChange}
+          repoPath={repoPath}
+        />
+      </div>
+    </div>
   );
 };
 
-const POLL_INTERVAL = 5000;
-const MAX_DIFF_CACHE_ENTRIES = 50;
-
-const getCachedDiff = (cache: Map<string, FileDiff>, file: string): FileDiff | null => {
-  const cached = cache.get(file);
-  if (!cached) {
-    return null;
-  }
-
-  cache.delete(file);
-  cache.set(file, cached);
-  return cached;
-};
-
-const setCachedDiff = (cache: Map<string, FileDiff>, file: string, diff: FileDiff): void => {
-  if (cache.has(file)) {
-    cache.delete(file);
-  }
-  cache.set(file, diff);
-
-  if (cache.size <= MAX_DIFF_CACHE_ENTRIES) {
-    return;
-  }
-
-  const oldestKey = cache.keys().next().value;
-  if (oldestKey) {
-    cache.delete(oldestKey);
-  }
-};
-
+// oxlint-disable-next-line complexity
 export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  // Ref mirror of selectedFile — lets pollFiles read it without a stale closure
   const selectedFileRef = useRef<string | null>(null);
-  const [fileDiff, setFileDiff] = useState<FileDiff | null>(null);
-  // Per-file patch cache: avoids re-fetching when switching back to a previously viewed file
-  const diffCacheRef = useRef<Map<string, FileDiff>>(new Map());
-  const [layout, setLayout] = useState<"split" | "stacked">("split");
+  const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
+  const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", [
+    "split",
+    "stacked",
+  ] as const);
   const [filterQuery, setFilterQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Diff mode — "all" shows mergeBase...HEAD, "uncommitted" shows git diff HEAD
-  const [diffMode, setDiffMode] = useState<DiffMode>("all");
-  // Ref so callbacks always read the latest mode without being recreated
-  const diffModeRef = useRef<DiffMode>("all");
-  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
-  const ignoreWhitespaceRef = useRef(false);
-  // Fingerprint of the current diff tree. Unlike summary counts, this changes on renames
-  // and mode-only edits as well as regular content changes.
+  const [diffError, setDiffError] = useState<string | null>(null);
+  const [diffRequestPending, setDiffRequestPending] = useState(false);
+  const [diffMode, setDiffMode] = useLocalStorage<DiffMode>("diffhub-diffMode", "all", [
+    "all",
+    "uncommitted",
+  ] as const);
+  const diffModeRef = useRef<DiffMode>(diffMode);
+  const activeFileLockRef = useRef<{ file: string; until: number } | null>(null);
   const lastDiffFingerprintRef = useRef<string | null>(null);
-  // In-flight guard: don't start a new poll if previous is still running
+  const currentFilesFingerprintRef = useRef<string | null>(null);
+  const currentFilesGenerationRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
+  const queuedPollRef = useRef(false);
+  const pollFilesRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
+  const diffFetchInFlightRef = useRef(false);
+  const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
-  const [isFileDiffPending, startFileDiffTransition] = useTransition();
-  // Viewed files — persisted to localStorage per repo
-  const [viewedFiles, setViewedFiles] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") {
-      return new Set();
-    }
-    try {
-      const stored = localStorage.getItem(`diffhub-viewed:${repoPath}`);
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch {
-      // empty
-      return new Set();
-    }
-  });
+  const [, startDiffTransition] = useTransition();
+  // Start with empty Set to avoid hydration mismatch, then sync from localStorage
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
 
-  const toggleViewed = useCallback(
-    (file: string) => {
-      setViewedFiles((prev) => {
-        const next = new Set(prev);
-        if (next.has(file)) {
-          next.delete(file);
-        } else {
-          next.add(file);
+  useEffect(() => {
+    diffModeRef.current = diffMode;
+  }, [diffMode]);
+
+  // Sync collapsed files from localStorage after mount
+  useEffect(() => {
+    setCollapsedFiles(new Set(readStoredJson<string[]>(`diffhub-collapsed:${repoPath}`, [])));
+  }, [repoPath]);
+
+  const updateCollapsedFiles = useCallback(
+    (updater: (previous: Set<string>) => Set<string>) => {
+      setCollapsedFiles((previous) => {
+        const next = updater(previous);
+        if (next === previous) {
+          return previous;
         }
+
         try {
-          localStorage.setItem(`diffhub-viewed:${repoPath}`, JSON.stringify([...next]));
+          localStorage.setItem(`diffhub-collapsed:${repoPath}`, JSON.stringify([...next]));
         } catch {
           // empty
         }
@@ -200,127 +355,186 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     [repoPath],
   );
 
-  // Deferred patch for DiffViewer — keeps sidebar responsive during large renders
-  const deferredFileDiff = useDeferredValue(fileDiff);
+  const deferredDiffData = useDeferredValue(diffData);
 
-  const buildDiffQuery = useCallback((file?: string): string => {
+  const buildFilesQuery = useCallback(() => {
     const params = new URLSearchParams();
-    if (file) {
-      params.set("file", file);
-    }
     if (diffModeRef.current === "uncommitted") {
       params.set("mode", "uncommitted");
-    }
-    if (ignoreWhitespaceRef.current) {
-      params.set("ws", "ignore");
     }
     const query = params.toString();
     return query ? `?${query}` : "";
   }, []);
 
-  // Fetch the diff for a single file; uses local cache
-  const fetchFileDiff = useCallback(
-    async (file: string) => {
-      latestDiffRequestRef.current += 1;
-      const requestId = latestDiffRequestRef.current;
-      const cached = getCachedDiff(diffCacheRef.current, file);
-      if (cached) {
-        if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
-          return;
-        }
-        startFileDiffTransition(() => setFileDiff(cached));
-        return;
-      }
+  const buildDiffQuery = useCallback(() => {
+    const params = new URLSearchParams();
+    if (currentFilesGenerationRef.current) {
+      params.set("generation", currentFilesGenerationRef.current);
+    }
+    if (diffModeRef.current === "uncommitted") {
+      params.set("mode", "uncommitted");
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
+  }, []);
+
+  const performDiffFetch = useCallback(
+    async (requestId: number) => {
+      const requestGeneration = currentFilesGenerationRef.current;
+      const requestFingerprint = currentFilesFingerprintRef.current;
+      setDiffError(null);
+
+      console.info("[diffhub] fetchDiff start", {
+        fingerprint: requestFingerprint,
+        generation: requestGeneration,
+        mode: diffModeRef.current,
+        requestId,
+      });
+
       try {
-        const res = await fetch(`/api/diff${buildDiffQuery(file)}`);
-        if (!res.ok) {
+        const response = await fetch(`/api/diff${buildDiffQuery()}`);
+        if (!response.ok) {
+          const errorBody = (await response
+            .json()
+            .catch(() => ({ error: "Failed to load diff" }))) as DiffErrorResponse;
+          const errorMessage = errorBody.error ?? `Failed to load diff (${response.status})`;
+
+          console.error("[diffhub] fetchDiff non-ok response", {
+            fingerprint: requestFingerprint,
+            generation: requestGeneration,
+            mode: diffModeRef.current,
+            requestId,
+            responseStatus: response.status,
+            responseStatusText: response.statusText,
+            serverError: errorMessage,
+          });
+
+          if (requestId === latestDiffRequestRef.current) {
+            setDiffError(errorMessage);
+          }
           return;
         }
-        const data = (await res.json()) as FileDiff;
-        if (selectedFileRef.current !== file || requestId !== latestDiffRequestRef.current) {
+
+        const payload = (await response.json()) as MultiFileDiffResponse;
+        const nextDiffData = normalizeDiffResponse(payload, requestFingerprint ?? "unknown");
+
+        if (
+          requestId !== latestDiffRequestRef.current ||
+          requestFingerprint !== currentFilesFingerprintRef.current ||
+          requestGeneration !== currentFilesGenerationRef.current
+        ) {
+          console.info("[diffhub] fetchDiff response stale", {
+            fingerprint: requestFingerprint,
+            generation: requestGeneration,
+            latestRequestId: latestDiffRequestRef.current,
+            requestId,
+          });
           return;
         }
-        startFileDiffTransition(() => {
-          setCachedDiff(diffCacheRef.current, file, data);
-          setFileDiff(data);
+
+        console.info("[diffhub] fetchDiff success", {
+          fileCount: Object.keys(nextDiffData.patchesByFile).length,
+          fingerprint: requestFingerprint,
+          generation: nextDiffData.generation,
+          requestId,
         });
-      } catch {
-        // empty
+
+        startDiffTransition(() => setDiffData(nextDiffData));
+      } catch (error) {
+        console.error("[diffhub] fetchDiff threw", {
+          error,
+          fingerprint: requestFingerprint,
+          generation: requestGeneration,
+          mode: diffModeRef.current,
+          requestId,
+        });
+
+        if (requestId === latestDiffRequestRef.current) {
+          setDiffError(error instanceof Error ? error.message : String(error));
+        }
       }
     },
-    [buildDiffQuery, startFileDiffTransition],
+    [buildDiffQuery, startDiffTransition],
   );
 
-  const handleSelectFile = useCallback(
-    (file: string) => {
-      selectedFileRef.current = file;
-      startTransition(() => setSelectedFile(file));
-      fetchFileDiff(file);
-    },
-    [fetchFileDiff],
-  );
+  const fetchAllDiff = useCallback(async () => {
+    queuedDiffFetchRef.current = true;
+    if (diffFetchInFlightRef.current) {
+      return;
+    }
+
+    diffFetchInFlightRef.current = true;
+    setDiffRequestPending(true);
+
+    try {
+      while (queuedDiffFetchRef.current) {
+        queuedDiffFetchRef.current = false;
+        latestDiffRequestRef.current += 1;
+        await performDiffFetch(latestDiffRequestRef.current);
+      }
+    } finally {
+      diffFetchInFlightRef.current = false;
+      setDiffRequestPending(false);
+    }
+  }, [performDiffFetch]);
 
   const reconcileSelectedFile = useCallback(
-    (files: FilesData) => {
-      if (files.files.length === 0) {
+    (nextFiles: FilesData) => {
+      currentFilesFingerprintRef.current = nextFiles.fingerprint;
+      currentFilesGenerationRef.current = nextFiles.generation;
+
+      if (nextFiles.files.length === 0) {
         selectedFileRef.current = null;
         latestDiffRequestRef.current += 1;
         startTransition(() => {
           setSelectedFile(null);
-          setFileDiff(null);
+          setDiffData(null);
         });
-        lastDiffFingerprintRef.current = files.fingerprint;
+        setDiffError(null);
+        lastDiffFingerprintRef.current = nextFiles.fingerprint;
         return;
       }
 
-      if (!selectedFileRef.current) {
-        const first = files.files[0].file;
-        selectedFileRef.current = first;
-        startTransition(() => setSelectedFile(first));
-        fetchFileDiff(first);
+      let nextSelection = selectedFileRef.current;
+      if (!nextSelection || !nextFiles.files.some((file) => file.file === nextSelection)) {
+        nextSelection = nextFiles.files[0]?.file ?? null;
+        selectedFileRef.current = nextSelection;
+        startTransition(() => setSelectedFile(nextSelection));
       }
 
-      const currentSelection = selectedFileRef.current;
-      if (currentSelection && !files.files.some((file) => file.file === currentSelection)) {
-        const nextFile = files.files[0]?.file ?? null;
-        selectedFileRef.current = nextFile;
+      const didChangeFingerprint = nextFiles.fingerprint !== lastDiffFingerprintRef.current;
+      const diffMatchesGeneration = diffData?.generation === nextFiles.generation;
+
+      if (!didChangeFingerprint && diffMatchesGeneration && diffError === null) {
+        return;
+      }
+
+      lastDiffFingerprintRef.current = nextFiles.fingerprint;
+      if (didChangeFingerprint) {
         latestDiffRequestRef.current += 1;
-        startTransition(() => {
-          setSelectedFile(nextFile);
-          setFileDiff(null);
-        });
-        if (nextFile) {
-          fetchFileDiff(nextFile);
-        }
       }
 
-      if (files.fingerprint === lastDiffFingerprintRef.current) {
-        return;
-      }
-
-      lastDiffFingerprintRef.current = files.fingerprint;
-      latestDiffRequestRef.current += 1;
-      diffCacheRef.current.clear();
-      const curr = selectedFileRef.current;
-      if (curr) {
-        fetchFileDiff(curr);
-      }
+      void fetchAllDiff();
     },
-    [fetchFileDiff],
+    [diffData, diffError, fetchAllDiff],
   );
 
   const invalidateDiffState = useCallback(() => {
     latestDiffRequestRef.current += 1;
-    diffCacheRef.current.clear();
     lastDiffFingerprintRef.current = null;
+    currentFilesFingerprintRef.current = null;
+    currentFilesGenerationRef.current = null;
+    setDiffData(null);
+    setDiffError(null);
   }, []);
 
-  // Poll /api/files for change detection (lightweight) + /api/comments
   const pollFiles = useCallback(
     async (silent = false) => {
       if (fetchingRef.current) {
+        queuedPollRef.current = true;
         return;
       }
+
       fetchingRef.current = true;
       if (!silent) {
         setRefreshing(true);
@@ -328,119 +542,263 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       setLoadError(null);
 
       try {
-        const [filesRes, commentsRes] = await Promise.all([
-          fetch(`/api/files${buildDiffQuery()}`),
-          fetch("/api/comments"),
+        const [filesResponse, nextComments] = await Promise.all([
+          fetch(`/api/files${buildFilesQuery()}`),
+          fetch("/api/comments")
+            .then(async (response) => {
+              if (!response.ok) {
+                throw new Error(`Failed to load comments (${response.status})`);
+              }
+
+              return (await response.json()) as Comment[];
+            })
+            .catch((error) => {
+              console.error("[diffhub] comments refresh failed", { error });
+              return null;
+            }),
         ]);
 
-        if (!filesRes.ok) {
-          const err = await filesRes.json().catch(() => ({ error: "Network error" }));
-          setLoadError(err.error ?? "Failed to load files");
+        if (!filesResponse.ok) {
+          const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
+          setLoadError(errorBody.error ?? "Failed to load files");
           return;
         }
 
-        const [files, commentsData] = await Promise.all([
-          filesRes.json() as Promise<FilesData>,
-          commentsRes.json() as Promise<Comment[]>,
-        ]);
+        const nextFilesData = (await filesResponse.json()) as FilesData;
 
         startTransition(() => {
-          setFilesData(files);
-          setComments(commentsData);
+          setFilesData(nextFilesData);
+          if (nextComments !== null) {
+            setComments(nextComments);
+          }
         });
-        setLastUpdated(new Date());
-        reconcileSelectedFile(files);
+        reconcileSelectedFile(nextFilesData);
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : String(error));
       } finally {
         if (!silent) {
           setRefreshing(false);
         }
+
         fetchingRef.current = false;
+        if (queuedPollRef.current) {
+          queuedPollRef.current = false;
+          queueMicrotask(() => {
+            void pollFilesRef.current(true);
+          });
+        }
       }
     },
-    [buildDiffQuery, reconcileSelectedFile],
+    [buildFilesQuery, reconcileSelectedFile],
   );
 
-  // Initial load
   useEffect(() => {
-    pollFiles();
+    pollFilesRef.current = pollFiles;
   }, [pollFiles]);
 
-  // Polling — only /api/files, not the full patch
+  const fileWatchState = useFileWatch(() => {
+    void pollFiles(true);
+  });
+
+  const handleRetry = useCallback(() => {
+    void pollFiles();
+  }, [pollFiles]);
+
   useEffect(() => {
-    const interval = setInterval(() => pollFiles(true), POLL_INTERVAL);
+    void pollFiles();
+  }, [pollFiles]);
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => void pollFiles(true),
+      fileWatchState === "live" ? LIVE_POLL_INTERVAL_MS : FALLBACK_POLL_INTERVAL_MS,
+    );
     return () => clearInterval(interval);
-  }, [pollFiles]);
+  }, [fileWatchState, pollFiles]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    // oxlint-disable-next-line complexity
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+  const lockActiveFile = useCallback((file: string, durationMs = 800) => {
+    activeFileLockRef.current = { file, until: Date.now() + durationMs };
+    selectedFileRef.current = file;
+    startTransition(() => setSelectedFile(file));
+  }, []);
+
+  const scrollToFile = useCallback(
+    (file: string, behavior: ScrollBehavior = "smooth") => {
+      lockActiveFile(file);
+
+      // Expand the file if it's collapsed
+      updateCollapsedFiles((previous) => {
+        if (previous.has(file)) {
+          const next = new Set(previous);
+          next.delete(file);
+          return next;
+        }
+        return previous;
+      });
+
+      const performScroll = (section: HTMLElement): void => {
+        // Use scrollIntoView for consistent behavior that respects scroll-padding CSS
+        section.scrollIntoView({ behavior, block: "start" });
+
+        // Move focus for accessibility (keyboard/screen reader users)
+        const focusTarget = section.querySelector<HTMLElement>('[role="heading"], h2, h3, button');
+        if (focusTarget) {
+          focusTarget.focus({ preventScroll: true });
+        } else {
+          section.setAttribute("tabindex", "-1");
+          section.focus({ preventScroll: true });
+        }
+      };
+
+      const section = document.querySelector<HTMLElement>(getFileSectionSelector(file));
+      if (section) {
+        performScroll(section);
         return;
       }
 
-      if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
-        setLayout((l) => (l === "split" ? "stacked" : "split"));
+      // Section not rendered yet (lazy loading) - wait for DOM mutation
+      const container = document.querySelector("#diff-container");
+      if (!container) {
+        return;
       }
-      if (e.key === "/" && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
+
+      const observer = new MutationObserver(() => {
+        const delayedSection = document.querySelector<HTMLElement>(getFileSectionSelector(file));
+        if (delayedSection) {
+          observer.disconnect();
+          performScroll(delayedSection);
+        }
+      });
+
+      observer.observe(container, { childList: true, subtree: true });
+
+      // Safety timeout - stop waiting after 5 seconds
+      setTimeout(() => observer.disconnect(), 5000);
+    },
+    [lockActiveFile, updateCollapsedFiles],
+  );
+
+  const handleActiveFileChange = useCallback((file: string) => {
+    const lock = activeFileLockRef.current;
+    if (lock) {
+      if (Date.now() > lock.until) {
+        activeFileLockRef.current = null;
+      } else if (lock.file !== file) {
+        return;
+      }
+    }
+
+    if (selectedFileRef.current === file) {
+      return;
+    }
+
+    selectedFileRef.current = file;
+    startTransition(() => setSelectedFile(file));
+  }, []);
+
+  const toggleCollapse = useCallback(
+    (file: string) => {
+      lockActiveFile(file);
+      updateCollapsedFiles((previous) => {
+        const next = new Set(previous);
+        if (next.has(file)) {
+          next.delete(file);
+        } else {
+          next.add(file);
+        }
+        return next;
+      });
+    },
+    [lockActiveFile, updateCollapsedFiles],
+  );
+
+  const collapseAll = useCallback(() => {
+    updateCollapsedFiles(() => new Set((filesData?.files ?? []).map((file) => file.file)));
+  }, [filesData, updateCollapsedFiles]);
+
+  const expandAll = useCallback(() => {
+    updateCollapsedFiles(() => new Set());
+  }, [updateCollapsedFiles]);
+
+  useEffect(() => {
+    // oxlint-disable-next-line complexity
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) {
+        return;
+      }
+
+      if (event.key === "s" && !event.metaKey && !event.ctrlKey) {
+        setLayout((value) => (value === "split" ? "stacked" : "split"));
+      }
+      if (
+        (event.key === "/" || event.key.toLowerCase() === "t") &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        event.preventDefault();
         document.querySelector<HTMLInputElement>('input[placeholder="Filter files…"]')?.focus();
       }
-      if (e.key === "v" && !e.metaKey && !e.ctrlKey && selectedFile) {
-        toggleViewed(selectedFile);
+      if (event.key.toLowerCase() === "c" && !event.metaKey && !event.ctrlKey && selectedFile) {
+        if (event.shiftKey) {
+          collapseAll();
+          return;
+        }
+        toggleCollapse(selectedFile);
       }
-      if (e.key === "r" && !e.metaKey && !e.ctrlKey) {
-        pollFiles();
+      if (event.key.toLowerCase() === "e" && event.shiftKey && !event.metaKey && !event.ctrlKey) {
+        expandAll();
       }
-      if (e.key === "j" || e.key === "k") {
+      if (event.key === "r" && !event.metaKey && !event.ctrlKey) {
+        void pollFiles();
+      }
+      if (event.key === "j" || event.key === "k") {
         const files = filesData?.files ?? [];
         if (files.length === 0) {
           return;
         }
-        const idx = files.findIndex((f) => f.file === selectedFile);
-        const next = e.key === "j" ? files[idx + 1] : files[idx - 1];
+
+        const index = files.findIndex((file) => file.file === selectedFile);
+        const next = event.key === "j" ? files[index + 1] : files[index - 1];
         if (next) {
-          handleSelectFile(next.file);
+          scrollToFile(next.file);
         }
       }
     };
+
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [filesData, selectedFile, toggleViewed, pollFiles, handleSelectFile]);
+  }, [
+    collapseAll,
+    expandAll,
+    filesData,
+    pollFiles,
+    scrollToFile,
+    selectedFile,
+    setLayout,
+    toggleCollapse,
+  ]);
 
   const handleDiffModeChange = useCallback(
     (mode: DiffMode) => {
-      // update ref immediately so next poll/fetch uses it
       diffModeRef.current = mode;
       setDiffMode(mode);
       invalidateDiffState();
-      pollFiles(false);
+      void pollFiles(false);
     },
-    [invalidateDiffState, pollFiles],
-  );
-
-  const handleIgnoreWhitespaceChange = useCallback(
-    (nextIgnoreWhitespace: boolean) => {
-      ignoreWhitespaceRef.current = nextIgnoreWhitespace;
-      setIgnoreWhitespace(nextIgnoreWhitespace);
-      invalidateDiffState();
-      pollFiles(false);
-    },
-    [invalidateDiffState, pollFiles],
+    [invalidateDiffState, pollFiles, setDiffMode],
   );
 
   const handleAddComment = useCallback(
     async (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => {
-      const res = await fetch("/api/comments", {
+      const response = await fetch("/api/comments", {
         body: JSON.stringify({ body, file, lineNumber, side, tag }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      if (res.ok) {
-        const comment = (await res.json()) as Comment;
-        setComments((prev) => [...prev, comment]);
+
+      if (response.ok) {
+        const comment = (await response.json()) as Comment;
+        setComments((previous) => [...previous, comment]);
       }
     },
     [],
@@ -448,26 +806,18 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
 
   const handleDeleteComment = useCallback(async (id: string) => {
     await fetch(`/api/comments?id=${id}`, { method: "DELETE" });
-    setComments((prev) => prev.filter((c) => c.id !== id));
+    setComments((previous) => previous.filter((comment) => comment.id !== id));
   }, []);
 
-  const handleDiscard = useCallback(
-    async (file: string) => {
-      const res = await fetch("/api/discard", {
-        body: JSON.stringify({ file }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      if (res.ok) {
-        // Bust cache for this file and re-poll
-        diffCacheRef.current.delete(file);
-        await pollFiles(false);
-      }
-    },
-    [pollFiles],
+  const syncNotice = getSyncNotice(
+    loadError,
+    filesData,
+    deferredDiffData,
+    diffError,
+    fileWatchState,
   );
 
-  if (loadError) {
+  if (loadError && filesData === null) {
     return (
       <SidebarProvider className="h-svh">
         <SidebarInset className="flex flex-col h-svh items-center justify-center gap-4">
@@ -475,11 +825,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
             <p className="font-semibold mb-1">Failed to load diff</p>
             <p className="text-xs opacity-80">{loadError}</p>
           </div>
-          <Button
-            variant="outline"
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onClick={() => pollFiles()}
-          >
+          <Button variant="outline" onClick={handleRetry}>
             Retry
           </Button>
         </SidebarInset>
@@ -492,47 +838,44 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       <FileList
         files={filesData?.files ?? []}
         selectedFile={selectedFile}
-        onSelectFile={handleSelectFile}
+        onSelectFile={scrollToFile}
         comments={comments}
-        repoPath={repoPath}
         filterQuery={filterQuery}
         onFilterChange={setFilterQuery}
-        viewedFiles={viewedFiles}
         isLoading={filesData === null}
+        insertions={filesData?.insertions ?? 0}
+        deletions={filesData?.deletions ?? 0}
       />
 
       <SidebarInset className="flex flex-col h-svh overflow-hidden">
         <StatusBar
           branch={filesData?.branch ?? "…"}
           baseBranch={filesData?.baseBranch ?? "main"}
-          insertions={filesData?.insertions ?? 0}
-          deletions={filesData?.deletions ?? 0}
-          fileCount={filesData?.files.length ?? 0}
-          refreshing={refreshing}
-          lastUpdated={lastUpdated}
+          refreshing={refreshing || diffRequestPending}
+          fileWatchState={fileWatchState}
           comments={comments}
           diffMode={diffMode}
           onDiffModeChange={handleDiffModeChange}
-          ignoreWhitespace={ignoreWhitespace}
-          onIgnoreWhitespaceChange={handleIgnoreWhitespaceChange}
           layout={layout}
           onLayoutChange={setLayout}
+          syncNotice={syncNotice}
         />
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <MainPanel
             filesData={filesData}
-            deferredFileDiff={deferredFileDiff}
-            fileDiffPending={isFileDiffPending}
+            deferredDiffData={deferredDiffData}
+            diffError={diffError}
+            syncNotice={syncNotice}
             layout={layout}
             comments={comments}
             onAddComment={handleAddComment}
             onDeleteComment={handleDeleteComment}
             selectedFile={selectedFile}
-            viewedFiles={viewedFiles}
-            onToggleViewed={toggleViewed}
+            collapsedFiles={collapsedFiles}
+            onToggleCollapse={toggleCollapse}
+            onActiveFileChange={handleActiveFileChange}
             repoPath={repoPath}
-            onDiscard={diffMode === "uncommitted" ? handleDiscard : undefined}
           />
         </div>
       </SidebarInset>

@@ -1,24 +1,32 @@
 "use client";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BubbleDotsIcon, FolderIcon, FolderOpenIcon, MagnifyingGlassIcon } from "blode-icons-react";
+import {
+  BubbleDotsIcon,
+  Folder1Icon,
+  FolderOpenFilledIcon,
+  MagnifyingGlassIcon,
+} from "blode-icons-react";
 import { FileAddedIcon, FileDiffIcon, FileRemovedIcon } from "./icons/file-status-icons";
 import type { DiffFileStat } from "@/lib/git";
 import type { Comment } from "@/lib/comments";
-import { ContextMenu } from "./ContextMenu";
 import { cn } from "@/lib/utils";
-import { Sidebar, SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
+
+const FILE_NAVIGATE_EVENT = "diffhub:file:navigate";
+const FILE_TREE_EXPAND_ALL_EVENT = "diffhub:file-tree:expand-all";
+const FILE_TREE_COLLAPSE_ALL_EVENT = "diffhub:file-tree:collapse-all";
 
 interface FileListProps {
   files: DiffFileStat[];
   selectedFile: string | null;
-  onSelectFile: (file: string) => void;
+  onSelectFile: (file: string, behavior?: ScrollBehavior) => void;
   comments: Comment[];
-  repoPath: string;
   filterQuery: string;
   onFilterChange: (q: string) => void;
-  viewedFiles: Set<string>;
   isLoading?: boolean;
+  insertions: number;
+  deletions: number;
 }
 
 // ── Tree types ──────────────────────────────────────────────────────────────
@@ -113,26 +121,47 @@ const compactTree = (nodes: TreeNode[]): TreeNode[] =>
     return { ...node, children: kids };
   });
 
+const collectFolderPaths = (nodes: TreeNode[], paths: string[] = []) => {
+  for (const node of nodes) {
+    if (node.type === "folder") {
+      paths.push(node.path);
+      collectFolderPaths(node.children, paths);
+    }
+  }
+
+  return paths;
+};
+
+// Escape string for use in CSS attribute selector value
+const escapeAttributeValue = (value: string): string =>
+  value
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\f", "\\f");
+
+const _getRenderedFileSection = (file: string) => {
+  const escapedFile = escapeAttributeValue(file);
+  return document.querySelector<HTMLElement>(`[data-filename="${escapedFile}"]`);
+};
+
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 interface FileRowProps {
   node: FileNode;
   depth: number;
   isSelected: boolean;
-  isViewed: boolean;
   commentCount: number;
-  onSelect: (path: string) => void;
-  onContextMenu: (x: number, y: number, file: string) => void;
+  onNavigate: (path: string) => void;
 }
 
 const FileRow = memo(function FileRow({
   node,
   depth,
   isSelected,
-  isViewed,
   commentCount,
-  onSelect,
-  onContextMenu,
+  onNavigate,
 }: FileRowProps) {
   const indent = depth * 16 + 8;
   const { insertions, deletions } = node.fileStat;
@@ -154,13 +183,15 @@ const FileRow = memo(function FileRow({
   return (
     <button
       type="button"
+      aria-current={isSelected ? "true" : undefined}
       className={cn(
         "flex w-full cursor-pointer items-center gap-1.5 py-1 text-left transition-colors",
         isSelected
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
           : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        isViewed && "opacity-50",
       )}
+      data-file-path={node.path}
+      data-selected={isSelected ? "true" : undefined}
       style={{
         containIntrinsicBlockSize: "26px",
         contentVisibility: "auto",
@@ -168,14 +199,9 @@ const FileRow = memo(function FileRow({
         paddingRight: 8,
       }}
       // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-      onClick={() => onSelect(node.path)}
-      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onContextMenu(e.clientX, e.clientY, node.path);
-      }}
+      onClick={() => onNavigate(node.path)}
     >
-      <FileStatusIcon size={14} className={iconClass} />
+      <FileStatusIcon size={16} className={iconClass} />
       <span className="flex-1 truncate text-[12px] leading-tight">{node.name}</span>
       {commentCount > 0 && (
         <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-sidebar-foreground/50">
@@ -193,6 +219,16 @@ interface FolderRowProps {
   isCollapsed: boolean;
   onToggle: (path: string) => void;
   children: React.ReactNode;
+}
+
+interface FileTreeProps {
+  nodes: TreeNode[];
+  depth: number;
+  selectedFile: string | null;
+  commentsByFile: Map<string, number>;
+  collapsedFolders: Set<string>;
+  onToggleFolder: (path: string) => void;
+  onNavigate: (path: string) => void;
 }
 
 const FolderRow = memo(function FolderRow({
@@ -216,32 +252,80 @@ const FolderRow = memo(function FolderRow({
         onClick={() => onToggle(node.path)}
       >
         {isCollapsed ? (
-          <FolderIcon size={12} className="shrink-0 text-sidebar-foreground/50" />
+          <Folder1Icon size={16} className="shrink-0 text-sidebar-foreground/50" />
         ) : (
-          <FolderOpenIcon size={12} className="shrink-0 text-sidebar-foreground/50" />
+          <FolderOpenFilledIcon size={16} className="shrink-0 text-sidebar-foreground/50" />
         )}
         <span className="truncate text-[12px] text-sidebar-foreground/70">
-          {segments.map((seg, i) => (
-            // oxlint-disable-next-line react/no-array-index-key
-            <Fragment key={i}>
-              {seg}
-              {i < segments.length - 1 && <span className="text-sidebar-foreground/30">/</span>}
-            </Fragment>
-          ))}
+          {segments.map((seg, i) => {
+            const key = segments.slice(0, i + 1).join("/");
+
+            return (
+              <Fragment key={key}>
+                {seg}
+                {i < segments.length - 1 && <span className="text-sidebar-foreground/30">/</span>}
+              </Fragment>
+            );
+          })}
         </span>
       </button>
       {!isCollapsed && (
         <div className="relative">
-          {/* Indent guide line — centred on the folder icon (icon is 12px wide, offset 6px) */}
+          {/* Indent guide line — centred on the folder icon (icon is 16px wide, offset 8px) */}
           <div
             className="pointer-events-none absolute inset-y-0 border-l border-sidebar-border/60"
-            style={{ left: indent + 6 }}
+            style={{ left: indent + 8 }}
           />
           {children}
         </div>
       )}
     </>
   );
+});
+
+const FileTree = memo(function FileTree({
+  nodes,
+  depth,
+  selectedFile,
+  commentsByFile,
+  collapsedFolders,
+  onToggleFolder,
+  onNavigate,
+}: FileTreeProps) {
+  return nodes.map((node) => {
+    if (node.type === "folder") {
+      return (
+        <FolderRow
+          key={node.path}
+          node={node}
+          depth={depth}
+          isCollapsed={collapsedFolders.has(node.path)}
+          onToggle={onToggleFolder}
+        >
+          <FileTree
+            nodes={node.children}
+            depth={depth + 1}
+            selectedFile={selectedFile}
+            commentsByFile={commentsByFile}
+            collapsedFolders={collapsedFolders}
+            onToggleFolder={onToggleFolder}
+            onNavigate={onNavigate}
+          />
+        </FolderRow>
+      );
+    }
+
+    return (
+      <FileRow
+        key={node.path}
+        node={node}
+        depth={depth}
+        isSelected={selectedFile === node.path}
+        commentCount={commentsByFile.get(node.path) ?? 0}
+        onNavigate={onNavigate}
+      />
+    );
+  });
 });
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -254,17 +338,12 @@ export const FileList = ({
   selectedFile,
   onSelectFile,
   comments,
-  repoPath,
   filterQuery,
   onFilterChange,
-  viewedFiles,
   isLoading = false,
+  insertions,
+  deletions,
 }: FileListProps) => {
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    file: string;
-  } | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -315,12 +394,25 @@ export const FileList = ({
     [files, filterQuery],
   );
 
-  const MAX_FILES = 500;
-  const cappedFiles = useMemo(
-    () => (filtered.length > MAX_FILES ? filtered.slice(0, MAX_FILES) : filtered),
-    [filtered],
-  );
-  const tree = useMemo(() => compactTree(buildTree(cappedFiles)), [cappedFiles]);
+  const tree = useMemo(() => compactTree(buildTree(filtered)), [filtered]);
+  const folderPaths = useMemo(() => collectFolderPaths(tree), [tree]);
+
+  useEffect(() => {
+    const handleExpandAll = () => {
+      setCollapsedFolders(new Set());
+    };
+    const handleCollapseAll = () => {
+      setCollapsedFolders(new Set(folderPaths));
+    };
+
+    window.addEventListener(FILE_TREE_EXPAND_ALL_EVENT, handleExpandAll);
+    window.addEventListener(FILE_TREE_COLLAPSE_ALL_EVENT, handleCollapseAll);
+
+    return () => {
+      window.removeEventListener(FILE_TREE_EXPAND_ALL_EVENT, handleExpandAll);
+      window.removeEventListener(FILE_TREE_COLLAPSE_ALL_EVENT, handleCollapseAll);
+    };
+  }, [folderPaths]);
 
   const commentsByFile = useMemo(() => {
     const map = new Map<string, number>();
@@ -342,39 +434,54 @@ export const FileList = ({
     });
   }, []);
 
-  const handleContextMenu = useCallback((x: number, y: number, file: string) => {
-    setContextMenu({ file, x, y });
-  }, []);
-
-  const renderTree = (nodes: TreeNode[], depth: number): React.ReactNode =>
-    nodes.map((node) => {
-      if (node.type === "folder") {
-        return (
-          <FolderRow
-            key={node.path}
-            node={node}
-            depth={depth}
-            isCollapsed={collapsedFolders.has(node.path)}
-            onToggle={toggleFolder}
-          >
-            {renderTree(node.children, depth + 1)}
-          </FolderRow>
-        );
+  const handleNavigate = useCallback(
+    (file: string) => {
+      const navigationEvent = new CustomEvent(FILE_NAVIGATE_EVENT, {
+        cancelable: true,
+        detail: { file, source: "sidebar" as const },
+      });
+      const wasCanceled = !window.dispatchEvent(navigationEvent);
+      if (wasCanceled) {
+        return;
       }
 
-      return (
-        <FileRow
-          key={node.path}
-          node={node}
-          depth={depth}
-          isSelected={selectedFile === node.path}
-          isViewed={viewedFiles.has(node.path)}
-          commentCount={commentsByFile.get(node.path) ?? 0}
-          onSelect={onSelectFile}
-          onContextMenu={handleContextMenu}
-        />
-      );
-    });
+      // Always navigate - scrollToFile handles lazy-loaded sections
+      onSelectFile(file, "auto");
+    },
+    [onSelectFile],
+  );
+
+  let treeContent: React.ReactNode = null;
+  if (isLoading) {
+    treeContent = (
+      <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+        <p className="animate-pulse text-xs text-sidebar-foreground/50">Loading…</p>
+      </div>
+    );
+  } else if (filtered.length === 0) {
+    treeContent = (
+      <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+        <p className="text-xs text-sidebar-foreground/50">No changes</p>
+        {filterQuery && (
+          <p className="text-[10px] text-sidebar-foreground/30">
+            No files match &ldquo;{filterQuery}&rdquo;
+          </p>
+        )}
+      </div>
+    );
+  } else {
+    treeContent = (
+      <FileTree
+        nodes={tree}
+        depth={0}
+        selectedFile={selectedFile}
+        commentsByFile={commentsByFile}
+        collapsedFolders={collapsedFolders}
+        onToggleFolder={toggleFolder}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
 
   return (
     <Sidebar
@@ -383,7 +490,7 @@ export const FileList = ({
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       {/* Filter */}
-      <SidebarHeader className="border-b border-sidebar-border h-[53px] flex-row items-center py-0 px-2">
+      <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center py-0 px-2">
         <div className="relative flex w-full items-center">
           <MagnifyingGlassIcon
             size={12}
@@ -413,51 +520,19 @@ export const FileList = ({
       </SidebarHeader>
 
       {/* Tree */}
-      <SidebarContent className="gap-0 py-1">
-        {(() => {
-          if (isLoading) {
-            return (
-              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                <p className="animate-pulse text-xs text-sidebar-foreground/50">Loading…</p>
-              </div>
-            );
-          }
-          if (filtered.length === 0) {
-            return (
-              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                <p className="text-xs text-sidebar-foreground/50">No changes</p>
-                {filterQuery && (
-                  <p className="text-[10px] text-sidebar-foreground/30">
-                    No files match &ldquo;{filterQuery}&rdquo;
-                  </p>
-                )}
-              </div>
-            );
-          }
-          return (
-            <>
-              {renderTree(tree, 0)}
-              {filtered.length > MAX_FILES && (
-                <p className="px-3 py-2 text-[10px] text-sidebar-foreground/40">
-                  Showing {MAX_FILES} of {filtered.length} files
-                </p>
-              )}
-            </>
-          );
-        })()}
-      </SidebarContent>
+      <SidebarContent className="gap-0 py-1">{treeContent}</SidebarContent>
 
-      {/* Context menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          filePath={contextMenu.file}
-          repoPath={repoPath}
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {/* Stats footer */}
+      <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
+        <div className="flex items-center gap-2 text-[11px] font-mono text-sidebar-foreground/60">
+          <span>
+            {files.length} {files.length === 1 ? "file" : "files"}
+          </span>
+          {insertions > 0 && <span className="text-diff-green">+{insertions}</span>}
+          {deletions > 0 && <span className="text-destructive">−{deletions}</span>}
+        </div>
+      </SidebarFooter>
+
       {/* Resize rail */}
       <div
         aria-hidden

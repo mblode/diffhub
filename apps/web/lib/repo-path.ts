@@ -16,10 +16,14 @@ const readRepoPathFromPointer = (): string | null => {
 };
 
 export const getConfiguredRepoPath = (): string => {
+  if (process.env.DIFFHUB_REPO) {
+    return process.env.DIFFHUB_REPO;
+  }
+
   const pointedRepoPath = readRepoPathFromPointer();
   if (pointedRepoPath) {
     return pointedRepoPath;
   }
 
-  return process.env.DIFFHUB_REPO ?? process.cwd();
+  return process.cwd();
 };

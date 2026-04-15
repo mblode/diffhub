@@ -1,25 +1,135 @@
 import { NextResponse } from "next/server";
-import { getDiff, getDiffForFile } from "@/lib/git";
-import { preloadPatchHtmlByLayout } from "@/lib/diff-prerender";
+import { getDiffForFile, getMultiFileDiff } from "@/lib/git";
+import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
+
+type DiffMode = "uncommitted" | undefined;
+type WhitespaceMode = "ignore" | undefined;
+
+interface DiffRequestContext {
+  base?: string;
+  file?: string;
+  generation?: string;
+  mode?: DiffMode;
+  whitespace?: WhitespaceMode;
+}
+
+const getLogContext = ({ base, file, generation, mode, whitespace }: DiffRequestContext) => ({
+  base: base ?? null,
+  file: file ?? null,
+  mode: mode ?? "all",
+  requestedGeneration: generation ?? null,
+  whitespace: whitespace ?? "default",
+});
+
+const preloadPrerenderedHtml = async ({
+  file,
+  mode,
+  patch,
+}: {
+  file?: string;
+  mode?: DiffMode;
+  patch: string;
+}) => {
+  if (process.env.DIFFHUB_DISABLE_PRERENDER === "1" || !file || !patch) {
+    return;
+  }
+
+  try {
+    const { preloadPatchHtmlByLayout } = await import("@/lib/diff-prerender");
+    return await preloadPatchHtmlByLayout(patch);
+  } catch (error) {
+    console.error("[diffhub] failed to prerender diff HTML", { error, file, mode });
+  }
+};
 
 export const GET = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const base = searchParams.get("base") ?? undefined;
   const file = searchParams.get("file") ?? undefined;
-  const mode = searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
-  const whitespace = searchParams.get("ws") === "ignore" ? ("ignore" as const) : undefined;
+  const generation = searchParams.get("generation") ?? undefined;
+  const mode: DiffMode =
+    searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
+  const whitespace: WhitespaceMode =
+    searchParams.get("ws") === "ignore" ? ("ignore" as const) : undefined;
+  const startedAt = Date.now();
+  const logContext = getLogContext({ base, file, generation, mode, whitespace });
+
+  console.info("[diffhub] /api/diff request", logContext);
+
   try {
-    const result = file
-      ? await getDiffForFile(file, base, mode, whitespace)
-      : await getDiff(base, mode, whitespace);
-    const prerenderedHTML =
-      file && result.patch ? await preloadPatchHtmlByLayout(result.patch) : undefined;
+    if (file) {
+      const result = await getDiffForFile(file, base, mode, whitespace, generation);
+      const prerenderedHTML = await preloadPrerenderedHtml({ file, mode, patch: result.patch });
+
+      console.info("[diffhub] /api/diff response", {
+        durationMs: Date.now() - startedAt,
+        generation: result.generation,
+        hasPrerenderedHTML: Boolean(prerenderedHTML),
+        patchLength: result.patch.length,
+        ...logContext,
+      });
+
+      return NextResponse.json({
+        ...result,
+        ...(prerenderedHTML ? { prerenderedHTML } : {}),
+      });
+    }
+
+    const result = await getMultiFileDiff(base, mode, whitespace, generation);
+
+    // Prerender the first few files for instant display
+    const MAX_PRERENDER_FILES = 4;
+    let prerenderedHTMLByFile: Record<string, PrerenderedDiffHtml> | undefined;
+
+    if (process.env.DIFFHUB_DISABLE_PRERENDER !== "1") {
+      try {
+        const { preloadPatchHtmlByLayout } = await import("@/lib/diff-prerender");
+        const filesToPrerender = Object.entries(result.patchByFile)
+          .filter(([, patch]) => patch)
+          .slice(0, MAX_PRERENDER_FILES);
+
+        const prerenderResults = await Promise.all(
+          filesToPrerender.map(async ([f, patch]) => {
+            try {
+              return { file: f, html: await preloadPatchHtmlByLayout(patch) };
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        const entries = prerenderResults.filter(Boolean) as {
+          file: string;
+          html: PrerenderedDiffHtml;
+        }[];
+        if (entries.length > 0) {
+          prerenderedHTMLByFile = Object.fromEntries(entries.map((e) => [e.file, e.html]));
+        }
+      } catch (error) {
+        console.error("[diffhub] failed to prerender multi-file diff HTML", { error });
+      }
+    }
+
+    console.info("[diffhub] /api/diff response", {
+      durationMs: Date.now() - startedAt,
+      generation: result.generation,
+      hasPrerenderedHTML: Boolean(prerenderedHTMLByFile),
+      patchCount: Object.keys(result.patchByFile).length,
+      patchLength: null,
+      prerenderedFileCount: prerenderedHTMLByFile ? Object.keys(prerenderedHTMLByFile).length : 0,
+      ...logContext,
+    });
+
+    const { patchByFile, reviewKeyByFile, ...payload } = result;
 
     return NextResponse.json({
-      ...result,
-      ...(prerenderedHTML ? { prerenderedHTML } : {}),
+      ...payload,
+      patchesByFile: patchByFile,
+      reviewKeysByFile: reviewKeyByFile,
+      ...(prerenderedHTMLByFile ? { prerenderedHTMLByFile } : {}),
     });
   } catch (error) {
+    console.error("[diffhub] /api/diff failed", { error, ...logContext });
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 };
