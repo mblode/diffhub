@@ -17,7 +17,9 @@ export default function MarketingLayout({
         Skip to content
       </a>
       <Navbar />
-      <main className="min-h-[calc(100dvh-8rem)] pt-16" id="main">{children}</main>
+      <main className="min-h-[calc(100dvh-8rem)] pt-16" id="main">
+        {children}
+      </main>
       <Footer />
     </>
   );

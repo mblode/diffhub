@@ -56,8 +56,7 @@ const features = [
   {
     description: (
       <>
-        Toggle between side-by-side and inline diffs. Press <Kbd>s</Kbd> to
-        switch.
+        Toggle between side-by-side and inline diffs. Press <Kbd>s</Kbd> to switch.
       </>
     ),
     icon: SplitIcon,
@@ -72,22 +71,20 @@ const features = [
   {
     description: (
       <>
-        Navigate changes in a collapsible file tree. Press <Kbd>/</Kbd> to
-        filter. Per-file stats at a glance.
+        Navigate changes in a collapsible file tree. Press <Kbd>/</Kbd> to filter. Per-file stats at
+        a glance.
       </>
     ),
     icon: ArrowRightIcon,
     title: "File sidebar",
   },
   {
-    description:
-      "Watches your working tree. Diffs update automatically when files change.",
+    description: "Watches your working tree. Diffs update automatically when files change.",
     icon: RotateIcon,
     title: "Live refresh",
   },
   {
-    description:
-      "Right-click any file to open in VS Code, Zed, Ghostty, Terminal, or Finder.",
+    description: "Right-click any file to open in VS Code, Zed, Ghostty, Terminal, or Finder.",
     icon: ConsoleIcon,
     title: "Context menu",
   },
@@ -127,9 +124,8 @@ export default function HomePage(): React.JSX.Element {
               className="mx-auto mt-4 max-w-[48ch] text-pretty text-lg text-muted-foreground"
               transition={{ ...blurUp.transition, delay: 0.35 }}
             >
-              DiffHub opens a PR-style diff viewer in your browser with split
-              and unified views, file tree, inline comments, and live refresh.
-              One command, no config.
+              DiffHub opens a PR-style diff viewer in your browser with split and unified views,
+              file tree, inline comments, and live refresh. One command, no config.
             </motion.p>
             <motion.div
               {...blurUp}
@@ -198,9 +194,7 @@ export default function HomePage(): React.JSX.Element {
                 >
                   <dt className="text-muted-foreground">{item.pain}</dt>
                   <dd className="text-foreground">
-                    <span className="font-semibold">
-                      {item.keyword}
-                    </span>
+                    <span className="font-semibold">{item.keyword}</span>
                     {item.solution.slice(item.keyword.length)}
                   </dd>
                 </motion.div>
@@ -224,13 +218,8 @@ export default function HomePage(): React.JSX.Element {
                   key={feature.title}
                   transition={{ ...blurUp.transition, delay: 0.1 * index }}
                 >
-                  <feature.icon
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-link"
-                  />
-                  <dt className="mt-3 text-sm font-semibold text-foreground">
-                    {feature.title}
-                  </dt>
+                  <feature.icon aria-hidden="true" className="size-4 shrink-0 text-link" />
+                  <dt className="mt-3 text-sm font-semibold text-foreground">{feature.title}</dt>
                   <dd className="mt-1 text-sm text-pretty text-muted-foreground">
                     {feature.description}
                   </dd>
@@ -259,9 +248,7 @@ export default function HomePage(): React.JSX.Element {
                       <Kbd key={key}>{key}</Kbd>
                     ))}
                   </span>
-                  <span className="text-sm text-muted-foreground">
-                    {shortcut.label}
-                  </span>
+                  <span className="text-sm text-muted-foreground">{shortcut.label}</span>
                 </motion.div>
               ))}
             </div>
@@ -271,16 +258,13 @@ export default function HomePage(): React.JSX.Element {
         {/* Install / CTA */}
         <section className="@container py-16 sm:py-24" id="install">
           <div className="mx-auto max-w-4xl px-6">
-            <motion.div
-              {...blurUp}
-              className="rounded bg-card p-12 text-center"
-            >
+            <motion.div {...blurUp} className="rounded bg-card p-12 text-center">
               <h2 className="mx-auto max-w-[30ch] text-balance text-2xl font-medium tracking-tight">
                 One command. Any repo
               </h2>
               <p className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground">
-                Run inside any git repository. DiffHub auto-detects your base
-                branch and opens at localhost.
+                Run inside any git repository. DiffHub auto-detects your base branch and opens at
+                localhost.
               </p>
               <div className="mt-8 flex justify-center">
                 <code className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-foreground">
@@ -291,11 +275,7 @@ export default function HomePage(): React.JSX.Element {
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Button
                   render={
-                    <a
-                      href={siteConfig.links.docs}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    />
+                    <a href={siteConfig.links.docs} rel="noopener noreferrer" target="_blank" />
                   }
                 >
                   Read the docs
@@ -303,11 +283,7 @@ export default function HomePage(): React.JSX.Element {
                 </Button>
                 <Button
                   render={
-                    <a
-                      href={siteConfig.links.github}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    />
+                    <a href={siteConfig.links.github} rel="noopener noreferrer" target="_blank" />
                   }
                   variant="outline"
                 >
