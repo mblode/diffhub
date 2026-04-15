@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.11
+
+### Patch Changes
+
+- Fix docs deployment and add asset proxy for blode.md documentation
+
 ## 0.1.10
 
 ### Patch Changes
