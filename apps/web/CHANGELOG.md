@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.1.8
+
+### Patch Changes
+
+- Add screenshot to README and clean up runtime, comments, and review flow
+
 ## 0.1.7
 
 ### Patch Changes
