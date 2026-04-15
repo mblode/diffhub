@@ -20,7 +20,7 @@ jobs:
           node-version: 22
 
       - name: Deploy to blode.md
-        run: npx blodemd push docs
+        run: npx blodemd push .
         working-directory: apps/docs
         env:
           BLODEMD_API_KEY: ${{ secrets.BLODEMD_API_KEY }}
