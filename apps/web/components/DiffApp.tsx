@@ -1,5 +1,6 @@
 "use client";
 
+import type { AnnotationSide } from "@pierre/diffs";
 import {
   useCallback,
   useDeferredValue,
@@ -15,6 +16,7 @@ import { FileList } from "./FileList";
 import { DiffViewer, getDiffSectionId } from "./DiffViewer";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
@@ -82,7 +84,7 @@ interface MainPanelProps {
   onAddComment: (
     file: string,
     lineNumber: number,
-    side: string,
+    side: AnnotationSide,
     body: string,
     tag: CommentTag,
   ) => Promise<boolean>;
@@ -448,16 +450,14 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     diffFetchInFlightRef.current = true;
     setDiffRequestPending(true);
 
-    try {
-      while (queuedDiffFetchRef.current) {
-        queuedDiffFetchRef.current = false;
-        latestDiffRequestRef.current += 1;
-        await performDiffFetch(latestDiffRequestRef.current);
-      }
-    } finally {
-      diffFetchInFlightRef.current = false;
-      setDiffRequestPending(false);
+    while (queuedDiffFetchRef.current) {
+      queuedDiffFetchRef.current = false;
+      latestDiffRequestRef.current += 1;
+      await performDiffFetch(latestDiffRequestRef.current);
     }
+
+    diffFetchInFlightRef.current = false;
+    setDiffRequestPending(false);
   }, [performDiffFetch]);
 
   const reconcileSelectedFile = useCallback(
@@ -512,52 +512,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
 
   const pollFiles = useCallback(
     async (silent = false) => {
-      if (fetchingRef.current) {
-        queuedPollRef.current = true;
-        return;
-      }
-
-      fetchingRef.current = true;
-      if (!silent) {
-        setRefreshing(true);
-      }
-      setLoadError(null);
-
-      try {
-        const [filesResponse, nextComments] = await Promise.all([
-          fetch(`/api/files${buildFilesQuery()}`),
-          fetch("/api/comments")
-            .then(async (response) => {
-              if (!response.ok) {
-                throw new Error(`Failed to load comments (${response.status})`);
-              }
-
-              return (await response.json()) as Comment[];
-            })
-            .catch((error) => {
-              console.error("[diffhub] comments refresh failed", { error });
-              return null;
-            }),
-        ]);
-
-        if (!filesResponse.ok) {
-          const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
-          setLoadError(errorBody.error ?? "Failed to load files");
-          return;
-        }
-
-        const nextFilesData = (await filesResponse.json()) as FilesData;
-
-        startTransition(() => {
-          setFilesData(nextFilesData);
-          if (nextComments !== null) {
-            setComments(nextComments);
-          }
-        });
-        reconcileSelectedFile(nextFilesData);
-      } catch (error) {
-        setLoadError(error instanceof Error ? error.message : String(error));
-      } finally {
+      const finishPoll = () => {
         if (!silent) {
           setRefreshing(false);
         }
@@ -569,7 +524,62 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
             void pollFilesRef.current(true);
           });
         }
+      };
+
+      if (fetchingRef.current) {
+        queuedPollRef.current = true;
+        return;
       }
+
+      fetchingRef.current = true;
+      if (!silent) {
+        setRefreshing(true);
+      }
+      setLoadError(null);
+
+      const pollResult = await Promise.all([
+        fetch(`/api/files${buildFilesQuery()}`),
+        fetch("/api/comments")
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`Failed to load comments (${response.status})`);
+            }
+
+            return (await response.json()) as Comment[];
+          })
+          .catch((error) => {
+            console.error("[diffhub] comments refresh failed", { error });
+            return null;
+          }),
+      ]).catch((error) => {
+        setLoadError(error instanceof Error ? error.message : String(error));
+        return null;
+      });
+
+      if (!pollResult) {
+        finishPoll();
+        return;
+      }
+
+      const [filesResponse, nextComments] = pollResult;
+
+      if (!filesResponse.ok) {
+        const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
+        setLoadError(errorBody.error ?? "Failed to load files");
+        finishPoll();
+        return;
+      }
+
+      const nextFilesData = (await filesResponse.json()) as FilesData;
+
+      startTransition(() => {
+        setFilesData(nextFilesData);
+        if (nextComments !== null) {
+          setComments(nextComments);
+        }
+      });
+      reconcileSelectedFile(nextFilesData);
+      finishPoll();
     },
     [buildFilesQuery, reconcileSelectedFile],
   );
@@ -771,9 +781,15 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   );
 
   const handleAddComment = useCallback(
-    async (file: string, lineNumber: number, side: string, body: string, tag: CommentTag) => {
+    async (
+      file: string,
+      lineNumber: number,
+      side: AnnotationSide,
+      body: string,
+      tag: CommentTag,
+    ) => {
       const response = await fetch("/api/comments", {
-        body: JSON.stringify({ body, file, lineNumber, side, tag }),
+        body: JSON.stringify({ body, file, lineNumber, side: toCommentSide(side), tag }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });

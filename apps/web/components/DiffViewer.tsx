@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
+import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { DiffFileStat } from "@/lib/git";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
@@ -32,6 +33,7 @@ const TAG_META: Partial<Record<CommentTag, { text: string; border: string }>> = 
   "[question]": { border: "border-l-diff-purple", text: "text-diff-purple" },
   "[suggestion]": { border: "border-l-diff-green", text: "text-diff-green" },
 };
+const LARGE_DIFF_FALLBACK_FILE_THRESHOLD = 24;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +87,20 @@ const DiffSkeleton = () => (
   </div>
 );
 
+const DeferredDiffPlaceholder = ({ onRender }: { onRender: () => void }) => (
+  <div
+    className="mx-4 my-4 rounded-md border border-dashed border-border bg-muted/20 p-4"
+    data-testid="deferred-diff-placeholder"
+  >
+    <p className="text-sm text-muted-foreground">
+      Diff rendering is deferred until this file becomes active or visible.
+    </p>
+    <Button className="mt-3" size="sm" variant="outline" onClick={onRender}>
+      Render diff
+    </Button>
+  </div>
+);
+
 /* oxlint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
 const PatchDiff = dynamic(
   () =>
@@ -126,16 +142,12 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    try {
-      const saved = await onSubmit(trimmedBody, "");
-      if (!saved) {
-        setErrorMessage("Failed to save comment.");
-      }
-    } catch {
+    const saved = await onSubmit(trimmedBody, "").catch(() => false);
+    if (!saved) {
       setErrorMessage("Failed to save comment.");
-    } finally {
-      setIsSubmitting(false);
     }
+
+    setIsSubmitting(false);
   }, [body, isSubmitting, onSubmit]);
 
   return (
@@ -224,16 +236,12 @@ const CommentDisplay = ({
     setDeleteError(null);
     setIsDeleting(true);
 
-    try {
-      const deleted = await onDelete();
-      if (!deleted) {
-        setDeleteError("Failed to delete comment.");
-      }
-    } catch {
+    const deleted = await onDelete().catch(() => false);
+    if (!deleted) {
       setDeleteError("Failed to delete comment.");
-    } finally {
-      setIsDeleting(false);
     }
+
+    setIsDeleting(false);
   }, [isDeleting, onDelete]);
 
   const borderAccent = comment.tag
@@ -381,6 +389,7 @@ interface SingleFileDiffProps {
   filePatch: string;
   layout: "split" | "stacked";
   prerenderedHTML?: { dark: string; light: string };
+  shouldRenderPatch: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
@@ -390,10 +399,11 @@ interface SingleFileDiffProps {
   repoPath: string;
   commentTarget: CommentTarget | null;
   onCommentTargetChange: (target: CommentTarget | null) => void;
+  onRenderPatch: () => void;
   onAddComment: (
     file: string,
     lineNumber: number,
-    side: string,
+    side: AnnotationSide,
     body: string,
     tag: CommentTag,
   ) => Promise<boolean>;
@@ -433,6 +443,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
   filePatch,
   layout,
   prerenderedHTML,
+  shouldRenderPatch,
   comments,
   fileStat,
   collapsed,
@@ -442,6 +453,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
   repoPath,
   commentTarget,
   onCommentTargetChange,
+  onRenderPatch,
   onAddComment,
   onDeleteComment,
 }: SingleFileDiffProps) {
@@ -454,7 +466,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
     const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
       lineNumber: c.lineNumber,
       metadata: { comment: c, type: "comment" as const },
-      side: (c.side ?? "right") as AnnotationSide,
+      side: toAnnotationSide(c.side),
     }));
 
     if (commentTarget) {
@@ -517,41 +529,51 @@ const SingleFileDiff = memo(function SingleFileDiff({
     [onCommentTargetChange],
   );
 
+  const handleRenderPatch = useCallback(() => {
+    onRenderPatch();
+  }, [onRenderPatch]);
+
   const hidePanel = collapsed && commentTarget === null;
   let panelContent: React.ReactNode = null;
 
   if (!hidePanel) {
-    panelContent = filePatch ? (
-      <PatchDiff
-        key={`${file}:${layout}:${resolvedTheme}`}
-        patch={filePatch}
-        prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
-        disableWorkerPool
-        style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
-        options={{
-          diffStyle: layout === "split" ? "split" : "unified",
-          disableFileHeader: true,
-          disableLineNumbers: false,
-          enableGutterUtility: true,
-          expansionLineCount: 20,
-          hunkSeparators: "line-info",
-          lineDiffType: "word",
-          lineHoverHighlight: "line",
-          maxLineDiffLength: 500,
-          overflow: "wrap",
-          theme: { dark: "github-dark", light: "github-light" },
-          themeType: resolvedTheme === "light" ? "light" : "dark",
-          unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
-        }}
-        lineAnnotations={lineAnnotations}
-        renderAnnotation={renderAnnotation}
-        renderGutterUtility={renderGutterUtility}
-      />
-    ) : (
-      <div className="px-4 py-6 text-sm text-muted-foreground">
-        No textual patch available for this file.
-      </div>
-    );
+    if (!filePatch) {
+      panelContent = (
+        <div className="px-4 py-6 text-sm text-muted-foreground">
+          No textual patch available for this file.
+        </div>
+      );
+    } else if (shouldRenderPatch) {
+      panelContent = (
+        <PatchDiff
+          key={`${file}:${layout}:${resolvedTheme}`}
+          patch={filePatch}
+          prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
+          disableWorkerPool
+          style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
+          options={{
+            diffStyle: layout === "split" ? "split" : "unified",
+            disableFileHeader: true,
+            disableLineNumbers: false,
+            enableGutterUtility: true,
+            expansionLineCount: 20,
+            hunkSeparators: "line-info",
+            lineDiffType: "word",
+            lineHoverHighlight: "line",
+            maxLineDiffLength: 500,
+            overflow: "wrap",
+            theme: { dark: "github-dark", light: "github-light" },
+            themeType: resolvedTheme === "light" ? "light" : "dark",
+            unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
+          }}
+          lineAnnotations={lineAnnotations}
+          renderAnnotation={renderAnnotation}
+          renderGutterUtility={renderGutterUtility}
+        />
+      );
+    } else {
+      panelContent = <DeferredDiffPlaceholder onRender={handleRenderPatch} />;
+    }
   }
 
   return (
@@ -583,7 +605,7 @@ interface DiffViewerProps {
   onAddComment: (
     file: string,
     lineNumber: number,
-    side: string,
+    side: AnnotationSide,
     body: string,
     tag: CommentTag,
   ) => Promise<boolean>;
@@ -601,6 +623,7 @@ interface CollapsibleFileDiffProps {
   filePatch: string;
   layout: "split" | "stacked";
   prerenderedHTML?: PrerenderedDiffHtml;
+  deferPatchRendering: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
@@ -611,7 +634,7 @@ interface CollapsibleFileDiffProps {
   onAddComment: (
     file: string,
     lineNumber: number,
-    side: string,
+    side: AnnotationSide,
     body: string,
     tag: CommentTag,
   ) => Promise<boolean>;
@@ -623,6 +646,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   filePatch,
   layout,
   prerenderedHTML,
+  deferPatchRendering,
   comments,
   fileStat,
   collapsed,
@@ -635,6 +659,16 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
+  const [shouldRenderPatch, setShouldRenderPatch] = useState(() => active || !deferPatchRendering);
+  const handleRenderPatch = useCallback(() => {
+    setShouldRenderPatch(true);
+  }, []);
+
+  useEffect(() => {
+    if (!deferPatchRendering || active || commentTarget !== null) {
+      setShouldRenderPatch(true);
+    }
+  }, [active, commentTarget, deferPatchRendering]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -650,6 +684,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
           return;
         }
         if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+          setShouldRenderPatch(true);
           onVisible(file);
         }
       },
@@ -682,6 +717,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         filePatch={filePatch}
         layout={layout}
         prerenderedHTML={prerenderedHTML?.[layout]}
+        shouldRenderPatch={shouldRenderPatch}
         comments={comments}
         fileStat={fileStat}
         collapsed={collapsed}
@@ -691,6 +727,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         repoPath={repoPath}
         commentTarget={commentTarget}
         onCommentTargetChange={setCommentTarget}
+        onRenderPatch={handleRenderPatch}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
       />
@@ -725,6 +762,9 @@ export const DiffViewer = ({
     const extras = Object.keys(patchesByFile).filter((file) => !fileStatMap.has(file));
     return sortFilesAsTree([...files, ...extras]);
   }, [fileStatMap, fileStats, patchesByFile]);
+  const deferPatchRendering =
+    orderedFiles.length >= LARGE_DIFF_FALLBACK_FILE_THRESHOLD &&
+    Object.keys(prerenderedHTMLByFile ?? {}).length === 0;
 
   const toggleHandlers = useMemo(() => {
     const handlers = new Map<string, () => void>();
@@ -762,6 +802,7 @@ export const DiffViewer = ({
           filePatch={patchesByFile[file] ?? ""}
           layout={layout}
           prerenderedHTML={prerenderedHTMLByFile?.[file]}
+          deferPatchRendering={deferPatchRendering}
           comments={comments}
           fileStat={fileStatMap.get(file)}
           collapsed={collapsedFiles.has(file)}

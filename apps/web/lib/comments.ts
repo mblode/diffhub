@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { isCommentSide } from "./comment-sides";
 import { getGitDirectory } from "./git-paths";
 import { getConfiguredRepoPath } from "./repo-path";
+import type { CommentSide } from "./comment-sides";
 
 const COMMENTS_FILENAME = "diffhub-comments.json";
 let mutationQueue = Promise.resolve(null);
@@ -15,7 +17,7 @@ export interface Comment {
   id: string;
   file: string;
   lineNumber: number;
-  side: "left" | "right";
+  side: CommentSide;
   body: string;
   tag: CommentTag;
   createdAt: string;
@@ -40,7 +42,7 @@ const isComment = (value: unknown): value is Comment => {
     typeof comment.file === "string" &&
     typeof comment.id === "string" &&
     typeof comment.lineNumber === "number" &&
-    (comment.side === "left" || comment.side === "right") &&
+    isCommentSide(comment.side) &&
     isCommentTag(comment.tag)
   );
 };

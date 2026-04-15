@@ -29,7 +29,8 @@
   "scripts": {
     "dev": "portless run --force next dev",
     "build": "next build",
-    "prepack": "next build && cp -r .next/static .next/standalone/apps/web/.next/static",
+    "prepare:standalone": "node ./bin/prepare-standalone.mjs",
+    "prepack": "next build && npm run prepare:standalone",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -40,7 +41,7 @@
     "test:watch": "vitest",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "release": "next build && cp -r .next/static .next/standalone/apps/web/.next/static && changeset publish"
+    "release": "next build && npm run prepare:standalone && changeset publish"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

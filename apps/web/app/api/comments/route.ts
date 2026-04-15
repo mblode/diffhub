@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { parseCommentSide } from "@/lib/comment-sides";
 import { addComment, deleteComment, readComments } from "@/lib/comments";
 import type { CommentTag } from "@/lib/comments";
 
-const VALID_SIDES = new Set(["left", "right"] as const);
 const VALID_TAGS = new Set<CommentTag>(["[must-fix]", "[suggestion]", "[nit]", "[question]", ""]);
 
 export const GET = () => {
@@ -28,8 +28,12 @@ export const POST = async (request: Request) => {
   if (typeof data.body !== "string" || !data.body) {
     return NextResponse.json({ error: "body is required" }, { status: 400 });
   }
-  if (typeof data.side !== "string" || !VALID_SIDES.has(data.side as "left" | "right")) {
-    return NextResponse.json({ error: "side must be 'left' or 'right'" }, { status: 400 });
+  const side = parseCommentSide(data.side);
+  if (side === null) {
+    return NextResponse.json(
+      { error: "side must be 'left', 'right', 'deletions', or 'additions'" },
+      { status: 400 },
+    );
   }
   if (data.tag !== undefined && typeof data.tag !== "string") {
     return NextResponse.json({ error: "invalid tag" }, { status: 400 });
@@ -43,7 +47,7 @@ export const POST = async (request: Request) => {
       body: data.body,
       file: data.file,
       lineNumber: data.lineNumber,
-      side: data.side as "left" | "right",
+      side,
       tag: (data.tag ?? "") as CommentTag,
     });
     return NextResponse.json(comment, { status: 201 });
