@@ -53,15 +53,17 @@ const makeProps = (fileCount: number) => {
     })),
     layout: "stacked" as const,
     onActiveFileChange: vi.fn<(file: string) => void>(),
-    onAddComment: vi.fn<
-      (
-        file: string,
-        lineNumber: number,
-        side: string,
-        body: string,
-        tag: string,
-      ) => Promise<boolean>
-    >().mockResolvedValue(true),
+    onAddComment: vi
+      .fn<
+        (
+          file: string,
+          lineNumber: number,
+          side: string,
+          body: string,
+          tag: string,
+        ) => Promise<boolean>
+      >()
+      .mockResolvedValue(true),
     onDeleteComment: vi.fn<(id: string) => Promise<boolean>>().mockResolvedValue(true),
     onToggleCollapse: vi.fn<(file: string) => void>(),
     patchesByFile: Object.fromEntries(
