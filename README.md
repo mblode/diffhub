@@ -1,11 +1,11 @@
-# diffhub
+# DiffHub
 
 [![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
 
 GitHub PR-style diff viewer. Opens in the browser and shows all changes since your branch diverged from main — split view, inline comments, and live auto-refresh.
 
-![diffhub screenshot](apps/cli/public/screenshot.png)
+![DiffHub screenshot](apps/cli/public/screenshot.png)
 
 ## Features
 

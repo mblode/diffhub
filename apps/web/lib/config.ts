@@ -8,6 +8,6 @@ export const siteConfig = {
     loom: "https://www.loom.com/share/e0203dd97b354508a791ecd339094a02",
     npm: "https://www.npmjs.com/package/diffhub",
   },
-  name: "diffhub",
+  name: "DiffHub",
   url: "https://diffhub.blode.co",
 };

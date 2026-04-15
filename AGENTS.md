@@ -1,4 +1,4 @@
-# diffhub
+# DiffHub
 
 GitHub PR-style local diff viewer. Monorepo with three apps.
 

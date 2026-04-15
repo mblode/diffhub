@@ -1,4 +1,4 @@
-# diffhub
+# DiffHub
 
 [![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)

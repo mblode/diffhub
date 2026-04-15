@@ -1,6 +1,6 @@
 {
   "$schema": "https://blode.md/docs.json",
-  "name": "diffhub",
+  "name": "DiffHub",
   "description": "GitHub PR-style local diff viewer",
   "navbar": {
     "links": [

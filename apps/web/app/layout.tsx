@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     "split diff",
     "unified diff",
     "cli tool",
-    "diffhub",
+    "DiffHub",
   ],
   metadataBase: new URL(siteConfig.url),
   openGraph: {

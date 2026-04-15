@@ -28,7 +28,7 @@ const operatorMono = localFont({
 
 export const metadata: Metadata = {
   description: "GitHub PR-style local diff viewer",
-  title: "diffhub",
+  title: "DiffHub",
 };
 
 export default function RootLayout({
