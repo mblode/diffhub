@@ -26,7 +26,7 @@ export const CopyButton = ({ content }: CopyButtonProps) => {
   return (
     <button
       aria-label={copied ? "Copied" : "Copy to clipboard"}
-      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 [&_svg]:size-3.5"
+      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&_svg]:size-3.5"
       onClick={handleCopy}
       type="button"
     >
