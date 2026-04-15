@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   findMissingStandaloneNodeModuleAliases,
   materializeStandaloneNodeModuleAliases,
-} from "./standalone-helpers.mjs";
+} from "../bin/standalone-helpers.mjs";
 
 const tempDirs: string[] = [];
 
