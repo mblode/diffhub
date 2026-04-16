@@ -159,10 +159,10 @@ export default function HomePage(): React.JSX.Element {
               ease: [0.25, 1, 0.5, 1],
             }}
           >
-            <div className="overflow-hidden rounded">
+            <div className="rounded bg-card p-6">
               <Image
                 alt="DiffHub showing a branch diff with file sidebar and split view"
-                className="w-full"
+                className="w-full rounded"
                 height={777}
                 priority
                 src="/screenshot-2.png"
@@ -185,8 +185,8 @@ export default function HomePage(): React.JSX.Element {
                   key={item.pain}
                   transition={{ ...blurUp.transition, delay: 0.1 * index }}
                 >
-                  <dt className="text-muted-foreground">{item.pain}</dt>
-                  <dd className="text-foreground">
+                  <dt key="dt" className="text-muted-foreground">{item.pain}</dt>
+                  <dd key="dd" className="text-foreground">
                     <span className="font-semibold">{item.keyword}</span>
                     {item.solution.slice(item.keyword.length)}
                   </dd>
@@ -210,9 +210,9 @@ export default function HomePage(): React.JSX.Element {
                   key={feature.title}
                   transition={{ ...blurUp.transition, delay: 0.1 * index }}
                 >
-                  <feature.icon aria-hidden="true" className="size-4 shrink-0 text-link" />
-                  <dt className="mt-3 text-sm font-semibold text-foreground">{feature.title}</dt>
-                  <dd className="mt-1 text-sm text-pretty text-muted-foreground">
+                  <feature.icon key="icon" aria-hidden="true" className="size-4 shrink-0 text-link" />
+                  <dt key="dt" className="mt-3 text-sm font-semibold text-foreground">{feature.title}</dt>
+                  <dd key="dd" className="mt-1 text-sm text-pretty text-muted-foreground">
                     {feature.description}
                   </dd>
                 </motion.div>
@@ -234,12 +234,12 @@ export default function HomePage(): React.JSX.Element {
                   key={shortcut.label}
                   transition={{ ...blurUp.transition, delay: 0.06 * index }}
                 >
-                  <KbdGroup>
+                  <KbdGroup key="kbd">
                     {shortcut.keys.map((key) => (
                       <Kbd key={key}>{key}</Kbd>
                     ))}
                   </KbdGroup>
-                  <span className="text-sm text-muted-foreground">{shortcut.label}</span>
+                  <span key="label" className="text-sm text-muted-foreground">{shortcut.label}</span>
                 </motion.div>
               ))}
             </div>
@@ -248,37 +248,38 @@ export default function HomePage(): React.JSX.Element {
 
         <section className="@container py-16 sm:py-24" id="install">
           <div className="mx-auto max-w-4xl px-6">
-            <motion.div {...blurUp} className="rounded bg-card p-12 text-center">
-              <h2 className="mx-auto max-w-[30ch] text-balance text-2xl font-medium tracking-tight">
-                Run it in any repo
+            <motion.div {...blurUp} className="text-center">
+              <h2 key="heading" className="mx-auto max-w-[30ch] text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
+                Get started today
               </h2>
-              <p className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground">
+              <p key="description" className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground">
                 Use the cmux command if you want the diff in cmux. Use the default command if you
                 want it in a normal browser window.
               </p>
-              <div className="mt-8 flex justify-center">
+              <div key="install" className="mt-8 flex justify-center">
                 <code className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-foreground">
                   <span>npx diffhub@latest cmux</span>
                   <CopyButton content="npx diffhub@latest cmux" />
                 </code>
               </div>
-              <p className="mx-auto mt-4 max-w-[40ch] text-pretty text-sm text-muted-foreground">
+              <p key="alt" className="mx-auto mt-4 max-w-[40ch] text-pretty text-sm text-muted-foreground">
                 No cmux? Run <code>npx diffhub@latest</code>.
               </p>
-              <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <div key="actions" className="mt-8 flex flex-wrap justify-center gap-3">
                 <Button
                   render={
                     <a href={siteConfig.links.docs} rel="noopener noreferrer" target="_blank" />
                   }
+                  size="lg"
                 >
                   Read the docs
-                  <ArrowRightIcon data-icon="inline-end" />
                 </Button>
                 <Button
                   render={
                     <a href={siteConfig.links.github} rel="noopener noreferrer" target="_blank" />
                   }
-                  variant="outline"
+                  size="lg"
+                  variant="secondary"
                 >
                   View on GitHub
                 </Button>
