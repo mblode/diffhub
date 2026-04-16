@@ -66,6 +66,7 @@
 :root {
   --background: #f7f7f4;
   --foreground: #26251e;
+  --color-theme-border-01: color-mix(in oklab, #26251e 2.5%, transparent);
   --card: #f2f1ed;
   --card-foreground: #26251e;
   --popover: #f2f1ed;
@@ -113,6 +114,12 @@
   color-scheme: light;
 }
 
+@supports not (color: color-mix(in oklab, black, white)) {
+  :root {
+    --color-theme-border-01: oklab(0.263084 -0.00230259 0.0124794 / 0.025);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -138,5 +145,20 @@
 
   .hero-glow {
     background: radial-gradient(ellipse 80% 60% at 50% 40%, #26251e0d, transparent);
+  }
+
+  .bg-card {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .bg-card::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    border-radius: inherit;
+    border: 1px solid var(--color-theme-border-01);
   }
 }

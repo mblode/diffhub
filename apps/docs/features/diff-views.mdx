@@ -1,6 +1,6 @@
 ---
 title: Diff Views
-description: Split and unified diff views with merge-base and uncommitted modes.
+description: See your whole branch against the base branch or switch to uncommitted-only changes.
 ---
 
 # Diff Views
@@ -9,16 +9,18 @@ description: Split and unified diff views with merge-base and uncommitted modes.
 
 Toggle between split and unified views with the `s` key or the layout toggle in the status bar.
 
-- **Split** — side-by-side view showing the old file on the left and new file on the right
-- **Unified** — interleaved view with additions and deletions shown inline
+- **Split** - side-by-side view with the old file on the left and the new file on the right
+- **Unified** - one stream of additions and deletions inline
 
 ## Diff modes
 
-DiffHub supports two diff modes, selectable from the status bar dropdown:
+DiffHub supports two review modes from the status bar:
 
-- **All** (default) — shows all changes since your branch diverged from the base branch. This matches GitHub's "Files Changed" view exactly.
-- **Uncommitted** — shows only unstaged and staged changes against HEAD.
+- **All** (default) - shows everything your branch changed since it diverged from the base branch. This is the mode most people want before push.
+- **Uncommitted** - shows only your staged and unstaged changes against `HEAD`.
 
 ## Merge-base diffing
 
-DiffHub diffs against `git merge-base HEAD <base-branch>`. This means commits pushed to `main` after you branched do not appear in your diff — you only see what you changed.
+DiffHub diffs against `git merge-base HEAD <base-branch>`.
+
+That means commits pushed to the base branch after you branched do not show up in the review. You only see what your branch changed.

@@ -1,6 +1,5 @@
 export const siteConfig = {
-  description:
-    "GitHub PR-style local diff viewer. Review git changes in the browser with split/unified diffs, file tree, inline comments, and live refresh.",
+  description: "Local diff viewer for cmux. Review your branch against the detected base branch.",
   links: {
     author: "https://matthewblode.com",
     docs: "https://diffhub.blode.co/docs",

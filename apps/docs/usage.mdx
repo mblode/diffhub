@@ -1,28 +1,46 @@
 ---
 title: Usage
-description: CLI commands, flags, and examples.
+description: Run DiffHub in cmux or a browser and choose a base branch.
 ---
 
 # Usage
 
-## Basic usage
-
-Run inside any git repository:
+## cmux
 
 ```bash
-diffhub
+npx diffhub@latest cmux
 ```
 
-This starts a local server and opens the diff viewer in your browser.
+Run that inside any git repository. DiffHub starts the local viewer and opens it in a cmux browser split.
+
+cmux mode currently expects `cmux.app` on macOS at `/Applications/cmux.app`.
+
+Use these flags when you need them:
+
+```bash
+# Use a different base branch
+diffhub cmux --base develop
+
+# Point at a repo in another directory
+diffhub cmux --repo ~/projects/my-app
+```
+
+## Browser
+
+```bash
+npx diffhub@latest
+```
+
+That starts the same viewer in your default browser.
 
 ## Commands
 
-| Command | Description                     |
-| ------- | ------------------------------- |
-| `serve` | Start DiffHub server (default)  |
-| `cmux`  | Open in cmux browser split pane |
+| Command | Description |
+| ------- | ----------- |
+| `serve` | Start DiffHub in a normal browser window |
+| `cmux`  | Start DiffHub in a cmux browser split |
 
-## Options
+## `serve` options
 
 | Flag                  | Default | Description                 |
 | --------------------- | ------- | --------------------------- |
@@ -31,16 +49,26 @@ This starts a local server and opens the diff viewer in your browser.
 | `-b, --base <branch>` | auto    | Base branch to diff against |
 | `--no-open`           | —       | Skip automatic browser open |
 
+## `cmux` options
+
+| Flag                  | Default | Description                 |
+| --------------------- | ------- | --------------------------- |
+| `-r, --repo <path>`   | `cwd`   | Path to the git repository  |
+| `-b, --base <branch>` | auto    | Base branch to diff against |
+
 ## Examples
 
 ```bash
-# Use a different base branch
-diffhub --base develop
+# Open in cmux
+diffhub cmux
 
-# Point at a repo in another directory
-diffhub --repo ~/projects/my-app
+# Use a different base branch in cmux
+diffhub cmux --base develop
 
-# Use a different port
+# Point cmux mode at a repo in another directory
+diffhub cmux --repo ~/projects/my-app
+
+# Use a different port in browser mode
 diffhub --port 3000
 
 # Don't open the browser automatically
@@ -57,7 +85,7 @@ DiffHub auto-detects the base branch in this priority order:
 4. `origin/dev`
 5. Local `main`, `master`, `develop`, `dev`
 
-Override with `--base <branch>` or the `DIFFHUB_BASE` environment variable.
+Override with `--base <branch>` or the `DIFFHUB_BASE` environment variable if your repo uses a different naming convention.
 
 ## Keyboard shortcuts
 

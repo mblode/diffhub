@@ -1,32 +1,29 @@
 ---
 title: Introduction
-description: See your branch changes as a PR-style diff — locally, without pushing.
+description: Review your branch in cmux or a browser.
 ---
 
 # Introduction
 
-When your workflow moves away from GitHub pull requests — maybe you switched to conductor, or trunk-based development — you lose the "Files Changed" view. You can't see everything you changed relative to main in one place.
+DiffHub is a local diff viewer for cmux.
 
-DiffHub brings that view back. Run one command inside any git repo and it opens a browser-based diff of every change since your branch diverged from main.
+It opens your branch in a browser split and compares it with the detected base branch, usually `origin/main`. If you do not use cmux, you can open the same view in a normal browser window.
 
 [Watch the demo (2 min)](https://www.loom.com/share/e0203dd97b354508a791ecd339094a02)
 
-## What you get
-
-- **PR-style diffs** — diffs against the merge-base, matching GitHub's "Files Changed" view
-- **Split and unified views** — toggle with `s`
-- **Inline comments** — tag lines as `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]`
-- **File sidebar** — filter files with `/`, see per-file `+`/`-` stats
-- **Live refresh** — watches your working tree and updates automatically
-- **Context menu** — right-click to open in Zed, VS Code, Terminal, or Finder
-
 ## Quick start
+
+```bash
+npx diffhub@latest cmux
+```
+
+That starts DiffHub and opens your branch diff in a cmux browser split.
 
 ```bash
 npx diffhub@latest
 ```
 
-Run inside any git repository. Opens `http://localhost:2047` with all changes between your branch and `main`.
+Use that if you want a normal browser tab instead.
 
 ### Global install
 
@@ -34,10 +31,19 @@ Run inside any git repository. Opens `http://localhost:2047` with all changes be
 npm install -g diffhub
 ```
 
-Requires Node.js 20.11 or later and a git repository with at least one commit.
+## What you get
+
+- **Branch diff against the right base branch**. DiffHub uses the merge-base, so you see what your branch changed.
+- **Split and unified views**. Toggle with `s`.
+- **Inline comments**. Tag notes as `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]`.
+- **File sidebar**. Filter files with `/` and scan per-file `+` and `-` stats.
+- **Auto-refresh while you work**. Keep the view open and see updates as files change.
+- **Open in your tools**. Right-click to jump into Zed, VS Code, Terminal, or Finder.
+
+Requires Node.js 20.11 or later and a git repository with at least one commit. cmux mode expects `cmux.app` on macOS at `/Applications/cmux.app`.
 
 ## Next steps
 
-- [Usage](/usage) — CLI flags, shortcuts, and configuration
-- [Diff Views](/features/diff-views) — split, unified, and merge-base modes
-- [Comments](/features/comments) — inline review with tags
+- [Usage](/usage) - run DiffHub in cmux or a browser
+- [Diff Views](/features/diff-views) - review your whole branch or only uncommitted changes
+- [Comments](/features/comments) - leave review notes

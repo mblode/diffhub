@@ -14,7 +14,7 @@ const glide = localFont({
   weight: "400 900",
 });
 
-const siteTitle = `${siteConfig.name} | GitHub PR-style local diff viewer`;
+const siteTitle = `${siteConfig.name} | Local diff viewer for cmux`;
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -29,10 +29,14 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   keywords: [
+    "cmux",
+    "conductor",
     "diff viewer",
     "git diff",
+    "git files changed",
     "code review",
-    "pull request",
+    "branch diff",
+    "local code review",
     "split diff",
     "unified diff",
     "cli tool",

@@ -30,63 +30,52 @@ const blurUp = {
 
 const painSolution = [
   {
-    keyword: "PR-style viewer",
-    pain: "Scrolling through git diff output",
-    solution: "PR-style viewer with file tree and per-file stats",
+    keyword: "Stay in cmux",
+    pain: "You want to review a branch without leaving your local workflow",
+    solution: "Stay in cmux with a browser split for the diff.",
   },
   {
-    keyword: "Inline comments",
-    pain: "No way to leave notes before pushing",
-    solution: "Inline comments tagged must-fix, suggestion, nit, or question",
+    keyword: "See the full branch",
+    pain: "git diff is fine until the branch gets big",
+    solution: "See the full branch against the detected base branch.",
   },
   {
-    keyword: "Right-click",
-    pain: "Switching between terminal and editor",
-    solution: "Right-click any file to open in VS Code, Zed, or your terminal",
+    keyword: "Leave notes as you review",
+    pain: "You want a quick review pass before opening a PR",
+    solution: "Leave notes as you review, then jump back into your editor.",
   },
 ];
 
 const features = [
   {
-    description:
-      "Diffs against your merge-base, not HEAD. See exactly what changed since you branched.",
+    description: "Run diffhub cmux and open the diff in a cmux browser split.",
     icon: FileTextIcon,
-    title: "PR-style diffs",
+    title: "cmux",
   },
   {
-    description: (
-      <>
-        Toggle between side-by-side and inline diffs. Press <Kbd>s</Kbd> to switch.
-      </>
-    ),
+    description: "DiffHub compares your branch to the detected base branch, usually origin/main.",
     icon: SplitIcon,
-    title: "Split and unified",
+    title: "Branch diff",
   },
   {
-    description:
-      "Leave notes on any line. Tag as must-fix, suggestion, nit, or question. Export as a prompt.",
+    description: "Toggle between side-by-side and inline diffs.",
     icon: Bubble2Icon,
-    title: "Inline comments",
+    title: "Views",
   },
   {
-    description: (
-      <>
-        Navigate changes in a collapsible file tree. Press <Kbd>/</Kbd> to filter. Per-file stats at
-        a glance.
-      </>
-    ),
+    description: "Leave notes on any line and copy them as a prompt.",
     icon: ArrowRightIcon,
-    title: "File sidebar",
+    title: "Notes",
   },
   {
-    description: "Watches your working tree. Diffs update automatically when files change.",
+    description: "Keep the view open while you edit and refresh the diff as needed.",
     icon: RotateIcon,
-    title: "Live refresh",
+    title: "Refresh",
   },
   {
-    description: "Right-click any file to open in VS Code, Zed, Ghostty, Terminal, or Finder.",
+    description: "Right-click any file to open it in VS Code, Zed, Ghostty, Terminal, or Finder.",
     icon: ConsoleIcon,
-    title: "Context menu",
+    title: "Open files",
   },
 ];
 
@@ -102,7 +91,6 @@ export default function HomePage(): React.JSX.Element {
   return (
     <MotionConfig reducedMotion="user">
       <div>
-        {/* Hero */}
         <section className="@container py-16 sm:py-24">
           <div className="mx-auto max-w-2xl px-6 text-center">
             <SplitText
@@ -117,15 +105,15 @@ export default function HomePage(): React.JSX.Element {
                 ease: [0.25, 1, 0.5, 1],
               }}
             >
-              <p>See every change before you push</p>
+              <p>Review your branch in cmux</p>
             </SplitText>
             <motion.p
               {...blurUp}
               className="mx-auto mt-4 max-w-[48ch] text-pretty text-lg text-muted-foreground"
               transition={{ ...blurUp.transition, delay: 0.35 }}
             >
-              DiffHub opens a PR-style diff viewer in your browser with split and unified views,
-              file tree, inline comments, and live refresh. One command, no config.
+              DiffHub opens your branch in a cmux browser split and compares it with the detected
+              base branch, usually origin/main.
             </motion.p>
             <motion.div
               {...blurUp}
@@ -133,10 +121,17 @@ export default function HomePage(): React.JSX.Element {
               transition={{ ...blurUp.transition, delay: 0.5 }}
             >
               <code className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-muted-foreground">
-                <span>npx diffhub@latest</span>
-                <CopyButton content="npx diffhub@latest" />
+                <span>npx diffhub@latest cmux</span>
+                <CopyButton content="npx diffhub@latest cmux" />
               </code>
             </motion.div>
+            <motion.p
+              {...blurUp}
+              className="mx-auto mt-4 max-w-[48ch] text-pretty text-sm text-muted-foreground"
+              transition={{ ...blurUp.transition, delay: 0.55 }}
+            >
+              Prefer a normal browser tab? Run <code>npx diffhub@latest</code>.
+            </motion.p>
             <motion.div
               {...blurUp}
               className="mt-4 flex items-center justify-center"
@@ -154,7 +149,6 @@ export default function HomePage(): React.JSX.Element {
             </motion.div>
           </div>
 
-          {/* Screenshot */}
           <motion.div
             animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
             className="relative mx-auto mt-16 max-w-5xl px-6"
@@ -167,7 +161,7 @@ export default function HomePage(): React.JSX.Element {
           >
             <div className="overflow-hidden rounded">
               <Image
-                alt="DiffHub showing a split-view code diff with file sidebar"
+                alt="DiffHub showing a branch diff with file sidebar and split view"
                 className="w-full"
                 height={777}
                 priority
@@ -178,11 +172,10 @@ export default function HomePage(): React.JSX.Element {
           </motion.div>
         </section>
 
-        {/* Pain / Solution */}
         <section className="@container py-16 sm:py-24">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="max-w-[40ch] text-balance text-2xl font-medium tracking-tight">
-              Terminal diffs weren&rsquo;t built for review
+              Why use it
             </h2>
             <dl className="mt-12 space-y-3">
               {painSolution.map((item, index) => (
@@ -203,11 +196,10 @@ export default function HomePage(): React.JSX.Element {
           </div>
         </section>
 
-        {/* Features */}
         <section className="@container py-16 sm:py-24" id="features">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="max-w-[40ch] text-balance text-2xl font-medium tracking-tight">
-              Everything you need to review your own code
+              What it does
             </h2>
 
             <dl className="mt-12 grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3">
@@ -229,11 +221,10 @@ export default function HomePage(): React.JSX.Element {
           </div>
         </section>
 
-        {/* Keyboard Shortcuts */}
         <section className="@container py-16 sm:py-24">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="max-w-[40ch] text-balance text-2xl font-medium tracking-tight">
-              Keyboard-first
+              Shortcuts
             </h2>
             <div className="mt-8 grid grid-cols-2 gap-3 @sm:grid-cols-3 @lg:grid-cols-5">
               {shortcuts.map((shortcut, index) => (
@@ -255,23 +246,25 @@ export default function HomePage(): React.JSX.Element {
           </div>
         </section>
 
-        {/* Install / CTA */}
         <section className="@container py-16 sm:py-24" id="install">
           <div className="mx-auto max-w-4xl px-6">
             <motion.div {...blurUp} className="rounded bg-card p-12 text-center">
               <h2 className="mx-auto max-w-[30ch] text-balance text-2xl font-medium tracking-tight">
-                One command. Any repo
+                Run it in any repo
               </h2>
               <p className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground">
-                Run inside any git repository. DiffHub auto-detects your base branch and opens at
-                localhost.
+                Use the cmux command if you want the diff in cmux. Use the default command if you
+                want it in a normal browser window.
               </p>
               <div className="mt-8 flex justify-center">
                 <code className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-foreground">
-                  <span>npx diffhub@latest</span>
-                  <CopyButton content="npx diffhub@latest" />
+                  <span>npx diffhub@latest cmux</span>
+                  <CopyButton content="npx diffhub@latest cmux" />
                 </code>
               </div>
+              <p className="mx-auto mt-4 max-w-[40ch] text-pretty text-sm text-muted-foreground">
+                No cmux? Run <code>npx diffhub@latest</code>.
+              </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <Button
                   render={
