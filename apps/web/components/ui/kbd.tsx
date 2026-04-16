@@ -41,12 +41,10 @@ const kbdVariants = cva(
           "bg-background/20 text-background ring-background/20 dark:bg-background/10 dark:ring-background/10",
       },
     },
-  }
+  },
 );
 
-interface KbdProps
-  extends ComponentProps<"kbd">,
-    VariantProps<typeof kbdVariants> {
+interface KbdProps extends ComponentProps<"kbd">, VariantProps<typeof kbdVariants> {
   icon?: KbdIcon;
 }
 
@@ -67,12 +65,7 @@ const Kbd = ({ className, variant, children, icon, ref, ...props }: KbdProps) =>
   const content = icon ? iconMap[icon] : children;
 
   return (
-    <kbd
-      className={cn(kbdVariants({ variant }), className)}
-      data-slot="kbd"
-      ref={ref}
-      {...props}
-    >
+    <kbd className={cn(kbdVariants({ variant }), className)} data-slot="kbd" ref={ref} {...props}>
       {content}
     </kbd>
   );
