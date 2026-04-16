@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  appleWebApp: {
+    title: "DiffHub",
+  },
   description: siteConfig.description,
   keywords: [
     "diff viewer",

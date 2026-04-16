@@ -14,9 +14,9 @@ import { stagger } from "motion";
 import { MotionConfig, motion } from "motion/react";
 import Image from "next/image";
 
-import { Kbd } from "@/components/marketing/kbd";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { siteConfig } from "@/lib/config";
 
 const blurUp = {
@@ -243,11 +243,11 @@ export default function HomePage(): React.JSX.Element {
                   key={shortcut.label}
                   transition={{ ...blurUp.transition, delay: 0.06 * index }}
                 >
-                  <span className="flex gap-1">
+                  <KbdGroup>
                     {shortcut.keys.map((key) => (
                       <Kbd key={key}>{key}</Kbd>
                     ))}
-                  </span>
+                  </KbdGroup>
                   <span className="text-sm text-muted-foreground">{shortcut.label}</span>
                 </motion.div>
               ))}

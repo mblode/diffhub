@@ -1,9 +1,6 @@
 {
   "name": "DiffHub",
   "short_name": "DiffHub",
-  "description": "GitHub PR-style local diff viewer.",
-  "start_url": "/",
-  "categories": ["developer tools", "productivity"],
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
