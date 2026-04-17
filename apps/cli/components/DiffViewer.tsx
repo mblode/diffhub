@@ -682,6 +682,7 @@ interface DiffViewerProps {
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
+  forceRenderFiles?: ReadonlySet<string>;
 }
 
 interface CollapsibleFileDiffProps {
@@ -691,6 +692,7 @@ interface CollapsibleFileDiffProps {
   prerenderedHTML?: PrerenderedDiffHtml;
   deferPatchRendering: boolean;
   isLargeFile: boolean;
+  forceRender: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
@@ -708,6 +710,21 @@ interface CollapsibleFileDiffProps {
   onDeleteComment: (id: string) => Promise<boolean>;
 }
 
+// Roughly how many px a rendered diff line takes (22px/line + padding).
+// Used to reserve space for deferred files so lazy mounting doesn't inflate
+// neighbouring sections by hundreds of pixels after the user scrolls.
+const RESERVED_HEIGHT_PER_CHANGE_PX = 22;
+const MAX_RESERVED_HEIGHT_PX = 400;
+const MIN_RESERVED_HEIGHT_PX = 36;
+
+const getReservedHeightPx = (fileStat: DiffFileStat | undefined): number => {
+  if (!fileStat) {
+    return MIN_RESERVED_HEIGHT_PX;
+  }
+  const estimated = fileStat.changes * RESERVED_HEIGHT_PER_CHANGE_PX;
+  return Math.min(MAX_RESERVED_HEIGHT_PX, Math.max(MIN_RESERVED_HEIGHT_PX, estimated));
+};
+
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   file,
   filePatch,
@@ -715,6 +732,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   prerenderedHTML,
   deferPatchRendering,
   isLargeFile,
+  forceRender,
   comments,
   fileStat,
   collapsed,
@@ -728,21 +746,21 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
   const [shouldRenderPatch, setShouldRenderPatch] = useState(
-    () => active || (!deferPatchRendering && !isLargeFile),
+    () => active || forceRender || (!deferPatchRendering && !isLargeFile),
   );
   const handleRenderPatch = useCallback(() => {
     setShouldRenderPatch(true);
   }, []);
 
   useEffect(() => {
-    if (active || commentTarget !== null) {
+    if (active || forceRender || commentTarget !== null) {
       setShouldRenderPatch(true);
       return;
     }
     if (!(deferPatchRendering || isLargeFile)) {
       setShouldRenderPatch(true);
     }
-  }, [active, commentTarget, deferPatchRendering, isLargeFile]);
+  }, [active, commentTarget, deferPatchRendering, forceRender, isLargeFile]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -776,9 +794,25 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   }, [file, isLargeFile, onVisible]);
 
   const sectionId = getDiffSectionId(file);
+  const sectionStyle = useMemo<React.CSSProperties>(() => {
+    // While the diff hasn't rendered yet, reserve approximately the final
+    // height so lazy mounting doesn't shove neighbouring sections by hundreds
+    // of pixels and defeat the browser's scroll anchor during navigation.
+    const minHeight = shouldRenderPatch ? undefined : getReservedHeightPx(fileStat);
+    // Keep the browser's scroll-anchoring focused on the active section so
+    // sibling expansions don't drag the viewport upward after clicks.
+    const overflowAnchor: "auto" | "none" = active ? "auto" : "none";
+    return minHeight === undefined ? { overflowAnchor } : { minHeight, overflowAnchor };
+  }, [active, fileStat, shouldRenderPatch]);
 
   return (
-    <section ref={sectionRef} id={sectionId} data-file-section={file} className="scroll-mt-16">
+    <section
+      ref={sectionRef}
+      id={sectionId}
+      data-file-section={file}
+      className="scroll-mt-16"
+      style={sectionStyle}
+    >
       <SingleFileDiff
         file={file}
         filePatch={filePatch}
@@ -816,6 +850,7 @@ export const DiffViewer = ({
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
+  forceRenderFiles,
 }: DiffViewerProps) => {
   const fileStatMap = useMemo(() => {
     const map = new Map<string, DiffFileStat>();
@@ -876,6 +911,7 @@ export const DiffViewer = ({
             prerenderedHTML={prerenderedHTMLByFile?.[file]}
             deferPatchRendering={deferPatchRendering}
             isLargeFile={isLargeFile}
+            forceRender={forceRenderFiles?.has(file) ?? false}
             comments={comments}
             fileStat={fileStat}
             collapsed={collapsedFiles.has(file)}

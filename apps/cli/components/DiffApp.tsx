@@ -96,6 +96,7 @@ interface MainPanelProps {
   repoPath: string;
   diffWatchdogTripped: boolean;
   onRetryDiff: () => void;
+  forceRenderFiles: ReadonlySet<string>;
 }
 
 interface PlaceholderProps {
@@ -248,6 +249,7 @@ const MainPanel = ({
   repoPath,
   diffWatchdogTripped,
   onRetryDiff,
+  forceRenderFiles,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
@@ -291,6 +293,7 @@ const MainPanel = ({
           onToggleCollapse={onToggleCollapse}
           onActiveFileChange={onActiveFileChange}
           repoPath={repoPath}
+          forceRenderFiles={forceRenderFiles}
         />
       </div>
     </div>
@@ -329,6 +332,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const staleDiffDropCountRef = useRef(0);
   const diffFetchStartedAtRef = useRef<number | null>(null);
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
+  const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
@@ -686,6 +690,34 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     (file: string, behavior: ScrollBehavior = "smooth") => {
       lockActiveFile(file);
 
+      // Eager-render target and its immediate neighbours so lazy-rendered
+      // sections don't inflate and shift the scroll anchor after we land.
+      setForceRenderFiles((previous) => {
+        const files = filesData?.files.map((stat) => stat.file) ?? [];
+        const index = files.indexOf(file);
+        const candidates: string[] = [file];
+        if (index > 0) {
+          const prev = files[index - 1];
+          if (prev) {
+            candidates.push(prev);
+          }
+        }
+        if (index !== -1 && index < files.length - 1) {
+          const nxt = files[index + 1];
+          if (nxt) {
+            candidates.push(nxt);
+          }
+        }
+        if (candidates.every((candidate) => previous.has(candidate))) {
+          return previous;
+        }
+        const next = new Set(previous);
+        for (const candidate of candidates) {
+          next.add(candidate);
+        }
+        return next;
+      });
+
       // Expand the file if it's collapsed
       updateCollapsedFiles((previous) => {
         if (previous.has(file)) {
@@ -695,6 +727,67 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         }
         return previous;
       });
+
+      // Re-aligns the target while lazy-rendered siblings settle their height.
+      // When a user clicks a file that hasn't mounted its PatchDiff yet, the
+      // IntersectionObserver in DiffViewer flips shouldRenderPatch on the
+      // target (and occasionally a neighbour), those sections grow by
+      // hundreds of pixels, and the browser's default overflow-anchor can
+      // land on the wrong sibling — leaving the user above the target.
+      const pinScrollToTarget = (section: HTMLElement): void => {
+        const container = document.querySelector<HTMLElement>("#diff-container");
+        if (!container) {
+          return;
+        }
+
+        // matches scroll-mt-16 on the section
+        const scrollMarginTop = 64;
+        const DRIFT_TOLERANCE_PX = 1;
+        const SETTLE_FRAMES = 3;
+        // ~1s at 60fps
+        const MAX_FRAMES = 60;
+        let frames = 0;
+        let stable = 0;
+        let aborted = false;
+        let rafId = 0;
+
+        const abort = (): void => {
+          aborted = true;
+          cancelAnimationFrame(rafId);
+          container.removeEventListener("wheel", abort);
+          container.removeEventListener("touchmove", abort);
+          window.removeEventListener("keydown", abort);
+        };
+
+        const tick = () => {
+          if (aborted) {
+            return;
+          }
+          frames += 1;
+          if (frames > MAX_FRAMES) {
+            abort();
+            return;
+          }
+          const sectionTop = section.getBoundingClientRect().top;
+          const expectedTop = container.getBoundingClientRect().top + scrollMarginTop;
+          if (Math.abs(sectionTop - expectedTop) > DRIFT_TOLERANCE_PX) {
+            section.scrollIntoView({ behavior: "auto", block: "start" });
+            stable = 0;
+          } else {
+            stable += 1;
+            if (stable >= SETTLE_FRAMES) {
+              abort();
+              return;
+            }
+          }
+          rafId = requestAnimationFrame(tick);
+        };
+
+        container.addEventListener("wheel", abort, { passive: true });
+        container.addEventListener("touchmove", abort, { passive: true });
+        window.addEventListener("keydown", abort);
+        rafId = requestAnimationFrame(tick);
+      };
 
       const performScroll = (section: HTMLElement): void => {
         // Use scrollIntoView for consistent behavior that respects scroll-padding CSS
@@ -707,6 +800,26 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         } else {
           section.setAttribute("tabindex", "-1");
           section.focus({ preventScroll: true });
+        }
+
+        // Start the pinner after the smooth animation completes. For "auto"
+        // (instant) the pinner runs on the next frame.
+        if (behavior === "smooth") {
+          const container = document.querySelector<HTMLElement>("#diff-container");
+          if (!container) {
+            return;
+          }
+          let fallbackTimer = 0;
+          const onScrollEnd = (): void => {
+            container.removeEventListener("scrollend", onScrollEnd);
+            clearTimeout(fallbackTimer);
+            pinScrollToTarget(section);
+          };
+          container.addEventListener("scrollend", onScrollEnd, { once: true });
+          // Safari lacks scrollend; fall back to a conservative timeout.
+          fallbackTimer = window.setTimeout(onScrollEnd, 600);
+        } else {
+          pinScrollToTarget(section);
         }
       };
 
@@ -735,7 +848,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       // Safety timeout - stop waiting after 5 seconds
       setTimeout(() => observer.disconnect(), 5000);
     },
-    [lockActiveFile, updateCollapsedFiles],
+    [filesData, lockActiveFile, updateCollapsedFiles],
   );
 
   const handleActiveFileChange = useCallback((file: string) => {
@@ -964,6 +1077,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
             repoPath={repoPath}
             diffWatchdogTripped={diffWatchdogTripped}
             onRetryDiff={handleRetryDiff}
+            forceRenderFiles={forceRenderFiles}
           />
         </div>
       </SidebarInset>
