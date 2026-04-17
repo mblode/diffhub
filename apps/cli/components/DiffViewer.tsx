@@ -7,6 +7,7 @@ import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comments";
 import type { DiffFileStat } from "@/lib/git";
+import { isLargeDiffFile } from "@/lib/git";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
@@ -87,19 +88,32 @@ const DiffSkeleton = () => (
   </div>
 );
 
-const DeferredDiffPlaceholder = ({ onRender }: { onRender: () => void }) => (
-  <div
-    className="mx-4 my-4 rounded-md border border-dashed border-border bg-muted/20 p-4"
-    data-testid="deferred-diff-placeholder"
-  >
-    <p className="text-sm text-muted-foreground">
-      Diff rendering is deferred until this file becomes active or visible.
-    </p>
-    <Button className="mt-3" size="sm" variant="outline" onClick={onRender}>
-      Render diff
-    </Button>
-  </div>
-);
+interface DeferredDiffPlaceholderProps {
+  onRender: () => void;
+  variant: "auto" | "large";
+  changes?: number;
+}
+
+const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPlaceholderProps) => {
+  const isLarge = variant === "large";
+  return (
+    <div
+      className="mx-4 my-4 flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 p-6"
+      data-testid="deferred-diff-placeholder"
+      data-variant={variant}
+    >
+      <Button size="sm" variant="default" onClick={onRender}>
+        Load diff
+      </Button>
+      <p className="text-sm text-muted-foreground">
+        {isLarge ? "Large diffs are not rendered by default." : "Diff rendering is deferred until this file becomes active or visible."}
+      </p>
+      {isLarge && changes !== undefined ? (
+        <p className="text-xs text-muted-foreground/70">{changes.toLocaleString()} changed lines</p>
+      ) : null}
+    </div>
+  );
+};
 
 /* oxlint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
 const PatchDiff = dynamic(
@@ -392,6 +406,7 @@ interface SingleFileDiffProps {
   shouldRenderPatch: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
+  isLargeFile: boolean;
   collapsed: boolean;
   active?: boolean;
   sectionId: string;
@@ -446,6 +461,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
   shouldRenderPatch,
   comments,
   fileStat,
+  isLargeFile,
   collapsed,
   active = false,
   sectionId,
@@ -572,7 +588,13 @@ const SingleFileDiff = memo(function SingleFileDiff({
         />
       );
     } else {
-      panelContent = <DeferredDiffPlaceholder onRender={handleRenderPatch} />;
+      panelContent = (
+        <DeferredDiffPlaceholder
+          onRender={handleRenderPatch}
+          variant={isLargeFile ? "large" : "auto"}
+          changes={fileStat?.changes}
+        />
+      );
     }
   }
 
@@ -624,6 +646,7 @@ interface CollapsibleFileDiffProps {
   layout: "split" | "stacked";
   prerenderedHTML?: PrerenderedDiffHtml;
   deferPatchRendering: boolean;
+  isLargeFile: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
@@ -647,6 +670,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   layout,
   prerenderedHTML,
   deferPatchRendering,
+  isLargeFile,
   comments,
   fileStat,
   collapsed,
@@ -659,16 +683,22 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
-  const [shouldRenderPatch, setShouldRenderPatch] = useState(() => active || !deferPatchRendering);
+  const [shouldRenderPatch, setShouldRenderPatch] = useState(
+    () => active || (!deferPatchRendering && !isLargeFile),
+  );
   const handleRenderPatch = useCallback(() => {
     setShouldRenderPatch(true);
   }, []);
 
   useEffect(() => {
-    if (!deferPatchRendering || active || commentTarget !== null) {
+    if (active || commentTarget !== null) {
+      setShouldRenderPatch(true);
+      return;
+    }
+    if (!(deferPatchRendering || isLargeFile)) {
       setShouldRenderPatch(true);
     }
-  }, [active, commentTarget, deferPatchRendering]);
+  }, [active, commentTarget, deferPatchRendering, isLargeFile]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -684,7 +714,9 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
           return;
         }
         if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
-          setShouldRenderPatch(true);
+          if (!isLargeFile) {
+            setShouldRenderPatch(true);
+          }
           onVisible(file);
         }
       },
@@ -697,7 +729,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 
     observer.observe(section);
     return () => observer.disconnect();
-  }, [file, onVisible]);
+  }, [file, isLargeFile, onVisible]);
 
   const sectionId = getDiffSectionId(file);
 
@@ -720,6 +752,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         shouldRenderPatch={shouldRenderPatch}
         comments={comments}
         fileStat={fileStat}
+        isLargeFile={isLargeFile}
         collapsed={collapsed}
         active={active}
         sectionId={sectionId}
@@ -795,26 +828,32 @@ export const DiffViewer = ({
 
   return (
     <div className="h-full min-h-0 overflow-auto" id="diff-container">
-      {orderedFiles.map((file) => (
-        <CollapsibleFileDiff
-          key={file}
-          file={file}
-          filePatch={patchesByFile[file] ?? ""}
-          layout={layout}
-          prerenderedHTML={prerenderedHTMLByFile?.[file]}
-          deferPatchRendering={deferPatchRendering}
-          comments={comments}
-          fileStat={fileStatMap.get(file)}
-          collapsed={collapsedFiles.has(file)}
-          active={activeFileId === file}
-          // oxlint-disable-next-line typescript-eslint/no-non-null-assertion -- file always exists in toggleHandlers since both use orderedFiles
-          onToggleCollapse={toggleHandlers.get(file)!}
-          onVisible={onActiveFileChange}
-          repoPath={repoPath}
-          onAddComment={onAddComment}
-          onDeleteComment={onDeleteComment}
-        />
-      ))}
+      {orderedFiles.map((file) => {
+        const fileStat = fileStatMap.get(file);
+        const patch = patchesByFile[file] ?? "";
+        const isLargeFile = fileStat !== undefined && isLargeDiffFile(fileStat, patch.length);
+        return (
+          <CollapsibleFileDiff
+            key={file}
+            file={file}
+            filePatch={patch}
+            layout={layout}
+            prerenderedHTML={prerenderedHTMLByFile?.[file]}
+            deferPatchRendering={deferPatchRendering}
+            isLargeFile={isLargeFile}
+            comments={comments}
+            fileStat={fileStat}
+            collapsed={collapsedFiles.has(file)}
+            active={activeFileId === file}
+            // oxlint-disable-next-line typescript-eslint/no-non-null-assertion -- file always exists in toggleHandlers since both use orderedFiles
+            onToggleCollapse={toggleHandlers.get(file)!}
+            onVisible={onActiveFileChange}
+            repoPath={repoPath}
+            onAddComment={onAddComment}
+            onDeleteComment={onDeleteComment}
+          />
+        );
+      })}
     </div>
   );
 };

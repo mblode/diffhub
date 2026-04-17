@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./DiffViewer";
 
@@ -99,5 +99,54 @@ describe("diff viewer rendering", () => {
 
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(5);
     expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
+  });
+
+  it("defers a single large file behind a Load diff button in a small PR", () => {
+    const props = makeProps(3);
+    const largeFile = "src/file-1.ts";
+    props.fileStats = props.fileStats.map((stat) =>
+      stat.file === largeFile
+        ? { binary: false, changes: 800, deletions: 300, file: stat.file, insertions: 500 }
+        : stat,
+    );
+    props.activeFileId = "src/file-0.ts";
+
+    render(<DiffViewer {...props} />);
+
+    const placeholders = screen.getAllByTestId("deferred-diff-placeholder");
+    expect(placeholders).toHaveLength(1);
+    const placeholder = placeholders[0] as HTMLElement;
+    expect(placeholder.dataset.variant).toBe("large");
+    expect(placeholder.textContent).toContain("Large diffs are not rendered by default");
+    expect(placeholder.textContent).toContain("800 changed lines");
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: /load diff/i }));
+
+    expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
+    const rendered = screen
+      .getAllByTestId("patch-viewer")
+      .some((el) => el.textContent?.includes(largeFile));
+    expect(rendered).toBeTruthy();
+  });
+
+  it("auto-renders a large file when it becomes active via navigation", () => {
+    const props = makeProps(3);
+    const largeFile = "src/file-1.ts";
+    props.fileStats = props.fileStats.map((stat) =>
+      stat.file === largeFile
+        ? { binary: false, changes: 800, deletions: 300, file: stat.file, insertions: 500 }
+        : stat,
+    );
+    props.activeFileId = "src/file-0.ts";
+
+    const { rerender } = render(<DiffViewer {...props} />);
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
+
+    rerender(<DiffViewer {...props} activeFileId={largeFile} />);
+
+    expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
   });
 });
