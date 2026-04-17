@@ -94,6 +94,8 @@ interface MainPanelProps {
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
+  diffWatchdogTripped: boolean;
+  onRetryDiff: () => void;
 }
 
 interface PlaceholderProps {
@@ -103,6 +105,9 @@ interface PlaceholderProps {
 
 const FALLBACK_POLL_INTERVAL_MS = 5000;
 const LIVE_POLL_INTERVAL_MS = 30_000;
+const DIFF_REQUEST_TIMEOUT_MS = 15_000;
+const STALE_DIFF_DROP_LIMIT = 3;
+const DIFF_WATCHDOG_MS = 5000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 
@@ -241,6 +246,8 @@ const MainPanel = ({
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
+  diffWatchdogTripped,
+  onRetryDiff,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
@@ -251,6 +258,18 @@ const MainPanel = ({
   if (!deferredDiffData) {
     if (diffError) {
       return <Placeholder text={diffError} />;
+    }
+    if (diffWatchdogTripped) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3">
+          <div className="text-muted-foreground text-sm">
+            Still loading the diff — the server hasn&apos;t responded.
+          </div>
+          <Button size="sm" variant="default" onClick={onRetryDiff}>
+            Retry
+          </Button>
+        </div>
+      );
     }
     return <Placeholder text="Loading diff…" pulse />;
   }
@@ -307,6 +326,9 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const diffFetchInFlightRef = useRef(false);
   const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
+  const staleDiffDropCountRef = useRef(0);
+  const diffFetchStartedAtRef = useRef<number | null>(null);
+  const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
@@ -366,6 +388,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     async (requestId: number) => {
       const requestGeneration = currentFilesGenerationRef.current;
       const requestFingerprint = currentFilesFingerprintRef.current;
+      diffFetchStartedAtRef.current = Date.now();
+      setDiffWatchdogTripped(false);
       setDiffError(null);
 
       console.info("[diffhub] fetchDiff start", {
@@ -375,8 +399,13 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         requestId,
       });
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort(new Error("Diff request timed out"));
+      }, DIFF_REQUEST_TIMEOUT_MS);
+
       try {
-        const response = await fetch(`/api/diff${buildDiffQuery()}`);
+        const response = await fetch(`/api/diff${buildDiffQuery()}`, { signal: controller.signal });
         if (!response.ok) {
           const errorBody = (await response
             .json()
@@ -413,9 +442,25 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
             latestRequestId: latestDiffRequestRef.current,
             requestId,
           });
+          // If no data has landed yet, re-queue a fresh fetch so we don't
+          // sit on "Loading diff…" forever after the only response got dropped.
+          if (currentFilesGenerationRef.current !== null) {
+            staleDiffDropCountRef.current += 1;
+            if (staleDiffDropCountRef.current >= STALE_DIFF_DROP_LIMIT) {
+              console.warn("[diffhub] fetchDiff stale-drop limit reached, invalidating", {
+                drops: staleDiffDropCountRef.current,
+              });
+              staleDiffDropCountRef.current = 0;
+              latestDiffRequestRef.current += 1;
+              lastDiffFingerprintRef.current = null;
+              setDiffData(null);
+            }
+            queuedDiffFetchRef.current = true;
+          }
           return;
         }
 
+        staleDiffDropCountRef.current = 0;
         console.info("[diffhub] fetchDiff success", {
           fileCount: Object.keys(nextDiffData.patchesByFile).length,
           fingerprint: requestFingerprint,
@@ -436,6 +481,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         if (requestId === latestDiffRequestRef.current) {
           setDiffError(error instanceof Error ? error.message : String(error));
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
     },
     [buildDiffQuery, startDiffTransition],
@@ -596,6 +643,15 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     void pollFiles();
   }, [pollFiles]);
 
+  const handleRetryDiff = useCallback(() => {
+    setDiffWatchdogTripped(false);
+    setDiffError(null);
+    latestDiffRequestRef.current += 1;
+    lastDiffFingerprintRef.current = null;
+    setDiffData(null);
+    void fetchAllDiff();
+  }, [fetchAllDiff]);
+
   useEffect(() => {
     void pollFiles();
   }, [pollFiles]);
@@ -607,6 +663,18 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     );
     return () => clearInterval(interval);
   }, [fileWatchState, pollFiles]);
+
+  // Watchdog: if files are loaded but the diff is still absent after a few
+  // seconds without an explicit error, surface a retry affordance instead of
+  // the infinite "Loading diff…" pulse.
+  useEffect(() => {
+    if (!filesData || filesData.files.length === 0 || diffData || diffError) {
+      setDiffWatchdogTripped(false);
+      return;
+    }
+    const timer = setTimeout(() => setDiffWatchdogTripped(true), DIFF_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [filesData, diffData, diffError]);
 
   const lockActiveFile = useCallback((file: string, durationMs = 800) => {
     activeFileLockRef.current = { file, until: Date.now() + durationMs };
@@ -894,6 +962,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
             onToggleCollapse={toggleCollapse}
             onActiveFileChange={handleActiveFileChange}
             repoPath={repoPath}
+            diffWatchdogTripped={diffWatchdogTripped}
+            onRetryDiff={handleRetryDiff}
           />
         </div>
       </SidebarInset>

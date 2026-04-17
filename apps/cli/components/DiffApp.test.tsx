@@ -182,7 +182,10 @@ describe("DiffApp review flow", () => {
 
     await screen.findByText("feature/diff-review");
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/diff"));
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/diff"),
+        expect.anything(),
+      );
     });
 
     const firstSection = getDiffSection("src/a.ts");
