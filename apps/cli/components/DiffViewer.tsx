@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { useTheme } from "next-themes";
 import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
 import { toAnnotationSide } from "@/lib/comment-sides";
@@ -116,6 +117,45 @@ const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPla
     </div>
   );
 };
+
+interface DiffErrorBoundaryProps {
+  file: string;
+  children: ReactNode;
+}
+
+interface DiffErrorBoundaryState {
+  error: Error | null;
+}
+
+class DiffErrorBoundary extends Component<DiffErrorBoundaryProps, DiffErrorBoundaryState> {
+  constructor(props: DiffErrorBoundaryProps) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): DiffErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error("[diffhub] PatchDiff threw", {
+      componentStack: info.componentStack,
+      error: error.message,
+      file: this.props.file,
+    });
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="px-4 py-6 text-sm text-destructive">
+          Failed to render diff for this file: {this.state.error.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* oxlint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
 const PatchDiff = dynamic(
@@ -563,31 +603,33 @@ const SingleFileDiff = memo(function SingleFileDiff({
       );
     } else if (shouldRenderPatch) {
       panelContent = (
-        <PatchDiff
-          key={`${file}:${layout}:${resolvedTheme}`}
-          patch={filePatch}
-          prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
-          disableWorkerPool
-          style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
-          options={{
-            diffStyle: layout === "split" ? "split" : "unified",
-            disableFileHeader: true,
-            disableLineNumbers: false,
-            enableGutterUtility: true,
-            expansionLineCount: 20,
-            hunkSeparators: "line-info",
-            lineDiffType: "word",
-            lineHoverHighlight: "line",
-            maxLineDiffLength: 500,
-            overflow: "wrap",
-            theme: { dark: "github-dark", light: "github-light" },
-            themeType: resolvedTheme === "light" ? "light" : "dark",
-            unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
-          }}
-          lineAnnotations={lineAnnotations}
-          renderAnnotation={renderAnnotation}
-          renderGutterUtility={renderGutterUtility}
-        />
+        <DiffErrorBoundary file={file}>
+          <PatchDiff
+            key={`${file}:${layout}:${resolvedTheme}`}
+            patch={filePatch}
+            prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
+            disableWorkerPool
+            style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
+            options={{
+              diffStyle: layout === "split" ? "split" : "unified",
+              disableFileHeader: true,
+              disableLineNumbers: false,
+              enableGutterUtility: true,
+              expansionLineCount: 20,
+              hunkSeparators: "line-info",
+              lineDiffType: "word",
+              lineHoverHighlight: "line",
+              maxLineDiffLength: 500,
+              overflow: "wrap",
+              theme: { dark: "github-dark", light: "github-light" },
+              themeType: resolvedTheme === "light" ? "light" : "dark",
+              unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
+            }}
+            lineAnnotations={lineAnnotations}
+            renderAnnotation={renderAnnotation}
+            renderGutterUtility={renderGutterUtility}
+          />
+        </DiffErrorBoundary>
       );
     } else {
       panelContent = (
@@ -736,16 +778,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   const sectionId = getDiffSectionId(file);
 
   return (
-    <section
-      ref={sectionRef}
-      id={sectionId}
-      data-file-section={file}
-      className="scroll-mt-16"
-      style={{
-        containIntrinsicBlockSize: "auto 300px",
-        contentVisibility: "auto",
-      }}
-    >
+    <section ref={sectionRef} id={sectionId} data-file-section={file} className="scroll-mt-16">
       <SingleFileDiff
         file={file}
         filePatch={filePatch}

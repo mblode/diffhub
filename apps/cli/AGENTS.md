@@ -41,9 +41,10 @@ Valid values: `'split' | 'unified'`. The prop `layout` does not exist and is sil
 
 **Never import `lib/comments.ts` or `lib/git.ts` in client components — even for types.**
 Both modules use Node `fs` / `child_process`. A type-only `import type` from them still makes Turbopack fail the client chunk with `the chunking context (unknown) does not support external modules (request: node:fs)`. Pure splits:
+
 - Types: `lib/comment-types.ts` (`Comment`, `CommentTag`), `lib/diff-file-stat.ts` (`DiffFileStat` + `isLargeDiffFile`, `LARGE_FILE_*_THRESHOLD`).
 - Utilities: `lib/export-comments.ts` (`exportCommentsAsPrompt`).
-Client components (and anything they transitively pull in, like `lib/export-comments.ts`) must import from these, not from `comments.ts` / `git.ts`.
+  Client components (and anything they transitively pull in, like `lib/export-comments.ts`) must import from these, not from `comments.ts` / `git.ts`.
 
 **`DIFFHUB_REPO` must be set for API routes to resolve the correct repo.**
 Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server directory, not the target repo. Set it in `.env.local` for dev or via the CLI env injection for production.

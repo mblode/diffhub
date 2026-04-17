@@ -5,6 +5,25 @@ import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 type DiffMode = "uncommitted" | undefined;
 type WhitespaceMode = "ignore" | undefined;
 
+const PRERENDER_TIMEOUT_MS = 3000;
+
+const withTimeout = async <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  // oxlint-disable-next-line promise/avoid-new
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
+
 interface DiffRequestContext {
   base?: string;
   file?: string;
@@ -36,9 +55,18 @@ const preloadPrerenderedHtml = async ({
 
   try {
     const { preloadPatchHtmlByLayout } = await import("@/lib/diff-prerender");
-    return await preloadPatchHtmlByLayout(patch);
+    return await withTimeout(
+      preloadPatchHtmlByLayout(patch),
+      PRERENDER_TIMEOUT_MS,
+      `prerender ${file}`,
+    );
   } catch (error) {
-    console.error("[diffhub] failed to prerender diff HTML", { error, file, mode });
+    console.error("[diffhub] failed to prerender diff HTML", {
+      error: error instanceof Error ? error.message : String(error),
+      file,
+      mode,
+      patchBytes: patch.length,
+    });
   }
 };
 
@@ -80,6 +108,7 @@ export const GET = async (request: Request) => {
     // Prerender the first few files for instant display
     const MAX_PRERENDER_FILES = 4;
     let prerenderedHTMLByFile: Record<string, PrerenderedDiffHtml> | undefined;
+    let prerenderFailedFileCount = 0;
 
     if (process.env.DIFFHUB_DISABLE_PRERENDER !== "1") {
       try {
@@ -101,12 +130,24 @@ export const GET = async (request: Request) => {
         const prerenderResults = await Promise.all(
           filesToPrerender.map(async ([f, patch]) => {
             try {
-              return { file: f, html: await preloadPatchHtmlByLayout(patch) };
-            } catch {
+              const html = await withTimeout(
+                preloadPatchHtmlByLayout(patch),
+                PRERENDER_TIMEOUT_MS,
+                `prerender ${f}`,
+              );
+              return { file: f, html };
+            } catch (error) {
+              console.error("[diffhub] prerender file failed", {
+                error: error instanceof Error ? error.message : String(error),
+                file: f,
+                patchBytes: patch.length,
+              });
               return null;
             }
           }),
         );
+
+        prerenderFailedFileCount = prerenderResults.filter((r) => r === null).length;
 
         const entries = prerenderResults.filter(Boolean) as {
           file: string;
@@ -126,6 +167,7 @@ export const GET = async (request: Request) => {
       hasPrerenderedHTML: Boolean(prerenderedHTMLByFile),
       patchCount: Object.keys(result.patchByFile).length,
       patchLength: null,
+      prerenderFailedFileCount,
       prerenderedFileCount: prerenderedHTMLByFile ? Object.keys(prerenderedHTMLByFile).length : 0,
       ...logContext,
     });

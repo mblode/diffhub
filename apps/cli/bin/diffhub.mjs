@@ -753,7 +753,7 @@ const startServer = (repoPath, baseBranch, port, options = {}) => {
     });
   }
 
-  const shouldDisablePrerender = Boolean(logPath) || missingStandaloneAliases.length > 0;
+  const shouldDisablePrerender = missingStandaloneAliases.length > 0;
 
   const serverEnv = {
     ...process.env,
