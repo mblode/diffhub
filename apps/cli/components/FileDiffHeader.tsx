@@ -55,7 +55,7 @@ export const FileDiffHeader = ({
       <div
         data-active={active ? "true" : undefined}
         data-state={collapsed ? "collapsed" : "expanded"}
-        className="flex items-center gap-2 px-3 h-9 border-b border-border bg-card sticky top-0 z-10"
+        className="flex items-center gap-2 px-3 h-9 border-b border-border bg-card sticky top-[52px] z-10"
       >
         <h3
           id={headingId}

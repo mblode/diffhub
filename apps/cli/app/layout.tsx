@@ -39,10 +39,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${glide.variable} ${operatorMono.variable} h-full`}
+      className={`${glide.variable} ${operatorMono.variable}`}
       suppressHydrationWarning
     >
-      <body className="h-full overflow-hidden bg-background antialiased">
+      <body className="bg-background antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <DiffsWorkerProvider>{children}</DiffsWorkerProvider>
           {process.env.NODE_ENV === "development" && <Agentation />}

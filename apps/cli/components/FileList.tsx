@@ -494,7 +494,7 @@ export const FileList = ({
     <TooltipProvider delay={400}>
       <Sidebar
         collapsible="none"
-        className="relative overflow-hidden border-r border-sidebar-border"
+        className="sticky top-0 h-svh self-start overflow-hidden border-r border-sidebar-border"
         style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
       >
         {/* Filter */}
