@@ -25,7 +25,7 @@ jobs:
         run: npm install
 
       - name: Changeset Status
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         run: npx changeset status --since origin/main
 
       - name: Lint
