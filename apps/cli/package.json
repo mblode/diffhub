@@ -1,6 +1,6 @@
 {
   "name": "diffhub",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "GitHub PR-style local diff viewer — review your git changes in the browser",
   "keywords": [
     "ai",
