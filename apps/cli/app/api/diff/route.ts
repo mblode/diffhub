@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDiffForFile, getMultiFileDiff } from "@/lib/git";
+import { getDiffForFile, getMultiFileDiff, isLargeDiffFile } from "@/lib/git";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 
 type DiffMode = "uncommitted" | undefined;
@@ -84,8 +84,18 @@ export const GET = async (request: Request) => {
     if (process.env.DIFFHUB_DISABLE_PRERENDER !== "1") {
       try {
         const { preloadPatchHtmlByLayout } = await import("@/lib/diff-prerender");
+        const fileStatMap = new Map(result.files.map((s) => [s.file, s]));
         const filesToPrerender = Object.entries(result.patchByFile)
-          .filter(([, patch]) => patch)
+          .filter(([f, patch]) => {
+            if (!patch) {
+              return false;
+            }
+            const stat = fileStatMap.get(f);
+            if (stat && isLargeDiffFile(stat, patch.length)) {
+              return false;
+            }
+            return true;
+          })
           .slice(0, MAX_PRERENDER_FILES);
 
         const prerenderResults = await Promise.all(
