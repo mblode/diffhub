@@ -11,7 +11,7 @@ import {
 } from "blode-icons-react";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { Comment } from "@/lib/comments";
+import type { Comment } from "@/lib/comment-types";
 import type { FileWatchState } from "@/lib/use-file-watch";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";

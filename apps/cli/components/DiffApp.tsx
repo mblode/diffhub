@@ -17,7 +17,7 @@ import { DiffViewer, getDiffSectionId } from "./DiffViewer";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
-import type { Comment, CommentTag } from "@/lib/comments";
+import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
 import { useFileWatch } from "@/lib/use-file-watch";

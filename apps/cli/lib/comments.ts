@@ -1,27 +1,17 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { isCommentSide } from "./comment-sides";
+import type { Comment, CommentTag } from "./comment-types";
 import { getGitDirectory } from "./git-paths";
 import { getConfiguredRepoPath } from "./repo-path";
-import type { CommentSide } from "./comment-sides";
+
+export type { Comment, CommentTag } from "./comment-types";
 
 const COMMENTS_FILENAME = "diffhub-comments.json";
 let mutationQueue = Promise.resolve(null);
 
 const getCommentsPath = (): string =>
   join(getGitDirectory(getConfiguredRepoPath()), COMMENTS_FILENAME);
-
-export type CommentTag = "[must-fix]" | "[suggestion]" | "[nit]" | "[question]" | "";
-
-export interface Comment {
-  id: string;
-  file: string;
-  lineNumber: number;
-  side: CommentSide;
-  body: string;
-  tag: CommentTag;
-  createdAt: string;
-}
 
 const isCommentTag = (value: unknown): value is CommentTag =>
   value === "" ||

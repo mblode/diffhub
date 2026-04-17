@@ -3,7 +3,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
-import type { Comment } from "@/lib/comments";
+import type { Comment } from "@/lib/comment-types";
 
 interface MockAnnotation {
   lineNumber: number;

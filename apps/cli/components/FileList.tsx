@@ -8,8 +8,8 @@ import {
   MagnifyingGlassIcon,
 } from "blode-icons-react";
 import { FileAddedIcon, FileDiffIcon, FileRemovedIcon } from "./icons/file-status-icons";
-import type { DiffFileStat } from "@/lib/git";
-import type { Comment } from "@/lib/comments";
+import type { DiffFileStat } from "@/lib/diff-file-stat";
+import type { Comment } from "@/lib/comment-types";
 import { cn, truncateFilePath } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";

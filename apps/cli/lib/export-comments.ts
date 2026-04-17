@@ -1,4 +1,4 @@
-import type { Comment } from "./comments";
+import type { Comment } from "./comment-types";
 
 export const exportCommentsAsPrompt = (comments: Comment[]): string => {
   if (comments.length === 0) {
