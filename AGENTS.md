@@ -41,3 +41,11 @@ diffhub/
 - **Standalone needs static copies** — After `next build`, the `prepack` script copies `.next/static/` and `public/` into `.next/standalone/`. Don't skip this step when testing the CLI locally.
 - **Env for dev** — Set `DIFFHUB_REPO` in `apps/cli/.env.local` to point at a real git repo when developing. Without it, the diff API defaults to `process.cwd()`.
 - **Marketing site proxies docs** — `apps/web/next.config.js` rewrites `/docs/*` to `https://diffhub.blode.md/docs/*`. This will 404 until the docs site is deployed via blodemd.
+
+## Debugging browser logs
+
+Three options, in order of preference:
+
+1. **`/next-browser`** — Vercel's Next.js 16.2 skill. Persistent Chromium with React DevTools; returns console, network, component tree, and PPR shell analysis as structured text. Install with `npx skills add vercel-labs/next-browser -g -a claude-code -y`.
+2. **`apps/cli/.next/dev/logs/next-development.log`** — `browserToTerminal: true` is set in `apps/cli/next.config.ts`, so Next.js forwards browser errors into this log. `Read` it while `npm run dev` is running.
+3. **`mcp__claude-in-chrome__read_console_messages`** — for the published standalone build or any non-dev URL. Requires `portless trust` first, or the extension silently fails on `https://diffhub.localhost` certs.

@@ -106,7 +106,9 @@ const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPla
         Load diff
       </Button>
       <p className="text-sm text-muted-foreground">
-        {isLarge ? "Large diffs are not rendered by default." : "Diff rendering is deferred until this file becomes active or visible."}
+        {isLarge
+          ? "Large diffs are not rendered by default."
+          : "Diff rendering is deferred until this file becomes active or visible."}
       </p>
       {isLarge && changes !== undefined ? (
         <p className="text-xs text-muted-foreground/70">{changes.toLocaleString()} changed lines</p>

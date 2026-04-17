@@ -185,7 +185,9 @@ export default function HomePage(): React.JSX.Element {
                   key={item.pain}
                   transition={{ ...blurUp.transition, delay: 0.1 * index }}
                 >
-                  <dt key="dt" className="text-muted-foreground">{item.pain}</dt>
+                  <dt key="dt" className="text-muted-foreground">
+                    {item.pain}
+                  </dt>
                   <dd key="dd" className="text-foreground">
                     <span className="font-semibold">{item.keyword}</span>
                     {item.solution.slice(item.keyword.length)}
@@ -210,8 +212,14 @@ export default function HomePage(): React.JSX.Element {
                   key={feature.title}
                   transition={{ ...blurUp.transition, delay: 0.1 * index }}
                 >
-                  <feature.icon key="icon" aria-hidden="true" className="size-4 shrink-0 text-link" />
-                  <dt key="dt" className="mt-3 text-sm font-semibold text-foreground">{feature.title}</dt>
+                  <feature.icon
+                    key="icon"
+                    aria-hidden="true"
+                    className="size-4 shrink-0 text-link"
+                  />
+                  <dt key="dt" className="mt-3 text-sm font-semibold text-foreground">
+                    {feature.title}
+                  </dt>
                   <dd key="dd" className="mt-1 text-sm text-pretty text-muted-foreground">
                     {feature.description}
                   </dd>
@@ -239,7 +247,9 @@ export default function HomePage(): React.JSX.Element {
                       <Kbd key={key}>{key}</Kbd>
                     ))}
                   </KbdGroup>
-                  <span key="label" className="text-sm text-muted-foreground">{shortcut.label}</span>
+                  <span key="label" className="text-sm text-muted-foreground">
+                    {shortcut.label}
+                  </span>
                 </motion.div>
               ))}
             </div>
@@ -249,10 +259,16 @@ export default function HomePage(): React.JSX.Element {
         <section className="@container py-16 sm:py-24" id="install">
           <div className="mx-auto max-w-4xl px-6">
             <motion.div {...blurUp} className="text-center">
-              <h2 key="heading" className="mx-auto max-w-[30ch] text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
+              <h2
+                key="heading"
+                className="mx-auto max-w-[30ch] text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]"
+              >
                 Get started today
               </h2>
-              <p key="description" className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground">
+              <p
+                key="description"
+                className="mx-auto mt-4 max-w-[48ch] text-pretty text-muted-foreground"
+              >
                 Use the cmux command if you want the diff in cmux. Use the default command if you
                 want it in a normal browser window.
               </p>
@@ -262,7 +278,10 @@ export default function HomePage(): React.JSX.Element {
                   <CopyButton content="npx diffhub@latest cmux" />
                 </code>
               </div>
-              <p key="alt" className="mx-auto mt-4 max-w-[40ch] text-pretty text-sm text-muted-foreground">
+              <p
+                key="alt"
+                className="mx-auto mt-4 max-w-[40ch] text-pretty text-sm text-muted-foreground"
+              >
                 No cmux? Run <code>npx diffhub@latest</code>.
               </p>
               <div key="actions" className="mt-8 flex flex-wrap justify-center gap-3">
