@@ -803,12 +803,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   const sectionId = getDiffSectionId(file);
 
   return (
-    <section
-      ref={sectionRef}
-      id={sectionId}
-      data-file-section={file}
-      className="scroll-mt-[52px]"
-    >
+    <section ref={sectionRef} id={sectionId} data-file-section={file} className="scroll-mt-[52px]">
       <SingleFileDiff
         file={file}
         filePatch={filePatch}

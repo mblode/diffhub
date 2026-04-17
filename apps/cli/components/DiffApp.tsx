@@ -1,14 +1,7 @@
 "use client";
 
 import type { AnnotationSide } from "@pierre/diffs";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-  startTransition,
-} from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
