@@ -105,8 +105,9 @@ export const GET = async (request: Request) => {
 
     const result = await getMultiFileDiff(base, mode, whitespace, generation);
 
-    // Prerender the first few files for instant display
-    const MAX_PRERENDER_FILES = 4;
+    // Prerender every small/medium file so @pierre/diffs skips async syntax
+    // highlighting on the client. WebKit has no overflow-anchor, so any
+    // post-paint DOM mutation above the viewport shifts scroll position.
     let prerenderedHTMLByFile: Record<string, PrerenderedDiffHtml> | undefined;
     let prerenderFailedFileCount = 0;
 
@@ -114,18 +115,16 @@ export const GET = async (request: Request) => {
       try {
         const { preloadPatchHtmlByLayout } = await import("@/lib/diff-prerender");
         const fileStatMap = new Map(result.files.map((s) => [s.file, s]));
-        const filesToPrerender = Object.entries(result.patchByFile)
-          .filter(([f, patch]) => {
-            if (!patch) {
-              return false;
-            }
-            const stat = fileStatMap.get(f);
-            if (stat && isLargeDiffFile(stat, patch.length)) {
-              return false;
-            }
-            return true;
-          })
-          .slice(0, MAX_PRERENDER_FILES);
+        const filesToPrerender = Object.entries(result.patchByFile).filter(([f, patch]) => {
+          if (!patch) {
+            return false;
+          }
+          const stat = fileStatMap.get(f);
+          if (stat && isLargeDiffFile(stat, patch.length)) {
+            return false;
+          }
+          return true;
+        });
 
         const prerenderResults = await Promise.all(
           filesToPrerender.map(async ([f, patch]) => {

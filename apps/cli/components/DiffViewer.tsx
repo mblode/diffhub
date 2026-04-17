@@ -36,6 +36,31 @@ const TAG_META: Partial<Record<CommentTag, { text: string; border: string }>> = 
   "[suggestion]": { border: "border-l-diff-green", text: "text-diff-green" },
 };
 const LARGE_DIFF_FALLBACK_FILE_THRESHOLD = 24;
+const EMPTY_COMMENTS: readonly Comment[] = [];
+
+// Collapse multiple IntersectionObserver callbacks across sections into one
+// `onVisible(file)` call per frame. Prevents `setSelectedFile` from re-entering
+// React while the browser is mid-scroll.
+let pendingVisibleFile: string | null = null;
+let pendingVisibleHandler: ((file: string) => void) | null = null;
+let pendingVisibleRafId = 0;
+const scheduleVisibleFlush = (file: string, handler: (file: string) => void): void => {
+  pendingVisibleFile = file;
+  pendingVisibleHandler = handler;
+  if (pendingVisibleRafId !== 0) {
+    return;
+  }
+  pendingVisibleRafId = requestAnimationFrame(() => {
+    pendingVisibleRafId = 0;
+    const f = pendingVisibleFile;
+    const h = pendingVisibleHandler;
+    pendingVisibleFile = null;
+    pendingVisibleHandler = null;
+    if (f && h) {
+      h(f);
+    }
+  });
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -516,7 +541,8 @@ const SingleFileDiff = memo(function SingleFileDiff({
   onDeleteComment,
 }: SingleFileDiffProps) {
   const { resolvedTheme } = useTheme();
-  const fileComments = useMemo(() => comments.filter((c) => c.file === file), [comments, file]);
+  // `comments` is already scoped to this file by DiffViewer's commentsByFile split.
+  const fileComments = comments;
   const headerId = `${sectionId}-header`;
   const panelId = `${sectionId}-panel`;
 
@@ -605,7 +631,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
       panelContent = (
         <DiffErrorBoundary file={file}>
           <PatchDiff
-            key={`${file}:${layout}:${resolvedTheme}`}
+            key={file}
             patch={filePatch}
             prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
             disableWorkerPool
@@ -682,7 +708,6 @@ interface DiffViewerProps {
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
-  forceRenderFiles?: ReadonlySet<string>;
 }
 
 interface CollapsibleFileDiffProps {
@@ -692,7 +717,6 @@ interface CollapsibleFileDiffProps {
   prerenderedHTML?: PrerenderedDiffHtml;
   deferPatchRendering: boolean;
   isLargeFile: boolean;
-  forceRender: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
   collapsed: boolean;
@@ -710,21 +734,6 @@ interface CollapsibleFileDiffProps {
   onDeleteComment: (id: string) => Promise<boolean>;
 }
 
-// Roughly how many px a rendered diff line takes (22px/line + padding).
-// Used to reserve space for deferred files so lazy mounting doesn't inflate
-// neighbouring sections by hundreds of pixels after the user scrolls.
-const RESERVED_HEIGHT_PER_CHANGE_PX = 22;
-const MAX_RESERVED_HEIGHT_PX = 400;
-const MIN_RESERVED_HEIGHT_PX = 36;
-
-const getReservedHeightPx = (fileStat: DiffFileStat | undefined): number => {
-  if (!fileStat) {
-    return MIN_RESERVED_HEIGHT_PX;
-  }
-  const estimated = fileStat.changes * RESERVED_HEIGHT_PER_CHANGE_PX;
-  return Math.min(MAX_RESERVED_HEIGHT_PX, Math.max(MIN_RESERVED_HEIGHT_PX, estimated));
-};
-
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   file,
   filePatch,
@@ -732,7 +741,6 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   prerenderedHTML,
   deferPatchRendering,
   isLargeFile,
-  forceRender,
   comments,
   fileStat,
   collapsed,
@@ -745,22 +753,24 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
-  const [shouldRenderPatch, setShouldRenderPatch] = useState(
-    () => active || forceRender || (!deferPatchRendering && !isLargeFile),
-  );
+  const isDeferred = deferPatchRendering || isLargeFile;
+  // Latch once true: the deferred file has been "opened" by becoming active or
+  // getting a comment. Deriving `shouldRenderPatch` during render avoids the
+  // extra commit cycle that a state+effect pair introduces.
+  const [hasBeenActive, setHasBeenActive] = useState(() => !isDeferred || active);
+  if (!hasBeenActive && (active || commentTarget !== null)) {
+    setHasBeenActive(true);
+  }
   const handleRenderPatch = useCallback(() => {
-    setShouldRenderPatch(true);
+    setHasBeenActive(true);
   }, []);
 
+  const shouldRenderPatch = hasBeenActive || !isDeferred;
+
+  const onVisibleRef = useRef(onVisible);
   useEffect(() => {
-    if (active || forceRender || commentTarget !== null) {
-      setShouldRenderPatch(true);
-      return;
-    }
-    if (!(deferPatchRendering || isLargeFile)) {
-      setShouldRenderPatch(true);
-    }
-  }, [active, commentTarget, deferPatchRendering, forceRender, isLargeFile]);
+    onVisibleRef.current = onVisible;
+  }, [onVisible]);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -768,7 +778,6 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
       return;
     }
 
-    const root = document.querySelector<HTMLElement>("#diff-container");
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
@@ -776,42 +785,29 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
           return;
         }
         if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
-          if (!isLargeFile) {
-            setShouldRenderPatch(true);
-          }
-          onVisible(file);
+          scheduleVisibleFlush(file, onVisibleRef.current);
         }
       },
       {
-        root,
-        rootMargin: "-72px 0px -55% 0px",
+        // Observe against viewport — we use window scroll, not a container.
+        // Top inset accounts for sticky StatusBar (52px).
+        rootMargin: "-52px 0px -55% 0px",
         threshold: [0.35, 0.6],
       },
     );
 
     observer.observe(section);
     return () => observer.disconnect();
-  }, [file, isLargeFile, onVisible]);
+  }, [file]);
 
   const sectionId = getDiffSectionId(file);
-  const sectionStyle = useMemo<React.CSSProperties>(() => {
-    // While the diff hasn't rendered yet, reserve approximately the final
-    // height so lazy mounting doesn't shove neighbouring sections by hundreds
-    // of pixels and defeat the browser's scroll anchor during navigation.
-    const minHeight = shouldRenderPatch ? undefined : getReservedHeightPx(fileStat);
-    // Keep the browser's scroll-anchoring focused on the active section so
-    // sibling expansions don't drag the viewport upward after clicks.
-    const overflowAnchor: "auto" | "none" = active ? "auto" : "none";
-    return minHeight === undefined ? { overflowAnchor } : { minHeight, overflowAnchor };
-  }, [active, fileStat, shouldRenderPatch]);
 
   return (
     <section
       ref={sectionRef}
       id={sectionId}
       data-file-section={file}
-      className="scroll-mt-16"
-      style={sectionStyle}
+      className="scroll-mt-[52px]"
     >
       <SingleFileDiff
         file={file}
@@ -850,7 +846,6 @@ export const DiffViewer = ({
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
-  forceRenderFiles,
 }: DiffViewerProps) => {
   const fileStatMap = useMemo(() => {
     const map = new Map<string, DiffFileStat>();
@@ -865,6 +860,19 @@ export const DiffViewer = ({
     const extras = Object.keys(patchesByFile).filter((file) => !fileStatMap.has(file));
     return sortFilesAsTree([...files, ...extras]);
   }, [fileStatMap, fileStats, patchesByFile]);
+
+  const commentsByFile = useMemo(() => {
+    const map = new Map<string, Comment[]>();
+    for (const comment of comments) {
+      const bucket = map.get(comment.file);
+      if (bucket) {
+        bucket.push(comment);
+      } else {
+        map.set(comment.file, [comment]);
+      }
+    }
+    return map;
+  }, [comments]);
   const deferPatchRendering =
     orderedFiles.length >= LARGE_DIFF_FALLBACK_FILE_THRESHOLD &&
     Object.keys(prerenderedHTMLByFile ?? {}).length === 0;
@@ -897,7 +905,7 @@ export const DiffViewer = ({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto" id="diff-container">
+    <div id="diff-container">
       {orderedFiles.map((file) => {
         const fileStat = fileStatMap.get(file);
         const patch = patchesByFile[file] ?? "";
@@ -911,8 +919,7 @@ export const DiffViewer = ({
             prerenderedHTML={prerenderedHTMLByFile?.[file]}
             deferPatchRendering={deferPatchRendering}
             isLargeFile={isLargeFile}
-            forceRender={forceRenderFiles?.has(file) ?? false}
-            comments={comments}
+            comments={commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[])}
             fileStat={fileStat}
             collapsed={collapsedFiles.has(file)}
             active={activeFileId === file}
