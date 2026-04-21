@@ -469,7 +469,7 @@ interface SingleFileDiffProps {
   file: string;
   filePatch: string;
   layout: "split" | "stacked";
-  prerenderedHTML?: { dark: string; light: string };
+  prerenderedHTML?: { dark?: string; light?: string };
   shouldRenderPatch: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
