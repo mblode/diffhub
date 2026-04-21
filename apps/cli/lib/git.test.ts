@@ -100,4 +100,24 @@ describe("git snapshot logging", () => {
       }),
     ]);
   });
+
+  it("deduplicates concurrent getDiffStats calls into a single compute", async () => {
+    const repoPath = createRepo();
+    process.env.DIFFHUB_DEBUG = "1";
+    process.env.DIFFHUB_REPO = repoPath;
+
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { getDiffStats } = await loadGitModule();
+
+    const [first, second] = await Promise.all([getDiffStats(), getDiffStats()]);
+
+    expect(first).toStrictEqual(second);
+
+    const missCalls = infoSpy.mock.calls.filter(
+      ([message, payload]) =>
+        message === "[diffhub] snapshot cache miss" &&
+        (payload as { source?: string } | undefined)?.source === "recomputed",
+    );
+    expect(missCalls).toHaveLength(1);
+  });
 });

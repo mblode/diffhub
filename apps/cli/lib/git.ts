@@ -11,6 +11,7 @@ import { getConfiguredRepoPath, REPO_POINTER } from "./repo-path";
 // TTL cache — avoids spawning git subprocesses on every poll
 interface GitRuntimeState {
   cache: Map<string, { value: unknown; expires: number }>;
+  inflight: Map<string, Promise<DiffSnapshot>>;
   gitCommandQueue: Promise<void>;
   lastPointerMtime: number;
   serverBootId: string;
@@ -26,6 +27,7 @@ const getGitRuntimeState = (): GitRuntimeState => {
     globalScope.__diffhubGitRuntimeState = {
       cache: new Map<string, { value: unknown; expires: number }>(),
       gitCommandQueue: Promise.resolve(),
+      inflight: new Map<string, Promise<DiffSnapshot>>(),
       lastPointerMtime: 0,
       serverBootId:
         bootSeed ??
@@ -37,13 +39,13 @@ const getGitRuntimeState = (): GitRuntimeState => {
 };
 
 const gitRuntimeState = getGitRuntimeState();
-const { cache } = gitRuntimeState;
+const { cache, inflight } = gitRuntimeState;
 const MAX_GIT_OUTPUT_BYTES = 20 * 1024 * 1024;
 const PREFERRED_BASE_BRANCHES = ["main", "master", "develop", "dev"] as const;
-const SNAPSHOT_TTL_MS = 500;
+const SNAPSHOT_TTL_MS = 15_000;
 const isDebugLogging = process.env.DIFFHUB_DEBUG === "1";
 
-const isCmuxRuntime = (): boolean => process.env.DIFFHUB_CMUX === "1";
+export const isCmuxRuntime = (): boolean => process.env.DIFFHUB_CMUX === "1";
 const usesExternalSnapshotWriter = (): boolean =>
   process.env.DIFFHUB_EXTERNAL_SNAPSHOT_WRITER === "1";
 
@@ -466,7 +468,7 @@ const readSnapshotFromDisk = (
           source: "disk",
         });
       }
-      rmSync(snapshotPath, { force: true });
+      // avoid thrash; next write will overwrite
       return null;
     }
 
@@ -547,91 +549,102 @@ const getDiffSnapshot = (
   expectedGeneration?: string,
 ): Promise<DiffSnapshot> => {
   const repoPath = getRepoPath();
-  return cached(
-    `snapshot:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}:${expectedGeneration ?? ""}`,
-    SNAPSHOT_TTL_MS,
-    async () => {
-      const diskSnapshot = readSnapshotFromDisk(
-        repoPath,
-        base,
-        mode,
-        whitespace,
-        expectedGeneration,
-      );
-      if (diskSnapshot) {
-        return diskSnapshot;
-      }
+  const cacheKey = `snapshot:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}:${expectedGeneration ?? ""}`;
+  return cached(cacheKey, SNAPSHOT_TTL_MS, () => {
+    const existing = inflight.get(cacheKey);
+    if (existing) {
+      return existing;
+    }
 
-      if (usesExternalSnapshotWriter()) {
-        const awaitedSnapshot = await waitForSnapshotFromDisk(
+    const compute = (async (): Promise<DiffSnapshot> => {
+      try {
+        const diskSnapshot = readSnapshotFromDisk(
           repoPath,
           base,
           mode,
           whitespace,
           expectedGeneration,
         );
-        if (awaitedSnapshot) {
-          return awaitedSnapshot;
+        if (diskSnapshot) {
+          return diskSnapshot;
         }
-        console.warn("[diffhub] external snapshot unavailable, recomputing inline", {
-          expectedGeneration: expectedGeneration ?? null,
-          mode: mode ?? "all",
-          repoPath,
-          whitespace: whitespace ?? "default",
-        });
-      }
 
-      const branchRaw = await runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
-      const branch = branchRaw.trim();
-      const baseBranch =
-        mode === "uncommitted"
-          ? "HEAD"
-          : (base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch()));
-      const mergeBase = mode === "uncommitted" ? "HEAD" : await getMergeBase(baseBranch);
-      const diffArgs = addWhitespaceArgs([mergeBase], whitespace);
+        if (usesExternalSnapshotWriter()) {
+          const awaitedSnapshot = await waitForSnapshotFromDisk(
+            repoPath,
+            base,
+            mode,
+            whitespace,
+            expectedGeneration,
+          );
+          if (awaitedSnapshot) {
+            return awaitedSnapshot;
+          }
+          console.warn("[diffhub] external snapshot unavailable, recomputing inline", {
+            expectedGeneration: expectedGeneration ?? null,
+            mode: mode ?? "all",
+            repoPath,
+            whitespace: whitespace ?? "default",
+          });
+        }
 
-      const [fullPatch, rawSummary] = await Promise.all([
-        runGit(["diff", ...diffArgs]),
-        runGit(["diff", "--numstat", "-z", "-M", ...diffArgs]),
-      ]);
-      const fingerprint = createHash("sha1").update(fullPatch).digest("hex");
-      const summary = parseDiffStats(rawSummary);
-      const createdAt = Date.now();
-      const generation = createSnapshotGeneration(
-        gitRuntimeState.serverBootId,
-        fingerprint,
-        mergeBase,
-      );
+        const branchRaw = await runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
+        const branch = branchRaw.trim();
+        const baseBranch =
+          mode === "uncommitted"
+            ? "HEAD"
+            : (base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch()));
+        const mergeBase = mode === "uncommitted" ? "HEAD" : await getMergeBase(baseBranch);
+        const diffArgs = addWhitespaceArgs([mergeBase], whitespace);
 
-      const snapshot: DiffSnapshot = {
-        baseBranch,
-        branch,
-        deletions: summary.deletions,
-        files: summary.files,
-        fingerprint,
-        fullPatch,
-        generation,
-        insertions: summary.insertions,
-        mergeBase,
-        metadata: {
-          bootId: gitRuntimeState.serverBootId,
-          createdAt,
-          repoPath,
-        },
-        patchByFile: splitPatchByFile(fullPatch),
-      };
+        const [fullPatch, rawSummary] = await Promise.all([
+          runGit(["diff", ...diffArgs]),
+          runGit(["diff", "--numstat", "-z", "-M", ...diffArgs]),
+        ]);
+        const fingerprint = createHash("sha1").update(fullPatch).digest("hex");
+        const summary = parseDiffStats(rawSummary);
+        const createdAt = Date.now();
+        const generation = createSnapshotGeneration(
+          gitRuntimeState.serverBootId,
+          fingerprint,
+          mergeBase,
+        );
 
-      if (isDebugLogging) {
-        console.info("[diffhub] snapshot cache miss", {
+        const snapshot: DiffSnapshot = {
+          baseBranch,
+          branch,
+          deletions: summary.deletions,
+          files: summary.files,
+          fingerprint,
+          fullPatch,
           generation,
-          repoPath,
-          source: "recomputed",
-        });
+          insertions: summary.insertions,
+          mergeBase,
+          metadata: {
+            bootId: gitRuntimeState.serverBootId,
+            createdAt,
+            repoPath,
+          },
+          patchByFile: splitPatchByFile(fullPatch),
+        };
+
+        if (isDebugLogging) {
+          console.info("[diffhub] snapshot cache miss", {
+            generation,
+            repoPath,
+            source: "recomputed",
+          });
+        }
+        writeSnapshotToDisk(repoPath, base, mode, whitespace, snapshot);
+        return snapshot;
+      } finally {
+        inflight.delete(cacheKey);
       }
-      writeSnapshotToDisk(repoPath, base, mode, whitespace, snapshot);
-      return snapshot;
-    },
-  );
+    })();
+
+    inflight.set(cacheKey, compute);
+    return compute;
+  });
 };
 
 export const getDiffForFile = async (

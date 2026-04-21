@@ -2,7 +2,15 @@ import { existsSync, watch } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { createDeferred } from "./deferred";
-import { clearGitMemoryCache, invalidateGitCache, primeGitSnapshots } from "./git";
+import { getOrPrerenderByReviewKey } from "./diff-prerender";
+import { isLargeDiffFile } from "./diff-file-stat";
+import {
+  clearGitMemoryCache,
+  getMultiFileDiff,
+  invalidateGitCache,
+  isCmuxRuntime,
+  primeGitSnapshots,
+} from "./git";
 import { getGitDirectory } from "./git-paths";
 import { getConfiguredRepoPath } from "./repo-path";
 
@@ -48,6 +56,66 @@ const shouldIgnorePath = (pathToCheck: string, repoPath: string): boolean => {
   return false;
 };
 
+const WARM_PRERENDER_CONCURRENCY = 4;
+const WARM_LAYOUTS: ("split" | "stacked")[] = ["split", "stacked"];
+const WARM_THEMES: ("dark" | "light")[] = ["dark", "light"];
+
+const warmPrerenderCache = async (): Promise<void> => {
+  if (!isCmuxRuntime()) {
+    return;
+  }
+  try {
+    const snapshot = await getMultiFileDiff();
+    const statByFile = new Map(snapshot.files.map((stat) => [stat.file, stat]));
+    const jobs: {
+      reviewKey: string;
+      patch: string;
+      layout: "split" | "stacked";
+      theme: "dark" | "light";
+    }[] = [];
+    for (const [file, patch] of Object.entries(snapshot.patchByFile)) {
+      const stat = statByFile.get(file);
+      if (!stat) {
+        continue;
+      }
+      if (isLargeDiffFile(stat, Buffer.byteLength(patch))) {
+        continue;
+      }
+      const reviewKey = snapshot.reviewKeyByFile[file];
+      if (!reviewKey) {
+        continue;
+      }
+      for (const layout of WARM_LAYOUTS) {
+        for (const theme of WARM_THEMES) {
+          jobs.push({ layout, patch, reviewKey, theme });
+        }
+      }
+    }
+
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      while (cursor < jobs.length) {
+        const index = cursor;
+        cursor += 1;
+        const job = jobs[index];
+        if (!job) {
+          return;
+        }
+        try {
+          await getOrPrerenderByReviewKey(job.reviewKey, job.patch, job.layout, job.theme);
+        } catch {
+          // best-effort warmup; ignore per-file failures
+        }
+      }
+    };
+
+    const workerCount = Math.min(WARM_PRERENDER_CONCURRENCY, jobs.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  } catch {
+    // best-effort warmup; never break the watcher
+  }
+};
+
 const queueSnapshotPrime = async (): Promise<void> => {
   if (snapshotPrimeInFlight) {
     snapshotPrimeQueued = true;
@@ -58,6 +126,7 @@ const queueSnapshotPrime = async (): Promise<void> => {
   snapshotPrimeInFlight = (async () => {
     try {
       await primeGitSnapshots();
+      await warmPrerenderCache();
     } finally {
       snapshotPrimeInFlight = null;
     }

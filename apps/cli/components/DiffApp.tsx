@@ -1,6 +1,7 @@
 "use client";
 
 import type { AnnotationSide } from "@pierre/diffs";
+import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
@@ -87,6 +88,7 @@ interface MainPanelProps {
   onActiveFileChange: (file: string) => void;
   repoPath: string;
   diffWatchdogTripped: boolean;
+  diffHintShown: boolean;
   onRetryDiff: () => void;
 }
 
@@ -99,7 +101,8 @@ const FALLBACK_POLL_INTERVAL_MS = 5000;
 const LIVE_POLL_INTERVAL_MS = 30_000;
 const DIFF_REQUEST_TIMEOUT_MS = 15_000;
 const STALE_DIFF_DROP_LIMIT = 3;
-const DIFF_WATCHDOG_MS = 5000;
+const DIFF_WATCHDOG_MS = 20_000;
+const DIFF_HINT_MS = 10_000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 
@@ -239,6 +242,7 @@ const MainPanel = ({
   onActiveFileChange,
   repoPath,
   diffWatchdogTripped,
+  diffHintShown,
   onRetryDiff,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
@@ -254,8 +258,9 @@ const MainPanel = ({
     if (diffWatchdogTripped) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3">
-          <div className="text-muted-foreground text-sm">
-            Still loading the diff — the server hasn&apos;t responded.
+          <div className="text-muted-foreground text-sm">Still loading the diff…</div>
+          <div className="text-muted-foreground text-xs opacity-80">
+            Large diffs take longer on first load.
           </div>
           <Button size="sm" variant="default" onClick={onRetryDiff}>
             Retry
@@ -263,7 +268,24 @@ const MainPanel = ({
         </div>
       );
     }
-    return <Placeholder text="Loading diff…" pulse />;
+    if (diffHintShown) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2">
+          <div className="text-muted-foreground animate-pulse text-sm">
+            {`Loading diff${filesData ? ` (${filesData.files.length} files)…` : "…"}`}
+          </div>
+          <div className="text-muted-foreground text-xs opacity-80">
+            Large diffs take longer on first load.
+          </div>
+        </div>
+      );
+    }
+    return (
+      <Placeholder
+        text={`Loading diff${filesData ? ` (${filesData.files.length} files)…` : "…"}`}
+        pulse
+      />
+    );
   }
 
   return (
@@ -295,6 +317,10 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
   const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", LAYOUT_OPTIONS);
+  const { resolvedTheme } = useTheme();
+  const diffVariant: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
+  const layoutRef = useRef<"split" | "stacked">(layout);
+  const themeRef = useRef<"light" | "dark">(diffVariant);
   const [filterQuery, setFilterQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -319,6 +345,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const staleDiffDropCountRef = useRef(0);
   const diffFetchStartedAtRef = useRef<number | null>(null);
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
+  const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
@@ -373,6 +400,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     if (diffModeRef.current === "uncommitted") {
       params.set("mode", "uncommitted");
     }
+    params.set("layout", layoutRef.current);
+    params.set("theme", themeRef.current);
     const query = params.toString();
     return query ? `?${query}` : "";
   }, []);
@@ -499,6 +528,20 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
     diffFetchInFlightRef.current = false;
     setDiffRequestPending(false);
   }, [performDiffFetch]);
+
+  // Re-fetch whenever the user toggles layout or theme: /api/diff now ships
+  // only the active (layout × theme) variant, cached per-combination server-side.
+  useEffect(() => {
+    if (layoutRef.current === layout && themeRef.current === diffVariant) {
+      return;
+    }
+    layoutRef.current = layout;
+    themeRef.current = diffVariant;
+    latestDiffRequestRef.current += 1;
+    lastDiffFingerprintRef.current = null;
+    setDiffData(null);
+    void fetchAllDiff();
+  }, [layout, diffVariant, fetchAllDiff]);
 
   // Refs so `reconcileSelectedFile` stays stable — prevents downstream
   // callbacks (pollFiles) from recreating whenever diff data/error updates,
@@ -686,6 +729,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
 
   const handleRetryDiff = useCallback(() => {
     setDiffWatchdogTripped(false);
+    setDiffHintShown(false);
     setDiffError(null);
     latestDiffRequestRef.current += 1;
     lastDiffFingerprintRef.current = null;
@@ -714,6 +758,15 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
       return;
     }
     const timer = setTimeout(() => setDiffWatchdogTripped(true), DIFF_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [filesData, diffData, diffError]);
+
+  useEffect(() => {
+    if (!filesData || filesData.files.length === 0 || diffData || diffError) {
+      setDiffHintShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setDiffHintShown(true), DIFF_HINT_MS);
     return () => clearTimeout(timer);
   }, [filesData, diffData, diffError]);
 
@@ -994,6 +1047,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
           onActiveFileChange={handleActiveFileChange}
           repoPath={repoPath}
           diffWatchdogTripped={diffWatchdogTripped}
+          diffHintShown={diffHintShown}
           onRetryDiff={handleRetryDiff}
         />
       </SidebarInset>
