@@ -39,7 +39,7 @@ const buttonVariants = cva(
         destructiveSecondary:
           "border-red-200 text-red-700 hover:bg-red-50 active:bg-red-100 aria-pressed:bg-red-100 dark:border-red-800 dark:text-red-300 dark:aria-pressed:bg-red-950 dark:active:bg-red-950 dark:hover:bg-red-950/60",
         ghost:
-          "hover:bg-muted hover:text-foreground active:bg-muted/80 aria-expanded:bg-muted aria-pressed:bg-muted/80 dark:aria-pressed:bg-muted/60 dark:active:bg-muted/60 dark:hover:bg-muted/50",
+          "hover:bg-muted hover:text-foreground active:bg-muted/80 aria-pressed:bg-muted/80 dark:aria-pressed:bg-muted/60 dark:active:bg-muted/60 dark:hover:bg-muted/50",
         input:
           "border-input bg-card font-normal font-sans text-base text-foreground leading-snug shadow-input hover:border-input-hover focus-visible:ring-2 focus-visible:ring-ring/15 focus-visible:ring-offset-1 focus-visible:ring-offset-background active:border-input-hover/80 aria-pressed:border-input-hover aria-invalid:border-destructive-foreground data-[placeholder]:text-placeholder-foreground",
         link: "text-primary underline-offset-4 hover:underline active:opacity-80 aria-pressed:underline aria-pressed:opacity-80",
