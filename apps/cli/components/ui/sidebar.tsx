@@ -247,11 +247,7 @@ const Sidebar = ({
   );
 };
 
-const SidebarTrigger = ({
-  className,
-  onClick,
-  ...props
-}: React.ComponentProps<typeof Button>) => {
+const SidebarTrigger = ({ className, onClick, ...props }: React.ComponentProps<typeof Button>) => {
   const { state, toggleSidebar } = useSidebar();
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
