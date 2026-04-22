@@ -3,8 +3,10 @@
 import type * as React from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+import { LayoutLeftIcon } from "blode-icons-react";
 import { useIsMobile } from "@/lib/use-mobile";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -245,6 +247,25 @@ const Sidebar = ({
   );
 };
 
+const SidebarTrigger = ({ className, ...props }: React.ComponentProps<typeof Button>) => {
+  const { state, toggleSidebar } = useSidebar();
+  return (
+    <Button
+      data-slot="sidebar-trigger"
+      data-sidebar="trigger"
+      variant="ghost"
+      size="icon-xs"
+      aria-label="Toggle sidebar"
+      aria-expanded={state === "expanded"}
+      className={cn("text-muted-foreground hover:text-foreground hover:bg-secondary", className)}
+      onClick={toggleSidebar}
+      {...props}
+    >
+      <LayoutLeftIcon size={14} />
+    </Button>
+  );
+};
+
 const SidebarInset = ({ className, ...props }: React.ComponentProps<"main">) => (
   <main
     className={cn(
@@ -287,4 +308,12 @@ const SidebarContent = ({ className, ...props }: React.ComponentProps<"div">) =>
   />
 );
 
-export { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarProvider };
+export {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+};

@@ -310,7 +310,13 @@ const MainPanel = ({
 };
 
 // oxlint-disable-next-line complexity
-export const DiffApp = ({ repoPath }: { repoPath: string }) => {
+export const DiffApp = ({
+  repoPath,
+  defaultSidebarOpen = true,
+}: {
+  repoPath: string;
+  defaultSidebarOpen?: boolean;
+}) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -322,6 +328,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   const layoutRef = useRef<"split" | "stacked">(layout);
   const themeRef = useRef<"light" | "dark">(diffVariant);
   const [filterQuery, setFilterQuery] = useState("");
+  const [sidebarWidth, setSidebarWidth] = useState(256);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -988,7 +995,7 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
 
   if (loadError && filesData === null) {
     return (
-      <SidebarProvider className="min-h-svh">
+      <SidebarProvider className="min-h-svh" defaultOpen={defaultSidebarOpen}>
         <SidebarInset className="flex flex-col h-svh items-center justify-center gap-4">
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-6 py-4 text-sm text-destructive max-w-md text-center">
             <p className="font-semibold mb-1">Failed to load diff</p>
@@ -1003,7 +1010,11 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
   }
 
   return (
-    <SidebarProvider className="min-h-svh">
+    <SidebarProvider
+      className="min-h-svh"
+      defaultOpen={defaultSidebarOpen}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <FileList
         files={filesData?.files ?? []}
         selectedFile={selectedFile}
@@ -1014,6 +1025,8 @@ export const DiffApp = ({ repoPath }: { repoPath: string }) => {
         isLoading={filesData === null}
         insertions={filesData?.insertions ?? 0}
         deletions={filesData?.deletions ?? 0}
+        sidebarWidth={sidebarWidth}
+        onSidebarWidthChange={setSidebarWidth}
       />
 
       <SidebarInset className="flex flex-col min-h-svh">

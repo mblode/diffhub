@@ -6,50 +6,41 @@
  * the Shadow DOM boundary, but variables set on the host element with
  * actual values do.
  *
- * Values match globals.css:
- * - Light: --diff-green = oklch(0.696 0.17 145), --destructive = oklch(0.577 0.245 27.325)
- * - Dark:  --diff-green = oklch(0.696 0.15 145), --destructive = oklch(0.704 0.191 22.216)
+ * Values taken verbatim from @primer/primitives@11.7.1 functional themes
+ * (dist/css/functional/themes/{light,dark}.css):
+ *   --fgColor-success, --fgColor-danger
+ *   --diffBlob-{addition,deletion}{Line,Num,Word}-bgColor
+ *   --bgColor-{success,danger}-muted
  */
 export const DIFF_COLORS = {
   dark: {
-    addition: "oklch(0.696 0.15 145)",
-    deletion: "oklch(0.704 0.191 22.216)",
+    addition: "#3fb950",
+    deletion: "#f85149",
   },
   light: {
-    addition: "oklch(0.696 0.17 145)",
-    deletion: "oklch(0.577 0.245 27.325)",
+    addition: "#1a7f37",
+    deletion: "#d1242f",
   },
 } as const;
 
 export type DiffTheme = keyof typeof DIFF_COLORS;
 
-/**
- * Pre-computed background colors with appropriate opacity for each theme.
- * These are derived from the base colors with transparency applied.
- *
- * We use color-mix() which is widely supported (Chrome 111+, Firefox 113+, Safari 16.2+)
- * instead of the newer relative color syntax (rgb from) which has limited support.
- */
 const DIFF_BG_COLORS = {
   dark: {
-    // Addition: oklch(0.696 0.15 145) ≈ #4ade80 (green)
-    additionBg: "rgba(74, 222, 128, 0.12)",
-    additionBgNumber: "rgba(74, 222, 128, 0.18)",
-    additionEmphasis: "rgba(74, 222, 128, 0.25)",
-    // Deletion: oklch(0.704 0.191 22.216) ≈ #f87171 (red)
-    deletionBg: "rgba(248, 113, 113, 0.12)",
-    deletionBgNumber: "rgba(248, 113, 113, 0.18)",
-    deletionEmphasis: "rgba(248, 113, 113, 0.25)",
+    additionBg: "#2ea04326",
+    additionBgNumber: "#3fb9504d",
+    additionEmphasis: "#2ea04366",
+    deletionBg: "#f851491a",
+    deletionBgNumber: "#f851494d",
+    deletionEmphasis: "#f8514966",
   },
   light: {
-    // Addition: oklch(0.696 0.17 145) ≈ #22c55e (green)
-    additionBg: "rgba(34, 197, 94, 0.08)",
-    additionBgNumber: "rgba(34, 197, 94, 0.12)",
-    additionEmphasis: "rgba(34, 197, 94, 0.20)",
-    // Deletion: oklch(0.577 0.245 27.325) ≈ #ef4444 (red)
-    deletionBg: "rgba(239, 68, 68, 0.08)",
-    deletionBgNumber: "rgba(239, 68, 68, 0.12)",
-    deletionEmphasis: "rgba(239, 68, 68, 0.20)",
+    additionBg: "#dafbe1",
+    additionBgNumber: "#aceebb",
+    additionEmphasis: "#aceebb",
+    deletionBg: "#ffebe9",
+    deletionBgNumber: "#ffcecb",
+    deletionEmphasis: "#ffcecb",
   },
 } as const;
 
@@ -61,7 +52,6 @@ const DIFF_BG_COLORS = {
  * - Base colors (used for character-level emphasis)
  * - Line backgrounds
  * - Line number backgrounds
- * - Hover states
  * - Emphasis backgrounds (character-level diff highlights)
  */
 export const getDiffUnsafeCSS = (theme: DiffTheme) => {
@@ -86,10 +76,6 @@ export const getDiffUnsafeCSS = (theme: DiffTheme) => {
       /* Character-level emphasis (inline diff highlights) */
       --diffs-bg-addition-emphasis-override: ${bgColors.additionEmphasis};
       --diffs-bg-deletion-emphasis-override: ${bgColors.deletionEmphasis};
-
-      /* Hover states */
-      --diffs-bg-addition-hover-override: ${bgColors.additionEmphasis};
-      --diffs-bg-deletion-hover-override: ${bgColors.deletionEmphasis};
 
       /* Line number text colors */
       --diffs-fg-number-addition-override: ${colors.addition};
