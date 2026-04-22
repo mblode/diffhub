@@ -86,11 +86,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  /* Diff-specific tokens */
-  --diff-green: oklch(0.696 0.17 145);
+  /* Diff-specific tokens (GitHub Primer light) */
+  --diff-green: #1a7f37;
   --diff-purple: oklch(0.78 0.12 300);
   --diff-selected: oklch(0.93 0 0);
-  --diff-success: oklch(0.573 0.15 145);
+  --diff-success: #1a7f37;
 }
 
 .dark {
@@ -125,11 +125,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  /* Diff-specific tokens */
-  --diff-green: oklch(0.696 0.15 145);
+  /* Diff-specific tokens (GitHub Primer dark) */
+  --diff-green: #3fb950;
   --diff-purple: oklch(0.78 0.12 300);
   --diff-selected: oklch(0.269 0 0);
-  --diff-success: oklch(0.573 0.15 145);
+  --diff-success: #3fb950;
 }
 
 @layer base {

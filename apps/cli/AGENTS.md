@@ -68,3 +68,9 @@ Because `outputFileTracingRoot` is the repo root, the standalone server lives at
 - Comments are stored in `.git/diffhub-comments.json` (gitignored in the target repo, not this one)
 - Diff defaults to merge-base changes, with a UI toggle for uncommitted-only changes
 - Base branch prefers `origin/main` over local `main` so unpushed commits are visible even when on main
+
+## Available Context
+
+Additional context is available in the files below. Consult the relevant file when working in a related area — see each description for scope.
+
+- `.claude/knowledge/diff-intraline-highlighting.md` — why `lineDiffType: "word-alt"` is used (server prerender and client `<PatchDiff>` must stay in sync), the single-char-neutral absorption quirk, and why diff colors must track Primer exactly. Consult before changing `lib/diff-prerender.ts`, `lib/diff-colors.ts`, or the `<PatchDiff>` options in `components/DiffViewer.tsx`.

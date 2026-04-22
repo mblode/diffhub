@@ -28,6 +28,8 @@ interface FileListProps {
   isLoading?: boolean;
   insertions: number;
   deletions: number;
+  sidebarWidth: number;
+  onSidebarWidthChange: (width: number) => void;
 }
 
 // ── Tree types ──────────────────────────────────────────────────────────────
@@ -330,7 +332,6 @@ const FileTree = memo(function FileTree({
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-const DEFAULT_SIDEBAR_WIDTH = 256;
 const MIN_SIDEBAR_WIDTH = 8;
 
 export const FileList = ({
@@ -343,10 +344,11 @@ export const FileList = ({
   isLoading = false,
   insertions,
   deletions,
+  sidebarWidth,
+  onSidebarWidthChange,
 }: FileListProps) => {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
@@ -364,7 +366,7 @@ export const FileList = ({
         MIN_SIDEBAR_WIDTH,
         dragRef.current.startWidth + e.clientX - dragRef.current.startX,
       );
-      setSidebarWidth(newWidth);
+      onSidebarWidthChange(newWidth);
     };
     const handleMouseUp = () => {
       if (!dragRef.current) {
@@ -381,7 +383,7 @@ export const FileList = ({
       document.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("blur", handleMouseUp);
     };
-  }, []);
+  }, [onSidebarWidthChange]);
 
   const handleRailMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -492,11 +494,7 @@ export const FileList = ({
 
   return (
     <TooltipProvider delay={400}>
-      <Sidebar
-        collapsible="none"
-        className="sticky top-0 h-svh self-start overflow-hidden border-r border-sidebar-border"
-        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-      >
+      <Sidebar collapsible="offcanvas" className="overflow-hidden border-r border-sidebar-border">
         {/* Filter */}
         <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center py-0 px-2">
           <div className="relative flex w-full items-center">

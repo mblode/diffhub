@@ -15,6 +15,8 @@ import type { Comment } from "@/lib/comment-types";
 import type { FileWatchState } from "@/lib/use-file-watch";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -190,6 +192,15 @@ export const StatusBar = ({
   return (
     <TooltipProvider delay={400}>
       <header className="flex h-[52px] items-center gap-2 border-b border-border bg-card px-4 text-sm">
+        {/* Sidebar toggle */}
+        <Tooltip>
+          <TooltipTrigger render={<SidebarTrigger className="-ml-1" />} />
+          <TooltipContent side="bottom" className="flex items-center gap-2">
+            <span>Toggle sidebar</span>
+            <Kbd>⌘B</Kbd>
+          </TooltipContent>
+        </Tooltip>
+
         {/* Branch comparison badges */}
         <div className="flex items-center gap-1.5">
           <Tooltip>
