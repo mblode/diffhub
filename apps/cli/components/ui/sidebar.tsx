@@ -247,8 +247,19 @@ const Sidebar = ({
   );
 };
 
-const SidebarTrigger = ({ className, ...props }: React.ComponentProps<typeof Button>) => {
+const SidebarTrigger = ({
+  className,
+  onClick,
+  ...props
+}: React.ComponentProps<typeof Button>) => {
   const { state, toggleSidebar } = useSidebar();
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(event);
+      toggleSidebar();
+    },
+    [onClick, toggleSidebar],
+  );
   return (
     <Button
       data-slot="sidebar-trigger"
@@ -258,8 +269,8 @@ const SidebarTrigger = ({ className, ...props }: React.ComponentProps<typeof But
       aria-label="Toggle sidebar"
       aria-expanded={state === "expanded"}
       className={cn("text-muted-foreground hover:text-foreground hover:bg-secondary", className)}
-      onClick={toggleSidebar}
       {...props}
+      onClick={handleClick}
     >
       <LayoutLeftIcon size={14} />
     </Button>
