@@ -51,6 +51,7 @@ const makeProps = (fileCount: number) => {
       file,
       insertions: 1,
     })),
+    forceRenderFiles: new Set([files[0]]),
     layout: "stacked" as const,
     onActiveFileChange: vi.fn<(file: string) => void>(),
     onAddComment: vi
@@ -82,7 +83,7 @@ describe("diff viewer rendering", () => {
     cleanup();
   });
 
-  it("defers patch rendering for large diffs without prerendered HTML", () => {
+  it("keeps passive active-file changes from rendering deferred patches", () => {
     const props = makeProps(25);
     const { rerender } = render(<DiffViewer {...props} />);
 
@@ -90,6 +91,23 @@ describe("diff viewer rendering", () => {
     expect(screen.getAllByTestId("deferred-diff-placeholder").length).toBeGreaterThan(0);
 
     rerender(<DiffViewer {...props} activeFileId="src/file-1.ts" />);
+
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(1);
+  });
+
+  it("renders deferred patches when explicit navigation forces them", () => {
+    const props = makeProps(25);
+    const { rerender } = render(<DiffViewer {...props} />);
+
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(1);
+
+    rerender(
+      <DiffViewer
+        {...props}
+        activeFileId="src/file-1.ts"
+        forceRenderFiles={new Set(["src/file-0.ts", "src/file-1.ts"])}
+      />,
+    );
 
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
   });
@@ -131,7 +149,7 @@ describe("diff viewer rendering", () => {
     expect(rendered).toBeTruthy();
   });
 
-  it("auto-renders a large file when it becomes active via navigation", () => {
+  it("renders a large file when navigation forces it", () => {
     const props = makeProps(3);
     const largeFile = "src/file-1.ts";
     props.fileStats = props.fileStats.map((stat) =>
@@ -144,7 +162,9 @@ describe("diff viewer rendering", () => {
     const { rerender } = render(<DiffViewer {...props} />);
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
 
-    rerender(<DiffViewer {...props} activeFileId={largeFile} />);
+    rerender(
+      <DiffViewer {...props} activeFileId={largeFile} forceRenderFiles={new Set([largeFile])} />,
+    );
 
     expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
