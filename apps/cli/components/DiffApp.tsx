@@ -84,6 +84,7 @@ interface MainPanelProps {
   onDeleteComment: (id: string) => Promise<boolean>;
   selectedFile: string | null;
   collapsedFiles: Set<string>;
+  forceRenderFiles: ReadonlySet<string>;
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
@@ -238,6 +239,7 @@ const MainPanel = ({
   onDeleteComment,
   selectedFile,
   collapsedFiles,
+  forceRenderFiles,
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
@@ -301,6 +303,7 @@ const MainPanel = ({
         activeFileId={selectedFile}
         fileStats={filesData.files}
         collapsedFiles={collapsedFiles}
+        forceRenderFiles={forceRenderFiles}
         onToggleCollapse={onToggleCollapse}
         onActiveFileChange={onActiveFileChange}
         repoPath={repoPath}
@@ -356,6 +359,7 @@ export const DiffApp = ({
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
+  const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
     diffModeRef.current = diffMode;
@@ -562,6 +566,20 @@ export const DiffApp = ({
     diffErrorRef.current = diffError;
   }, [diffError]);
 
+  const addForceRenderFiles = useCallback((files: readonly (string | null | undefined)[]) => {
+    setForceRenderFiles((previous) => {
+      let next: Set<string> | null = null;
+      for (const file of files) {
+        if (!file || previous.has(file)) {
+          continue;
+        }
+        next ??= new Set(previous);
+        next.add(file);
+      }
+      return next ?? previous;
+    });
+  }, []);
+
   const reconcileSelectedFile = useCallback(
     (nextFiles: FilesData) => {
       currentFilesFingerprintRef.current = nextFiles.fingerprint;
@@ -585,6 +603,7 @@ export const DiffApp = ({
         selectedFileRef.current = nextSelection;
         startTransition(() => setSelectedFile(nextSelection));
       }
+      addForceRenderFiles([nextSelection]);
 
       const didChangeFingerprint = nextFiles.fingerprint !== lastDiffFingerprintRef.current;
       const diffMatchesGeneration = diffDataRef.current?.generation === nextFiles.generation;
@@ -600,7 +619,7 @@ export const DiffApp = ({
 
       void fetchAllDiff();
     },
-    [fetchAllDiff],
+    [addForceRenderFiles, fetchAllDiff],
   );
 
   const invalidateDiffState = useCallback(() => {
@@ -787,6 +806,10 @@ export const DiffApp = ({
     (file: string, behavior: ScrollBehavior = "smooth") => {
       lockActiveFile(file);
 
+      const files = filesData?.files.map((stat) => stat.file) ?? [];
+      const index = files.indexOf(file);
+      addForceRenderFiles([file, files[index - 1], files[index + 1]]);
+
       updateCollapsedFiles((previous) => {
         if (previous.has(file)) {
           const next = new Set(previous);
@@ -825,7 +848,7 @@ export const DiffApp = ({
       observer.observe(container, { childList: true, subtree: true });
       setTimeout(() => observer.disconnect(), 5000);
     },
-    [lockActiveFile, updateCollapsedFiles],
+    [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
   );
 
   const handleActiveFileChange = useCallback((file: string) => {
@@ -1056,6 +1079,7 @@ export const DiffApp = ({
           onDeleteComment={handleDeleteComment}
           selectedFile={selectedFile}
           collapsedFiles={collapsedFiles}
+          forceRenderFiles={forceRenderFiles}
           onToggleCollapse={toggleCollapse}
           onActiveFileChange={handleActiveFileChange}
           repoPath={repoPath}
