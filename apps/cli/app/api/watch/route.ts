@@ -29,7 +29,10 @@ export const GET = async (request: Request) => {
   if (!shouldWait) {
     return Response.json({
       ...currentSnapshot,
-      changed: false,
+      changed:
+        requestedRevision !== null &&
+        Number.isFinite(requestedRevision) &&
+        requestedRevision !== currentSnapshot.revision,
       ok: true,
     });
   }

@@ -2,7 +2,15 @@
 
 import type { AnnotationSide } from "@pierre/diffs";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+  startTransition,
+} from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
@@ -67,6 +75,12 @@ interface SyncNotice {
   tone: SyncNoticeTone;
 }
 
+interface ScrollAnchor {
+  file: string;
+  scrollY: number;
+  top: number;
+}
+
 interface MainPanelProps {
   filesData: FilesData | null;
   deferredDiffData: MultiFileDiffData | null;
@@ -127,6 +141,55 @@ const hashString = (value: string): string => {
   }
 
   return Math.abs(hash).toString(36);
+};
+
+const areFilesDataEqual = (previous: FilesData | null, next: FilesData): boolean => {
+  if (!previous) {
+    return false;
+  }
+  if (
+    previous.baseBranch !== next.baseBranch ||
+    previous.branch !== next.branch ||
+    previous.deletions !== next.deletions ||
+    previous.fingerprint !== next.fingerprint ||
+    previous.generation !== next.generation ||
+    previous.insertions !== next.insertions ||
+    previous.files.length !== next.files.length
+  ) {
+    return false;
+  }
+
+  return previous.files.every((file, index) => {
+    const nextFile = next.files[index];
+    return (
+      nextFile !== undefined &&
+      file.binary === nextFile.binary &&
+      file.changes === nextFile.changes &&
+      file.deletions === nextFile.deletions &&
+      file.file === nextFile.file &&
+      file.insertions === nextFile.insertions
+    );
+  });
+};
+
+const areCommentsEqual = (previous: readonly Comment[], next: readonly Comment[]): boolean => {
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((comment, index) => {
+    const nextComment = next[index];
+    return (
+      nextComment !== undefined &&
+      comment.body === nextComment.body &&
+      comment.createdAt === nextComment.createdAt &&
+      comment.file === nextComment.file &&
+      comment.id === nextComment.id &&
+      comment.lineNumber === nextComment.lineNumber &&
+      comment.side === nextComment.side &&
+      comment.tag === nextComment.tag
+    );
+  });
 };
 
 const createReviewKeysByFile = (
@@ -321,7 +384,9 @@ export const DiffApp = ({
   defaultSidebarOpen?: boolean;
 }) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
+  const filesDataRef = useRef<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
+  const commentsRef = useRef<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
@@ -357,6 +422,7 @@ export const DiffApp = ({
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
+  const pendingScrollAnchorRef = useRef<ScrollAnchor | null>(null);
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
   const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
@@ -364,6 +430,14 @@ export const DiffApp = ({
   useEffect(() => {
     diffModeRef.current = diffMode;
   }, [diffMode]);
+
+  useEffect(() => {
+    filesDataRef.current = filesData;
+  }, [filesData]);
+
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
 
   // Sync collapsed files from localStorage after mount
   useEffect(() => {
@@ -393,6 +467,84 @@ export const DiffApp = ({
   // second render pass that could land mid-scroll, shifting layout. The diff
   // data updates are already inside startDiffTransition.
   const deferredDiffData = diffData;
+
+  // Refs so refresh callbacks can stay stable without closing over stale data.
+  const diffDataRef = useRef(diffData);
+  const diffErrorRef = useRef(diffError);
+  useEffect(() => {
+    diffDataRef.current = diffData;
+  }, [diffData]);
+  useEffect(() => {
+    diffErrorRef.current = diffError;
+  }, [diffError]);
+
+  const captureViewportAnchor = useCallback(() => {
+    if (typeof window === "undefined" || window.scrollY <= 0 || diffDataRef.current === null) {
+      return;
+    }
+
+    const container = document.querySelector<HTMLElement>("#diff-container");
+    if (!container) {
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const probeX = Math.min(window.innerWidth - 1, Math.max(rect.left + 24, 0));
+    const probeY = Math.min(window.innerHeight - 1, 72);
+    const visibleSection = document
+      .elementFromPoint(probeX, probeY)
+      ?.closest<HTMLElement>("[data-file-section]");
+    const selectedSection = selectedFileRef.current
+      ? document.querySelector<HTMLElement>(getFileSectionSelector(selectedFileRef.current))
+      : null;
+    const section = visibleSection ?? selectedSection;
+    const file = section?.dataset.fileSection;
+    if (!section || !file) {
+      return;
+    }
+
+    pendingScrollAnchorRef.current = {
+      file,
+      scrollY: window.scrollY,
+      top: section.getBoundingClientRect().top,
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const anchor = pendingScrollAnchorRef.current;
+    if (!anchor || typeof window === "undefined") {
+      return;
+    }
+
+    pendingScrollAnchorRef.current = null;
+    let frameId = 0;
+    let secondFrameId = 0;
+
+    const restore = () => {
+      const section = document.querySelector<HTMLElement>(getFileSectionSelector(anchor.file));
+      if (!section) {
+        return;
+      }
+
+      const delta = section.getBoundingClientRect().top - anchor.top;
+      if (Math.abs(delta) > 1) {
+        window.scrollTo(0, Math.max(0, window.scrollY + delta));
+      } else if (window.scrollY === 0 && anchor.scrollY > 0) {
+        window.scrollTo(0, anchor.scrollY);
+      }
+    };
+
+    restore();
+    frameId = requestAnimationFrame(() => {
+      restore();
+      secondFrameId = requestAnimationFrame(restore);
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(secondFrameId);
+    };
+  });
 
   const buildFilesQuery = useCallback(() => {
     const params = new URLSearchParams();
@@ -486,7 +638,9 @@ export const DiffApp = ({
               staleDiffDropCountRef.current = 0;
               latestDiffRequestRef.current += 1;
               lastDiffFingerprintRef.current = null;
-              setDiffData(null);
+              if (diffDataRef.current === null) {
+                setDiffData(null);
+              }
             }
             queuedDiffFetchRef.current = true;
           }
@@ -501,6 +655,7 @@ export const DiffApp = ({
           requestId,
         });
 
+        captureViewportAnchor();
         startDiffTransition(() => setDiffData(nextDiffData));
       } catch (error) {
         console.error("[diffhub] fetchDiff threw", {
@@ -518,7 +673,7 @@ export const DiffApp = ({
         clearTimeout(timeoutId);
       }
     },
-    [buildDiffQuery, startDiffTransition],
+    [buildDiffQuery, captureViewportAnchor, startDiffTransition],
   );
 
   const fetchAllDiff = useCallback(async () => {
@@ -550,21 +705,9 @@ export const DiffApp = ({
     themeRef.current = diffVariant;
     latestDiffRequestRef.current += 1;
     lastDiffFingerprintRef.current = null;
-    setDiffData(null);
+    setDiffError(null);
     void fetchAllDiff();
   }, [layout, diffVariant, fetchAllDiff]);
-
-  // Refs so `reconcileSelectedFile` stays stable — prevents downstream
-  // callbacks (pollFiles) from recreating whenever diff data/error updates,
-  // which could cascade into mid-scroll re-subscriptions.
-  const diffDataRef = useRef(diffData);
-  const diffErrorRef = useRef(diffError);
-  useEffect(() => {
-    diffDataRef.current = diffData;
-  }, [diffData]);
-  useEffect(() => {
-    diffErrorRef.current = diffError;
-  }, [diffError]);
 
   const addForceRenderFiles = useCallback((files: readonly (string | null | undefined)[]) => {
     setForceRenderFiles((previous) => {
@@ -692,17 +835,31 @@ export const DiffApp = ({
       }
 
       const nextFilesData = (await filesResponse.json()) as FilesData;
+      const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
+      const shouldUpdateComments =
+        nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
 
-      startTransition(() => {
-        setFilesData(nextFilesData);
-        if (nextComments !== null) {
-          setComments(nextComments);
+      if (shouldUpdateFiles || shouldUpdateComments) {
+        captureViewportAnchor();
+        if (shouldUpdateFiles) {
+          filesDataRef.current = nextFilesData;
         }
-      });
+        if (shouldUpdateComments && nextComments !== null) {
+          commentsRef.current = nextComments;
+        }
+        startTransition(() => {
+          if (shouldUpdateFiles) {
+            setFilesData(nextFilesData);
+          }
+          if (shouldUpdateComments && nextComments !== null) {
+            setComments(nextComments);
+          }
+        });
+      }
       reconcileSelectedFile(nextFilesData);
       finishPoll();
     },
-    [buildFilesQuery, reconcileSelectedFile],
+    [buildFilesQuery, captureViewportAnchor, reconcileSelectedFile],
   );
 
   useEffect(() => {
@@ -759,7 +916,9 @@ export const DiffApp = ({
     setDiffError(null);
     latestDiffRequestRef.current += 1;
     lastDiffFingerprintRef.current = null;
-    setDiffData(null);
+    if (diffDataRef.current === null) {
+      setDiffData(null);
+    }
     void fetchAllDiff();
   }, [fetchAllDiff]);
 
