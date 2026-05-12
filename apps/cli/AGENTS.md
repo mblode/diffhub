@@ -61,6 +61,14 @@ Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server di
 **Standalone server path mirrors the monorepo workspace.**
 Because `outputFileTracingRoot` is the repo root, the standalone server lives at `.next/standalone/apps/cli/server.js`, and static files must be at `.next/standalone/apps/cli/.next/static/`. The CLI handles this automatically.
 
+**Above-viewport DOM heights must not change unaccounted-for.**
+The diff view targets Safari, which has no native `overflow-anchor` ([WebKit #171099](https://bugs.webkit.org/show_bug.cgi?id=171099)). Two defences keep the viewport from drifting during scroll:
+
+1. `CollapsibleFileDiff` pins each section's `min-height` after a 200 ms resize-idle window via `ResizeObserver`. Once pinned, internal `@pierre/diffs` resizes (Shiki tokenize, font swap, ResizeManager beats) are absorbed inside the section instead of moving siblings. The pin invalidates when `collapsed` / `commentTarget` / `layout` / `shouldRenderPatch` flip — those are user-initiated and legitimately want growth.
+2. `useScrollAnchor` (`lib/use-scroll-anchor.ts`) observes every `[data-file-section]` and adjusts `window.scrollY` by the size delta when a section above the viewport resizes, batching per animation frame.
+
+If you add a new growable element above or inside the diff list, route it through one of these — never mutate above-viewport heights without compensation. IntersectionObserver callbacks in `DiffViewer` must not trigger state changes that affect section height; `active` is now CSS-only.
+
 ## Conventions
 
 - API routes (`app/api/*/route.ts`) are server-only — no `"use client"` directive there

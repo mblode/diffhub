@@ -8,7 +8,7 @@ import {
   MoonIcon,
   SplitIcon,
   ArrowRightIcon,
-  RotateIcon,
+  ArrowRotateClockwiseIcon,
 } from "blode-icons-react";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -266,7 +266,7 @@ export const StatusBar = ({
                 />
               }
             >
-              <RotateIcon size={14} className={cn(refreshing && "animate-spin")} />
+              <ArrowRotateClockwiseIcon size={14} className={cn(refreshing && "animate-spin")} />
             </TooltipTrigger>
             <TooltipContent side="bottom" className="flex items-center gap-2">
               <span>Refresh</span>
