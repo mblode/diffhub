@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
@@ -11,7 +11,7 @@ interface MockAnnotation {
   side: "deletions" | "additions";
 }
 
-const { MockDynamicPatch } = vi.hoisted(() => ({
+const { MockDynamicPatch, fileWatchChangeRef } = vi.hoisted(() => ({
   MockDynamicPatch: ({
     patch,
     lineAnnotations,
@@ -42,13 +42,17 @@ const { MockDynamicPatch } = vi.hoisted(() => ({
       })}
     </div>
   ),
+  fileWatchChangeRef: { current: null as null | (() => void) },
 }));
 
 vi.mock(import("@/lib/use-file-watch"), async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    useFileWatch: () => "live" as const,
+    useFileWatch: (onChange: () => void) => {
+      fileWatchChangeRef.current = onChange;
+      return "live" as const;
+    },
   };
 });
 
@@ -124,16 +128,28 @@ const diffPayload = {
 };
 
 const jsonResponse = (value: unknown, init?: ResponseInit): Response => Response.json(value, init);
+const countFetchCalls = (
+  fetchMock: { mock: { calls: Parameters<typeof fetch>[] } },
+  prefix: string,
+): number =>
+  fetchMock.mock.calls.filter(([input]) => {
+    const url = typeof input === "string" ? input : input.toString();
+    return url.startsWith(prefix);
+  }).length;
 const getDiffSection = (file: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`[data-filename="${file}"]`);
 
 describe("DiffApp review flow", () => {
   beforeEach(() => {
+    fileWatchChangeRef.current = null;
     localStorage.clear();
   });
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("loads diffs, collapses files, and supports comment add/delete", async () => {
@@ -243,6 +259,114 @@ describe("DiffApp review flow", () => {
       "/api/comments?id=comment-1",
       expect.objectContaining({ method: "DELETE" }),
     );
+  });
+
+  it("does not refetch diff or scroll when file watcher refreshes unchanged data", async () => {
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+    const scrollIntoViewMock = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+    });
+
+    const initialFilesCalls = countFetchCalls(fetchMock, "/api/files");
+    const initialCommentsCalls = countFetchCalls(fetchMock, "/api/comments");
+    const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
+    scrollIntoViewMock.mockClear();
+
+    act(() => {
+      fileWatchChangeRef.current?.();
+    });
+
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls + 1);
+    });
+
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(initialCommentsCalls + 1);
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls);
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    expect(getDiffSection("src/a.ts")).not.toBeNull();
+  });
+
+  it("defers watcher refresh while scrolling and resumes without refetching unchanged diff", async () => {
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+    const scrollIntoViewMock = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+    });
+
+    const initialFilesCalls = countFetchCalls(fetchMock, "/api/files");
+    const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
+    scrollIntoViewMock.mockClear();
+    vi.useFakeTimers();
+
+    window.dispatchEvent(new Event("scroll"));
+    act(() => {
+      fileWatchChangeRef.current?.();
+    });
+
+    expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls);
+
+    act(() => {
+      vi.advanceTimersByTime(199);
+    });
+    expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls + 1);
+    });
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls);
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 
   it("keeps the inline draft open when comment creation fails", async () => {
