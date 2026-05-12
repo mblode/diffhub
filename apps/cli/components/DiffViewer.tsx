@@ -814,16 +814,61 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
 
   const sectionId = getDiffSectionId(file);
   const sectionStyle = useMemo<CSSProperties>(() => {
-    const overflowAnchor: CSSProperties["overflowAnchor"] = active ? "auto" : "none";
     if (collapsed || shouldRenderPatch) {
-      return { overflowAnchor };
+      return {};
     }
 
     return {
       minHeight: getReservedHeightPx(fileStat),
-      overflowAnchor,
     };
-  }, [active, collapsed, fileStat, shouldRenderPatch]);
+  }, [collapsed, fileStat, shouldRenderPatch]);
+
+  // Pin the section's height once @pierre/diffs has finished its post-mount
+  // resize cascades (Shiki tokenize, ResizeManager beats, font swap). After
+  // ~200ms of resize-idle, write the measured height to `min-height` so any
+  // later library-driven resize is absorbed inside the section instead of
+  // moving siblings. Reset the pin when collapse / comment / layout state
+  // changes, since those are user-initiated and legitimately want growth.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    if (collapsed || commentTarget !== null || !shouldRenderPatch) {
+      return;
+    }
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastHeight = section.getBoundingClientRect().height;
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) {
+        return;
+      }
+      const next = entry.contentRect.height;
+      if (next === lastHeight) {
+        return;
+      }
+      lastHeight = next;
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        section.style.minHeight = `${section.getBoundingClientRect().height}px`;
+        observer.disconnect();
+      }, 200);
+    });
+
+    observer.observe(section);
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      observer.disconnect();
+      section.style.minHeight = "";
+    };
+  }, [collapsed, commentTarget, layout, shouldRenderPatch]);
 
   return (
     <section

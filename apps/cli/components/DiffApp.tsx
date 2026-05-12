@@ -2,15 +2,7 @@
 
 import type { AnnotationSide } from "@pierre/diffs";
 import { useTheme } from "next-themes";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useTransition,
-  startTransition,
-} from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
@@ -22,6 +14,7 @@ import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
 import { useLocalStorage } from "@/lib/use-local-storage";
+import { useScrollAnchor } from "@/lib/use-scroll-anchor";
 
 interface FilesData {
   files: {
@@ -72,12 +65,6 @@ interface SyncNotice {
   label: string;
   detail?: string;
   tone: SyncNoticeTone;
-}
-
-interface ScrollAnchor {
-  file: string;
-  scrollY: number;
-  top: number;
 }
 
 interface MainPanelProps {
@@ -406,7 +393,6 @@ export const DiffApp = ({
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
-  const pendingScrollAnchorRef = useRef<ScrollAnchor | null>(null);
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
   const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
@@ -462,73 +448,12 @@ export const DiffApp = ({
     diffErrorRef.current = diffError;
   }, [diffError]);
 
-  const captureViewportAnchor = useCallback(() => {
-    if (typeof window === "undefined" || window.scrollY <= 0 || diffDataRef.current === null) {
-      return;
-    }
-
-    const container = document.querySelector<HTMLElement>("#diff-container");
-    if (!container) {
-      return;
-    }
-
-    const rect = container.getBoundingClientRect();
-    const probeX = Math.min(window.innerWidth - 1, Math.max(rect.left + 24, 0));
-    const probeY = Math.min(window.innerHeight - 1, 72);
-    const visibleSection = document
-      .elementFromPoint(probeX, probeY)
-      ?.closest<HTMLElement>("[data-file-section]");
-    const selectedSection = selectedFileRef.current
-      ? document.querySelector<HTMLElement>(getFileSectionSelector(selectedFileRef.current))
-      : null;
-    const section = visibleSection ?? selectedSection;
-    const file = section?.dataset.fileSection;
-    if (!section || !file) {
-      return;
-    }
-
-    pendingScrollAnchorRef.current = {
-      file,
-      scrollY: window.scrollY,
-      top: section.getBoundingClientRect().top,
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    const anchor = pendingScrollAnchorRef.current;
-    if (!anchor || typeof window === "undefined") {
-      return;
-    }
-
-    pendingScrollAnchorRef.current = null;
-    let frameId = 0;
-    let secondFrameId = 0;
-
-    const restore = () => {
-      const section = document.querySelector<HTMLElement>(getFileSectionSelector(anchor.file));
-      if (!section) {
-        return;
-      }
-
-      const delta = section.getBoundingClientRect().top - anchor.top;
-      if (Math.abs(delta) > 1) {
-        window.scrollTo(0, Math.max(0, window.scrollY + delta));
-      } else if (window.scrollY === 0 && anchor.scrollY > 0) {
-        window.scrollTo(0, anchor.scrollY);
-      }
-    };
-
-    restore();
-    frameId = requestAnimationFrame(() => {
-      restore();
-      secondFrameId = requestAnimationFrame(restore);
-    });
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      cancelAnimationFrame(secondFrameId);
-    };
-  });
+  // Safari-safe scroll anchor: when any file section above the viewport
+  // changes height, compensate window.scrollY so the user's view doesn't
+  // shift. Replaces the previous diff-data-only captureViewportAnchor +
+  // useLayoutEffect pair, which fired too rarely to catch @pierre/diffs
+  // post-mount resize cascades.
+  useScrollAnchor({ selector: "[data-file-section]" });
 
   const buildFilesQuery = useCallback(() => {
     const params = new URLSearchParams();
@@ -625,7 +550,6 @@ export const DiffApp = ({
           requestId,
         });
 
-        captureViewportAnchor();
         startDiffTransition(() => setDiffData(nextDiffData));
       } catch (error) {
         console.error("[diffhub] fetchDiff threw", {
@@ -643,7 +567,7 @@ export const DiffApp = ({
         clearTimeout(timeoutId);
       }
     },
-    [buildDiffQuery, captureViewportAnchor, startDiffTransition],
+    [buildDiffQuery, startDiffTransition],
   );
 
   const fetchAllDiff = useCallback(async () => {
@@ -807,7 +731,6 @@ export const DiffApp = ({
       nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
 
     if (shouldUpdateFiles || shouldUpdateComments) {
-      captureViewportAnchor();
       if (shouldUpdateFiles) {
         filesDataRef.current = nextFilesData;
       }
@@ -825,7 +748,7 @@ export const DiffApp = ({
     }
     reconcileSelectedFile(nextFilesData);
     finishPoll();
-  }, [buildFilesQuery, captureViewportAnchor, reconcileSelectedFile]);
+  }, [buildFilesQuery, reconcileSelectedFile]);
 
   useEffect(() => {
     pollFilesRef.current = pollFiles;
