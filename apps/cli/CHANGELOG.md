@@ -1,5 +1,13 @@
 # diffhub
 
+## 0.1.20
+
+### Patch Changes
+
+- 8bb1594: Replace live file watcher with a manual refresh button
+
+  The diff view used to auto-refresh whenever a file in the repo changed, which caused scroll-jump regressions during review. The watcher (chokidar + `/api/watch` + client polling) has been removed; refresh is now driven by the new toolbar button or the existing `R` keyboard shortcut.
+
 ## 0.1.19
 
 ### Patch Changes
