@@ -21,7 +21,6 @@ import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
-import { useFileWatch } from "@/lib/use-file-watch";
 import { useLocalStorage } from "@/lib/use-local-storage";
 
 interface FilesData {
@@ -112,10 +111,7 @@ interface PlaceholderProps {
   pulse?: boolean;
 }
 
-const FALLBACK_POLL_INTERVAL_MS = 5000;
-const LIVE_POLL_INTERVAL_MS = 30_000;
 const DIFF_REQUEST_TIMEOUT_MS = 15_000;
-const STALE_DIFF_DROP_LIMIT = 3;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
@@ -262,7 +258,6 @@ const getSyncNotice = (
   filesData: FilesData | null,
   deferredDiffData: MultiFileDiffData | null,
   diffError: string | null,
-  fileWatchState: "connecting" | "live" | "fallback",
 ): SyncNotice | null => {
   if (loadError && filesData !== null) {
     return {
@@ -277,14 +272,6 @@ const getSyncNotice = (
       detail: diffError,
       label: "Diff refresh failed",
       tone: "destructive",
-    };
-  }
-
-  if (fileWatchState === "fallback") {
-    return {
-      detail: "Live watch is unavailable, so the app is polling every 5 seconds",
-      label: "Polling fallback",
-      tone: "warning",
     };
   }
 
@@ -413,12 +400,9 @@ export const DiffApp = ({
   const currentFilesGenerationRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
   const queuedPollRef = useRef(false);
-  const pollFilesRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
   const diffFetchInFlightRef = useRef(false);
   const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
-  const staleDiffDropCountRef = useRef(0);
-  const diffFetchStartedAtRef = useRef<number | null>(null);
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
@@ -573,7 +557,6 @@ export const DiffApp = ({
     async (requestId: number) => {
       const requestGeneration = currentFilesGenerationRef.current;
       const requestFingerprint = currentFilesFingerprintRef.current;
-      diffFetchStartedAtRef.current = Date.now();
       setDiffWatchdogTripped(false);
       setDiffError(null);
 
@@ -627,27 +610,14 @@ export const DiffApp = ({
             latestRequestId: latestDiffRequestRef.current,
             requestId,
           });
-          // If no data has landed yet, re-queue a fresh fetch so we don't
-          // sit on "Loading diff…" forever after the only response got dropped.
+          // Re-queue a fresh fetch so we don't sit on "Loading diff…" forever
+          // when the only in-flight response got superseded.
           if (currentFilesGenerationRef.current !== null) {
-            staleDiffDropCountRef.current += 1;
-            if (staleDiffDropCountRef.current >= STALE_DIFF_DROP_LIMIT) {
-              console.warn("[diffhub] fetchDiff stale-drop limit reached, invalidating", {
-                drops: staleDiffDropCountRef.current,
-              });
-              staleDiffDropCountRef.current = 0;
-              latestDiffRequestRef.current += 1;
-              lastDiffFingerprintRef.current = null;
-              if (diffDataRef.current === null) {
-                setDiffData(null);
-              }
-            }
             queuedDiffFetchRef.current = true;
           }
           return;
         }
 
-        staleDiffDropCountRef.current = 0;
         console.info("[diffhub] fetchDiff success", {
           fileCount: Object.keys(nextDiffData.patchesByFile).length,
           fingerprint: requestFingerprint,
@@ -774,165 +744,121 @@ export const DiffApp = ({
     setDiffError(null);
   }, []);
 
-  const pollFiles = useCallback(
-    async (silent = false) => {
-      const finishPoll = () => {
-        if (!silent) {
-          setRefreshing(false);
-        }
+  const pollFilesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
-        fetchingRef.current = false;
-        if (queuedPollRef.current) {
-          queuedPollRef.current = false;
-          queueMicrotask(() => {
-            void pollFilesRef.current(true);
-          });
-        }
-      };
+  const pollFiles = useCallback(async () => {
+    const finishPoll = () => {
+      setRefreshing(false);
 
-      if (fetchingRef.current) {
-        queuedPollRef.current = true;
-        return;
-      }
-
-      fetchingRef.current = true;
-      if (!silent) {
-        setRefreshing(true);
-      }
-      setLoadError(null);
-
-      const pollResult = await Promise.all([
-        fetch(`/api/files${buildFilesQuery()}`),
-        fetch("/api/comments")
-          .then(async (response) => {
-            if (!response.ok) {
-              throw new Error(`Failed to load comments (${response.status})`);
-            }
-
-            return (await response.json()) as Comment[];
-          })
-          .catch((error) => {
-            console.error("[diffhub] comments refresh failed", { error });
-            return null;
-          }),
-      ]).catch((error) => {
-        setLoadError(error instanceof Error ? error.message : String(error));
-        return null;
-      });
-
-      if (!pollResult) {
-        finishPoll();
-        return;
-      }
-
-      const [filesResponse, nextComments] = pollResult;
-
-      if (!filesResponse.ok) {
-        const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
-        setLoadError(errorBody.error ?? "Failed to load files");
-        finishPoll();
-        return;
-      }
-
-      const nextFilesData = (await filesResponse.json()) as FilesData;
-      const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
-      const shouldUpdateComments =
-        nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
-
-      if (shouldUpdateFiles || shouldUpdateComments) {
-        captureViewportAnchor();
-        if (shouldUpdateFiles) {
-          filesDataRef.current = nextFilesData;
-        }
-        if (shouldUpdateComments && nextComments !== null) {
-          commentsRef.current = nextComments;
-        }
-        startTransition(() => {
-          if (shouldUpdateFiles) {
-            setFilesData(nextFilesData);
-          }
-          if (shouldUpdateComments && nextComments !== null) {
-            setComments(nextComments);
-          }
+      fetchingRef.current = false;
+      if (queuedPollRef.current) {
+        queuedPollRef.current = false;
+        queueMicrotask(() => {
+          void pollFilesRef.current();
         });
       }
-      reconcileSelectedFile(nextFilesData);
+    };
+
+    if (fetchingRef.current) {
+      queuedPollRef.current = true;
+      return;
+    }
+
+    fetchingRef.current = true;
+    setRefreshing(true);
+    setLoadError(null);
+
+    const pollResult = await Promise.all([
+      fetch(`/api/files${buildFilesQuery()}`),
+      fetch("/api/comments")
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Failed to load comments (${response.status})`);
+          }
+
+          return (await response.json()) as Comment[];
+        })
+        .catch((error) => {
+          console.error("[diffhub] comments refresh failed", { error });
+          return null;
+        }),
+    ]).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : String(error));
+      return null;
+    });
+
+    if (!pollResult) {
       finishPoll();
-    },
-    [buildFilesQuery, captureViewportAnchor, reconcileSelectedFile],
-  );
+      return;
+    }
+
+    const [filesResponse, nextComments] = pollResult;
+
+    if (!filesResponse.ok) {
+      const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
+      setLoadError(errorBody.error ?? "Failed to load files");
+      finishPoll();
+      return;
+    }
+
+    const nextFilesData = (await filesResponse.json()) as FilesData;
+    const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
+    const shouldUpdateComments =
+      nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
+
+    if (shouldUpdateFiles || shouldUpdateComments) {
+      captureViewportAnchor();
+      if (shouldUpdateFiles) {
+        filesDataRef.current = nextFilesData;
+      }
+      if (shouldUpdateComments && nextComments !== null) {
+        commentsRef.current = nextComments;
+      }
+      startTransition(() => {
+        if (shouldUpdateFiles) {
+          setFilesData(nextFilesData);
+        }
+        if (shouldUpdateComments && nextComments !== null) {
+          setComments(nextComments);
+        }
+      });
+    }
+    reconcileSelectedFile(nextFilesData);
+    finishPoll();
+  }, [buildFilesQuery, captureViewportAnchor, reconcileSelectedFile]);
 
   useEffect(() => {
     pollFilesRef.current = pollFiles;
   }, [pollFiles]);
 
-  // Scroll-active gate: while the user is scrolling, defer any state-updating
-  // work (polls, file-watch pushes) until ~200 ms after the last scroll event.
-  // WebKit has no overflow-anchor; any setState that changes layout during a
-  // momentum fling shifts the viewport or rubber-bands the scroll.
-  const isScrollingRef = useRef(false);
-  const pendingPollRef = useRef(false);
-  useEffect(() => {
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    const handleScroll = () => {
-      isScrollingRef.current = true;
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-      }
-      idleTimer = setTimeout(() => {
-        isScrollingRef.current = false;
-        if (pendingPollRef.current) {
-          pendingPollRef.current = false;
-          void pollFilesRef.current(true);
-        }
-      }, 200);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-      }
-    };
-  }, []);
-
-  const queuePollIfIdle = useCallback(() => {
-    if (isScrollingRef.current) {
-      pendingPollRef.current = true;
-      return;
-    }
-    void pollFilesRef.current(true);
-  }, []);
-
-  const fileWatchState = useFileWatch(queuePollIfIdle);
-
-  const handleRetry = useCallback(() => {
-    void pollFiles();
-  }, [pollFiles]);
-
-  const handleRetryDiff = useCallback(() => {
+  const forceDiffRefetch = useCallback(() => {
     setDiffWatchdogTripped(false);
     setDiffHintShown(false);
     setDiffError(null);
     latestDiffRequestRef.current += 1;
     lastDiffFingerprintRef.current = null;
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    void pollFiles();
+  }, [pollFiles]);
+
+  const handleManualRefresh = useCallback(() => {
+    forceDiffRefetch();
+    void pollFiles();
+  }, [forceDiffRefetch, pollFiles]);
+
+  const handleRetryDiff = useCallback(() => {
+    forceDiffRefetch();
     if (diffDataRef.current === null) {
       setDiffData(null);
     }
     void fetchAllDiff();
-  }, [fetchAllDiff]);
+  }, [fetchAllDiff, forceDiffRefetch]);
 
   useEffect(() => {
     void pollFiles();
   }, [pollFiles]);
-
-  useEffect(() => {
-    const interval = setInterval(
-      queuePollIfIdle,
-      fileWatchState === "live" ? LIVE_POLL_INTERVAL_MS : FALLBACK_POLL_INTERVAL_MS,
-    );
-    return () => clearInterval(interval);
-  }, [fileWatchState, queuePollIfIdle]);
 
   // Watchdog: if files are loaded but the diff is still absent after a few
   // seconds without an explicit error, surface a retry affordance instead of
@@ -1081,7 +1007,7 @@ export const DiffApp = ({
         expandAll();
       }
       if (event.key === "r" && !event.metaKey && !event.ctrlKey) {
-        void pollFiles();
+        handleManualRefresh();
       }
       if (event.key === "j" || event.key === "k") {
         const files = filesData?.files ?? [];
@@ -1103,7 +1029,7 @@ export const DiffApp = ({
     collapseAll,
     expandAll,
     filesData,
-    pollFiles,
+    handleManualRefresh,
     scrollToFile,
     selectedFile,
     setLayout,
@@ -1115,7 +1041,7 @@ export const DiffApp = ({
       diffModeRef.current = mode;
       setDiffMode(mode);
       invalidateDiffState();
-      void pollFiles(false);
+      void pollFiles();
     },
     [invalidateDiffState, pollFiles, setDiffMode],
   );
@@ -1167,13 +1093,7 @@ export const DiffApp = ({
     return true;
   }, []);
 
-  const syncNotice = getSyncNotice(
-    loadError,
-    filesData,
-    deferredDiffData,
-    diffError,
-    fileWatchState,
-  );
+  const syncNotice = getSyncNotice(loadError, filesData, deferredDiffData, diffError);
 
   if (loadError && filesData === null) {
     return (
@@ -1217,7 +1137,7 @@ export const DiffApp = ({
             branch={filesData?.branch ?? "…"}
             baseBranch={filesData?.baseBranch ?? "main"}
             refreshing={refreshing || diffRequestPending}
-            fileWatchState={fileWatchState}
+            onRefresh={handleManualRefresh}
             comments={comments}
             diffMode={diffMode}
             onDiffModeChange={handleDiffModeChange}

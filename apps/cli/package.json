@@ -64,7 +64,6 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.0",
     "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
@@ -72,7 +71,6 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "jsdom": "^29.0.2",
-    "lefthook": "^2.1.5",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0",
     "portless": "^0.10.1",

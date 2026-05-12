@@ -8,11 +8,11 @@ import {
   MoonIcon,
   SplitIcon,
   ArrowRightIcon,
+  RotateIcon,
 } from "blode-icons-react";
 import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Comment } from "@/lib/comment-types";
-import type { FileWatchState } from "@/lib/use-file-watch";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -39,7 +39,7 @@ interface StatusBarProps {
   branch: string;
   baseBranch: string;
   refreshing: boolean;
-  fileWatchState: FileWatchState;
+  onRefresh: () => void;
   syncNotice: {
     detail?: string;
     label: string;
@@ -51,27 +51,6 @@ interface StatusBarProps {
   layout: "split" | "stacked";
   onLayoutChange: (l: "split" | "stacked") => void;
 }
-
-const getWatchStateMeta = (fileWatchState: FileWatchState) => {
-  if (fileWatchState === "connecting") {
-    return {
-      className: "bg-muted-foreground/50",
-      label: "Connecting",
-    };
-  }
-
-  if (fileWatchState === "live") {
-    return {
-      className: "bg-diff-green",
-      label: "Live",
-    };
-  }
-
-  return {
-    className: "bg-amber-500",
-    label: "Polling",
-  };
-};
 
 const getSyncNoticeToneClass = (
   tone: NonNullable<StatusBarProps["syncNotice"]>["tone"] | undefined,
@@ -138,7 +117,7 @@ export const StatusBar = ({
   branch,
   baseBranch,
   refreshing,
-  fileWatchState,
+  onRefresh,
   syncNotice,
   comments,
   diffMode,
@@ -186,8 +165,6 @@ export const StatusBar = ({
   };
 
   useDismissableMenu(modeMenuOpen, modeMenuRef, () => setModeMenuOpen(false));
-
-  const { className: watchStateClass, label: watchStateLabel } = getWatchStateMeta(fileWatchState);
 
   return (
     <TooltipProvider delay={400}>
@@ -273,21 +250,29 @@ export const StatusBar = ({
         <div className="flex-1" />
 
         <div className="flex items-center gap-0.5">
-          {/* Live indicator */}
-          <Tooltip>
-            <TooltipTrigger render={<div className="flex items-center pr-1.5" />}>
-              <span
-                className={cn(
-                  "mx-1 size-1.5 rounded-full",
-                  watchStateClass,
-                  refreshing && "animate-pulse",
-                )}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{watchStateLabel}</TooltipContent>
-          </Tooltip>
-
           <SyncNoticeChip syncNotice={syncNotice} />
+
+          {/* Refresh */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={onRefresh}
+                  disabled={refreshing}
+                  aria-label="Refresh diff"
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                />
+              }
+            >
+              <RotateIcon size={14} className={cn(refreshing && "animate-spin")} />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="flex items-center gap-2">
+              <span>Refresh</span>
+              <Kbd>R</Kbd>
+            </TooltipContent>
+          </Tooltip>
 
           {/* Diff mode dropdown */}
           <div className="relative" ref={modeMenuRef}>
