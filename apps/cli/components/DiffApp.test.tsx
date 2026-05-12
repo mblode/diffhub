@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
@@ -11,7 +11,7 @@ interface MockAnnotation {
   side: "deletions" | "additions";
 }
 
-const { MockDynamicPatch, fileWatchChangeRef } = vi.hoisted(() => ({
+const { MockDynamicPatch } = vi.hoisted(() => ({
   MockDynamicPatch: ({
     patch,
     lineAnnotations,
@@ -42,19 +42,7 @@ const { MockDynamicPatch, fileWatchChangeRef } = vi.hoisted(() => ({
       })}
     </div>
   ),
-  fileWatchChangeRef: { current: null as null | (() => void) },
 }));
-
-vi.mock(import("@/lib/use-file-watch"), async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    useFileWatch: (onChange: () => void) => {
-      fileWatchChangeRef.current = onChange;
-      return "live" as const;
-    },
-  };
-});
 
 vi.mock(import("next-themes"), async (importOriginal) => {
   const actual = await importOriginal();
@@ -141,7 +129,6 @@ const getDiffSection = (file: string): HTMLElement | null =>
 
 describe("DiffApp review flow", () => {
   beforeEach(() => {
-    fileWatchChangeRef.current = null;
     localStorage.clear();
   });
 
@@ -261,7 +248,8 @@ describe("DiffApp review flow", () => {
     );
   });
 
-  it("does not refetch diff or scroll when file watcher refreshes unchanged data", async () => {
+  it("refetches files and diff when the user clicks the refresh button", async () => {
+    const user = userEvent.setup();
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const url = typeof input === "string" ? input : input.toString();
       const method = init?.method ?? "GET";
@@ -280,7 +268,6 @@ describe("DiffApp review flow", () => {
 
       return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
     });
-    const scrollIntoViewMock = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -294,23 +281,20 @@ describe("DiffApp review flow", () => {
     const initialFilesCalls = countFetchCalls(fetchMock, "/api/files");
     const initialCommentsCalls = countFetchCalls(fetchMock, "/api/comments");
     const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
-    scrollIntoViewMock.mockClear();
 
-    act(() => {
-      fileWatchChangeRef.current?.();
-    });
+    await user.click(screen.getByRole("button", { name: /refresh diff/i }));
 
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls + 1);
     });
-
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls + 1);
+    });
     expect(countFetchCalls(fetchMock, "/api/comments")).toBe(initialCommentsCalls + 1);
-    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls);
-    expect(scrollIntoViewMock).not.toHaveBeenCalled();
-    expect(getDiffSection("src/a.ts")).not.toBeNull();
   });
 
-  it("defers watcher refresh while scrolling and resumes without refetching unchanged diff", async () => {
+  it("refetches via the R keyboard shortcut", async () => {
+    const user = userEvent.setup();
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const url = typeof input === "string" ? input : input.toString();
       const method = init?.method ?? "GET";
@@ -329,7 +313,6 @@ describe("DiffApp review flow", () => {
 
       return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
     });
-    const scrollIntoViewMock = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -342,31 +325,15 @@ describe("DiffApp review flow", () => {
 
     const initialFilesCalls = countFetchCalls(fetchMock, "/api/files");
     const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
-    scrollIntoViewMock.mockClear();
-    vi.useFakeTimers();
 
-    window.dispatchEvent(new Event("scroll"));
-    act(() => {
-      fileWatchChangeRef.current?.();
-    });
-
-    expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls);
-
-    act(() => {
-      vi.advanceTimersByTime(199);
-    });
-    expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls);
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    vi.useRealTimers();
+    await user.keyboard("r");
 
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls + 1);
     });
-    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls);
-    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls + 1);
+    });
   });
 
   it("keeps the inline draft open when comment creation fails", async () => {

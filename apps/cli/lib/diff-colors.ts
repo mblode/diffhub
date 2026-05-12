@@ -12,7 +12,7 @@
  *   --diffBlob-{addition,deletion}{Line,Num,Word}-bgColor
  *   --bgColor-{success,danger}-muted
  */
-export const DIFF_COLORS = {
+const DIFF_COLORS = {
   dark: {
     addition: "#3fb950",
     deletion: "#f85149",
