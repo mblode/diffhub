@@ -10,7 +10,6 @@ import {
   ArrowRightIcon,
   ArrowRotateClockwiseIcon,
 } from "blode-icons-react";
-import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Comment } from "@/lib/comment-types";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
@@ -19,6 +18,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useTheme } from "./theme-provider";
 
 export type DiffMode = "all" | "uncommitted";
 export type WatchStatus = "connecting" | "live" | "offline" | "updated";

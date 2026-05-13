@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
 import type { Comment } from "@/lib/comment-types";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
+import type * as ThemeProviderModule from "./theme-provider";
 
 interface MockAnnotation {
   lineNumber: number;
@@ -45,8 +46,8 @@ const { MockDynamicPatch } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock(import("next-themes"), async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock(import("./theme-provider"), async (importOriginal) => {
+  const actual = await importOriginal<typeof ThemeProviderModule>();
   return {
     ...actual,
     useTheme: () => ({
@@ -100,6 +101,21 @@ const filesPayload = {
   generation: "generation-1",
   insertions: 2,
 };
+
+const withCommentDefaults = (
+  comment: Omit<Comment, "anchor" | "replies" | "resolved" | "staleness">,
+): Comment => ({
+  ...comment,
+  anchor: {
+    afterContext: [],
+    beforeContext: [],
+    fileSha: "",
+    lineContent: "",
+  },
+  replies: [],
+  resolved: false,
+  staleness: "fresh",
+});
 
 const diffPayload = {
   baseBranch: "origin/main",
@@ -205,12 +221,15 @@ describe("DiffApp review flow", () => {
       }
 
       if (url === "/api/comments" && method === "POST") {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Omit<Comment, "createdAt" | "id">;
-        const createdComment: Comment = {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Omit<
+          Comment,
+          "anchor" | "createdAt" | "id" | "replies" | "resolved" | "staleness"
+        >;
+        const createdComment = withCommentDefaults({
           ...body,
           createdAt: "2026-04-15T00:00:00.000Z",
           id: `comment-${comments.length + 1}`,
-        };
+        });
         comments = [...comments, createdComment];
         return Promise.resolve(jsonResponse(createdComment));
       }
@@ -658,12 +677,15 @@ describe("DiffApp review flow", () => {
       }
 
       if (url === "/api/comments" && method === "POST") {
-        const body = JSON.parse(String(init?.body ?? "{}")) as Omit<Comment, "createdAt" | "id">;
-        const createdComment: Comment = {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Omit<
+          Comment,
+          "anchor" | "createdAt" | "id" | "replies" | "resolved" | "staleness"
+        >;
+        const createdComment = withCommentDefaults({
           ...body,
           createdAt: "2026-04-15T00:00:00.000Z",
           id: "comment-1",
-        };
+        });
         comments = [createdComment];
         return Promise.resolve(jsonResponse(createdComment));
       }
