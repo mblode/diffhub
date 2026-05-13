@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ErrorInfo, ReactNode } from "react";
-import { useTheme } from "next-themes";
 import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
@@ -13,6 +12,7 @@ import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
 import { FileDiffHeader } from "./FileDiffHeader";
+import { useTheme } from "./theme-provider";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
@@ -91,7 +91,7 @@ const formatRelativeTime = (iso: string): string => {
   return `${diffDay}d ago`;
 };
 
-type AnnotationData = { type: "comment"; comment: Comment } | { type: "input"; file: string };
+type AnnotationData = { type: "comment"; commentId: string } | { type: "input"; file: string };
 
 const DiffSkeleton = () => (
   <div className="animate-pulse">
@@ -278,16 +278,25 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
   );
 };
 
+// oxlint-disable-next-line complexity
 const CommentDisplay = ({
   comment,
   onDelete,
+  onResolve,
+  onReply,
 }: {
   comment: Comment;
   onDelete: () => Promise<boolean>;
+  onResolve: (resolved: boolean) => Promise<boolean>;
+  onReply: (body: string) => Promise<boolean>;
 }) => {
   const [copied, setCopied] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(!comment.resolved);
+  const [replyBody, setReplyBody] = useState("");
+  const [replyError, setReplyError] = useState<string | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -334,9 +343,67 @@ const CommentDisplay = ({
     setIsDeleting(false);
   }, [isDeleting, onDelete]);
 
+  const handleResolve = useCallback(
+    async (resolved: boolean): Promise<void> => {
+      if (isUpdating) {
+        return;
+      }
+
+      setIsUpdating(true);
+      const updated = await onResolve(resolved).catch(() => false);
+      if (updated) {
+        setIsExpanded(!resolved);
+      } else {
+        setDeleteError("Failed to update comment.");
+      }
+      setIsUpdating(false);
+    },
+    [isUpdating, onResolve],
+  );
+
+  const handleExpandToggle = useCallback(() => {
+    setIsExpanded((value) => !value);
+  }, []);
+
+  const handleResolveClick = useCallback(() => {
+    void handleResolve(true);
+  }, [handleResolve]);
+
+  const handleUnresolveClick = useCallback(() => {
+    void handleResolve(false);
+  }, [handleResolve]);
+
+  const handleReplyChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setReplyBody(event.target.value);
+  }, []);
+
+  const handleReply = useCallback(async (): Promise<void> => {
+    const trimmed = replyBody.trim();
+    if (!trimmed || isUpdating) {
+      return;
+    }
+
+    setReplyError(null);
+    setIsUpdating(true);
+    const saved = await onReply(trimmed).catch(() => false);
+    if (saved) {
+      setReplyBody("");
+      setIsExpanded(true);
+    } else {
+      setReplyError("Failed to save reply.");
+    }
+    setIsUpdating(false);
+  }, [isUpdating, onReply, replyBody]);
+
+  const handleReplyClick = useCallback(() => {
+    void handleReply();
+  }, [handleReply]);
+
   const borderAccent = comment.tag
     ? (TAG_META[comment.tag]?.border ?? "border-l-ring/40")
     : "border-l-ring/40";
+  const firstLine = comment.body.split(/\s+/).join(" ").slice(0, 60);
+  const canResolve = comment.staleness !== "stale";
 
   return (
     <div
@@ -345,61 +412,150 @@ const CommentDisplay = ({
         borderAccent,
       )}
     >
-      {/* Body row */}
-      <div className="flex items-start gap-2 px-3 py-2.5">
-        {comment.tag && (
-          <span
-            className={cn(
-              "shrink-0 mt-0.5 text-[11px]",
-              TAG_META[comment.tag]?.text ?? "text-muted-foreground",
-            )}
-          >
-            {comment.tag}
+      {comment.staleness === "stale" && (
+        <div className="border-b border-border/40 bg-muted/40 px-3 py-1 text-[11px] text-muted-foreground">
+          Stale — content changed
+        </div>
+      )}
+      {comment.staleness === "moved" && comment.rebasedFromLine !== undefined && (
+        <div className="border-b border-border/40 bg-diff-purple/10 px-3 py-1 text-[11px] text-diff-purple">
+          ↳ moved from line {comment.rebasedFromLine}
+        </div>
+      )}
+      {comment.resolved && (
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40"
+          onClick={handleExpandToggle}
+        >
+          <span className="min-w-0 flex-1 truncate">
+            ✓ Resolved by {comment.resolvedBy ?? "unknown"}{" "}
+            {comment.resolvedAt ? `at ${formatRelativeTime(comment.resolvedAt)}` : ""} — &quot;
+            {firstLine}&quot;
           </span>
-        )}
-        <p className="flex-1 text-sm text-foreground leading-relaxed">{comment.body}</p>
-        {/* Action buttons — hover-revealed */}
-        <TooltipProvider delay={400}>
-          <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    aria-label={copied ? "Comment copied" : "Copy comment"}
-                    className={cn(
-                      "rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
-                      copied
-                        ? "text-diff-green"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary",
-                    )}
-                  />
-                }
-              >
-                {copied ? <CheckIcon size={12} /> : <CopySimpleIcon size={12} />}
-              </TooltipTrigger>
-              <TooltipContent side="top">{copied ? "Copied!" : "Copy comment"}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    aria-label="Delete comment"
-                    disabled={isDeleting}
-                    className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-                  />
-                }
-              >
-                <TrashIcon size={12} />
-              </TooltipTrigger>
-              <TooltipContent side="top">Delete comment</TooltipContent>
-            </Tooltip>
+          <span className="inline-flex min-w-9 shrink-0 justify-end whitespace-nowrap break-normal leading-none">
+            {isExpanded ? "Hide" : "Show"}
+          </span>
+        </button>
+      )}
+      {/* Body row */}
+      {isExpanded && (
+        <div className="flex items-start gap-2 px-3 py-2.5">
+          {comment.tag && (
+            <span
+              className={cn(
+                "shrink-0 mt-0.5 text-[11px]",
+                TAG_META[comment.tag]?.text ?? "text-muted-foreground",
+              )}
+            >
+              {comment.tag}
+            </span>
+          )}
+          <p className="flex-1 text-sm text-foreground leading-relaxed">{comment.body}</p>
+          {/* Action buttons — hover-revealed */}
+          <TooltipProvider delay={400}>
+            <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+              {canResolve && !comment.resolved && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isUpdating}
+                  className="h-6 px-2 text-xs text-muted-foreground"
+                  onClick={handleResolveClick}
+                >
+                  Resolve
+                </Button>
+              )}
+              {comment.resolved && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isUpdating}
+                  className="h-6 px-2 text-xs text-muted-foreground"
+                  onClick={handleUnresolveClick}
+                >
+                  Unresolve
+                </Button>
+              )}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      aria-label={copied ? "Comment copied" : "Copy comment"}
+                      className={cn(
+                        "rounded p-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+                        copied
+                          ? "text-diff-green"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary",
+                      )}
+                    />
+                  }
+                >
+                  {copied ? <CheckIcon size={12} /> : <CopySimpleIcon size={12} />}
+                </TooltipTrigger>
+                <TooltipContent side="top">{copied ? "Copied!" : "Copy comment"}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      aria-label="Delete comment"
+                      disabled={isDeleting}
+                      className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                    />
+                  }
+                >
+                  <TrashIcon size={12} />
+                </TooltipTrigger>
+                <TooltipContent side="top">Delete comment</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+        </div>
+      )}
+      {isExpanded && comment.replies.length > 0 && (
+        <div className="border-t border-border/40 px-3 py-2">
+          <div className="space-y-2 border-l border-border pl-3">
+            {comment.replies.map((reply) => (
+              <div key={`${reply.at}:${reply.body}`} className="text-xs">
+                <div className="text-muted-foreground">
+                  {reply.by ?? "unknown"} · {formatRelativeTime(reply.at)}
+                </div>
+                <p className="mt-0.5 text-foreground">{reply.body}</p>
+              </div>
+            ))}
           </div>
-        </TooltipProvider>
-      </div>
+        </div>
+      )}
+      {isExpanded && (
+        <div className="border-t border-border/40 px-3 py-2">
+          <textarea
+            value={replyBody}
+            onChange={handleReplyChange}
+            placeholder="Reply"
+            rows={2}
+            className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
+          />
+          <div className="mt-1 flex items-center justify-between gap-2">
+            {replyError ? <p className="text-xs text-destructive">{replyError}</p> : <span />}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!replyBody.trim() || isUpdating}
+              onClick={handleReplyClick}
+            >
+              Reply
+            </Button>
+          </div>
+        </div>
+      )}
       {/* Footer strip */}
       <div className="border-t border-border/40 px-3 py-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
         <span>L{comment.lineNumber}</span>
@@ -499,6 +655,8 @@ interface SingleFileDiffProps {
     tag: CommentTag,
   ) => Promise<boolean>;
   onDeleteComment: (id: string) => Promise<boolean>;
+  onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
+  onReplyToComment: (id: string, body: string) => Promise<boolean>;
 }
 
 interface GutterButtonProps {
@@ -548,17 +706,26 @@ const SingleFileDiff = memo(function SingleFileDiff({
   onRenderPatch,
   onAddComment,
   onDeleteComment,
+  onResolveComment,
+  onReplyToComment,
 }: SingleFileDiffProps) {
   const { resolvedTheme } = useTheme();
   // `comments` is already scoped to this file by DiffViewer's commentsByFile split.
   const fileComments = comments;
+  const commentsById = useMemo(() => {
+    const map = new Map<string, Comment>();
+    for (const comment of fileComments) {
+      map.set(comment.id, comment);
+    }
+    return map;
+  }, [fileComments]);
   const headerId = `${sectionId}-header`;
   const panelId = `${sectionId}-panel`;
 
   const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
     const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
       lineNumber: c.lineNumber,
-      metadata: { comment: c, type: "comment" as const },
+      metadata: { commentId: c.id, type: "comment" as const },
       side: toAnnotationSide(c.side),
     }));
 
@@ -604,15 +771,36 @@ const SingleFileDiff = memo(function SingleFileDiff({
       }
 
       if (d.type === "comment") {
+        const comment = commentsById.get(d.commentId);
+        if (!comment) {
+          return null;
+        }
+
         return (
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          <CommentDisplay comment={d.comment} onDelete={() => onDeleteComment(d.comment.id)} />
+          <CommentDisplay
+            key={comment.id}
+            comment={comment}
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onDelete={() => onDeleteComment(comment.id)}
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onResolve={(resolved) => onResolveComment(comment.id, resolved)}
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onReply={(body) => onReplyToComment(comment.id, body)}
+          />
         );
       }
 
       return null;
     },
-    [file, onAddComment, onCommentTargetChange, onDeleteComment],
+    [
+      commentsById,
+      file,
+      onAddComment,
+      onCommentTargetChange,
+      onDeleteComment,
+      onReplyToComment,
+      onResolveComment,
+    ],
   );
 
   const renderGutterUtility = useCallback(
@@ -711,6 +899,8 @@ interface DiffViewerProps {
     tag: CommentTag,
   ) => Promise<boolean>;
   onDeleteComment: (id: string) => Promise<boolean>;
+  onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
+  onReplyToComment: (id: string, body: string) => Promise<boolean>;
   activeFileId: string | null;
   fileStats: DiffFileStat[];
   collapsedFiles: Set<string>;
@@ -743,6 +933,8 @@ interface CollapsibleFileDiffProps {
     tag: CommentTag,
   ) => Promise<boolean>;
   onDeleteComment: (id: string) => Promise<boolean>;
+  onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
+  onReplyToComment: (id: string, body: string) => Promise<boolean>;
 }
 
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
@@ -762,6 +954,8 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   repoPath,
   onAddComment,
   onDeleteComment,
+  onResolveComment,
+  onReplyToComment,
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
@@ -897,6 +1091,8 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         onRenderPatch={handleRenderPatch}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
+        onResolveComment={onResolveComment}
+        onReplyToComment={onReplyToComment}
       />
     </section>
   );
@@ -909,6 +1105,8 @@ export const DiffViewer = ({
   comments,
   onAddComment,
   onDeleteComment,
+  onResolveComment,
+  onReplyToComment,
   activeFileId,
   fileStats,
   collapsedFiles,
@@ -1000,6 +1198,8 @@ export const DiffViewer = ({
             repoPath={repoPath}
             onAddComment={onAddComment}
             onDeleteComment={onDeleteComment}
+            onResolveComment={onResolveComment}
+            onReplyToComment={onReplyToComment}
           />
         );
       })}
