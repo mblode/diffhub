@@ -13,7 +13,10 @@ const createDiffWorker = (): Worker =>
 export const DiffsWorkerProvider = ({ children }: DiffsWorkerProviderProps): React.JSX.Element => {
   const poolOptions = useMemo(
     () => ({
-      poolSize: Math.min(4, navigator.hardwareConcurrency || 4),
+      poolSize: Math.min(
+        4,
+        typeof navigator === "undefined" ? 4 : navigator.hardwareConcurrency || 4,
+      ),
       workerFactory: createDiffWorker,
     }),
     [],

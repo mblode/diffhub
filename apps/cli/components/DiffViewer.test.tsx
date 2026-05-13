@@ -2,13 +2,14 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./DiffViewer";
+import type * as ThemeProviderModule from "./theme-provider";
 
 const { MockPatchDiff } = vi.hoisted(() => ({
   MockPatchDiff: ({ patch }: { patch: string }) => <div data-testid="patch-viewer">{patch}</div>,
 }));
 
-vi.mock(import("next-themes"), async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock(import("./theme-provider"), async (importOriginal) => {
+  const actual = await importOriginal<typeof ThemeProviderModule>();
   return {
     ...actual,
     useTheme: () => ({
@@ -66,6 +67,12 @@ const makeProps = (fileCount: number) => {
       >()
       .mockResolvedValue(true),
     onDeleteComment: vi.fn<(id: string) => Promise<boolean>>().mockResolvedValue(true),
+    onReplyToComment: vi
+      .fn<(id: string, body: string) => Promise<boolean>>()
+      .mockResolvedValue(true),
+    onResolveComment: vi
+      .fn<(id: string, resolved: boolean) => Promise<boolean>>()
+      .mockResolvedValue(true),
     onToggleCollapse: vi.fn<(file: string) => void>(),
     patchesByFile: Object.fromEntries(
       files.map((file, index) => [
