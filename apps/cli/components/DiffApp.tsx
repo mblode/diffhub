@@ -1,12 +1,12 @@
 "use client";
 
 import type { AnnotationSide } from "@pierre/diffs";
-import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer, getDiffSectionId } from "./DiffViewer";
+import { useTheme } from "./theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
@@ -82,6 +82,8 @@ interface MainPanelProps {
     tag: CommentTag,
   ) => Promise<boolean>;
   onDeleteComment: (id: string) => Promise<boolean>;
+  onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
+  onReplyToComment: (id: string, body: string) => Promise<boolean>;
   selectedFile: string | null;
   collapsedFiles: Set<string>;
   forceRenderFiles: ReadonlySet<string>;
@@ -169,8 +171,14 @@ const areCommentsEqual = (previous: readonly Comment[], next: readonly Comment[]
       comment.file === nextComment.file &&
       comment.id === nextComment.id &&
       comment.lineNumber === nextComment.lineNumber &&
+      comment.rebasedFromLine === nextComment.rebasedFromLine &&
+      comment.resolved === nextComment.resolved &&
+      comment.resolvedAt === nextComment.resolvedAt &&
+      comment.resolvedBy === nextComment.resolvedBy &&
       comment.side === nextComment.side &&
-      comment.tag === nextComment.tag
+      comment.staleness === nextComment.staleness &&
+      comment.tag === nextComment.tag &&
+      JSON.stringify(comment.replies) === JSON.stringify(nextComment.replies)
     );
   });
 };
@@ -274,6 +282,8 @@ const MainPanel = ({
   comments,
   onAddComment,
   onDeleteComment,
+  onResolveComment,
+  onReplyToComment,
   selectedFile,
   collapsedFiles,
   forceRenderFiles,
@@ -337,6 +347,8 @@ const MainPanel = ({
         comments={comments}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
+        onResolveComment={onResolveComment}
+        onReplyToComment={onReplyToComment}
         activeFileId={selectedFile}
         fileStats={filesData.files}
         collapsedFiles={collapsedFiles}
@@ -1016,6 +1028,58 @@ export const DiffApp = ({
     return true;
   }, []);
 
+  const replaceComment = useCallback((nextComment: Comment) => {
+    setComments((previous) =>
+      previous.map((comment) => (comment.id === nextComment.id ? nextComment : comment)),
+    );
+  }, []);
+
+  const handleResolveComment = useCallback(
+    async (id: string, resolved: boolean) => {
+      const response = await fetch(`/api/comments?id=${id}`, {
+        body: JSON.stringify({ action: resolved ? "resolve" : "unresolve" }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        const errorBody = (await response
+          .json()
+          .catch(() => ({ error: "Failed to update comment" }))) as DiffErrorResponse;
+        console.error("[diffhub] resolve comment failed", {
+          error: errorBody.error ?? `Failed to update comment (${response.status})`,
+        });
+        return false;
+      }
+
+      replaceComment((await response.json()) as Comment);
+      return true;
+    },
+    [replaceComment],
+  );
+
+  const handleReplyToComment = useCallback(
+    async (id: string, body: string) => {
+      const response = await fetch(`/api/comments?id=${id}`, {
+        body: JSON.stringify({ action: "reply", body }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      if (!response.ok) {
+        const errorBody = (await response
+          .json()
+          .catch(() => ({ error: "Failed to save reply" }))) as DiffErrorResponse;
+        console.error("[diffhub] reply failed", {
+          error: errorBody.error ?? `Failed to save reply (${response.status})`,
+        });
+        return false;
+      }
+
+      replaceComment((await response.json()) as Comment);
+      return true;
+    },
+    [replaceComment],
+  );
+
   const syncNotice = getSyncNotice(loadError, filesData, deferredDiffData, diffError);
 
   if (loadError && filesData === null) {
@@ -1079,6 +1143,8 @@ export const DiffApp = ({
           comments={comments}
           onAddComment={handleAddComment}
           onDeleteComment={handleDeleteComment}
+          onResolveComment={handleResolveComment}
+          onReplyToComment={handleReplyToComment}
           selectedFile={selectedFile}
           collapsedFiles={collapsedFiles}
           forceRenderFiles={forceRenderFiles}
