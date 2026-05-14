@@ -45,4 +45,13 @@ describe("getDiffUnsafeCSS — Primer parity", () => {
     const css = getDiffUnsafeCSS(theme);
     expect(extractVar(css, cssVar)).toBe(expected);
   });
+
+  it("keeps split wrap columns balanced", () => {
+    const css = getDiffUnsafeCSS("dark");
+
+    expect(css).toContain(
+      "--diffs-code-grid: var(--diffs-grid-number-column-width) minmax(0, 1fr)",
+    );
+    expect(css).toContain("[data-diff-type='split'][data-overflow='wrap']");
+  });
 });

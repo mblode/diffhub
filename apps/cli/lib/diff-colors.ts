@@ -60,6 +60,14 @@ export const getDiffUnsafeCSS = (theme: DiffTheme) => {
 
   return `
     [data-diff-span] { border-radius: 0; }
+    [data-diff] {
+      --diffs-code-grid: var(--diffs-grid-number-column-width) minmax(0, 1fr);
+    }
+    [data-diff-type='split'][data-overflow='wrap'] {
+      grid-template-columns:
+        var(--diffs-grid-number-column-width) minmax(0, 1fr)
+        var(--diffs-grid-number-column-width) minmax(0, 1fr);
+    }
     :host {
       /* Base colors for additions/deletions */
       --diffs-addition-color-override: ${colors.addition};

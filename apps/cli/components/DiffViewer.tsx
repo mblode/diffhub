@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ErrorInfo, ReactNode } from "react";
 import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
-import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
 import { isLargeDiffFile } from "@/lib/diff-file-stat";
@@ -91,7 +90,13 @@ const formatRelativeTime = (iso: string): string => {
   return `${diffDay}d ago`;
 };
 
-type AnnotationData = { type: "comment"; commentId: string } | { type: "input"; file: string };
+interface AnnotationData {
+  type: "input";
+  file: string;
+}
+
+export const getDiffSectionId = (file: string): string => `diff-${encodeURIComponent(file)}`;
+export const getCommentElementId = (id: string): string => `diff-comment-${encodeURIComponent(id)}`;
 
 const DiffSkeleton = () => (
   <div className="animate-pulse">
@@ -281,11 +286,13 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
 // oxlint-disable-next-line complexity
 const CommentDisplay = ({
   comment,
+  active,
   onDelete,
   onResolve,
   onReply,
 }: {
   comment: Comment;
+  active: boolean;
   onDelete: () => Promise<boolean>;
   onResolve: (resolved: boolean) => Promise<boolean>;
   onReply: (body: string) => Promise<boolean>;
@@ -407,9 +414,12 @@ const CommentDisplay = ({
 
   return (
     <div
+      id={getCommentElementId(comment.id)}
+      data-comment-id={comment.id}
       className={cn(
-        "group my-1 mx-4 rounded-md border border-border bg-card shadow-sm dark:shadow-none overflow-hidden border-l-2",
+        "group my-1 mx-4 scroll-mt-24 rounded-md border border-border bg-card shadow-sm dark:shadow-none overflow-hidden border-l-2",
         borderAccent,
+        active && "ring-1 ring-diff-purple/70",
       )}
     >
       {comment.staleness === "stale" && (
@@ -571,8 +581,6 @@ const CommentDisplay = ({
   );
 };
 
-export const getDiffSectionId = (file: string): string => `diff-${encodeURIComponent(file)}`;
-
 /**
  * Sort files in tree display order to match the sidebar:
  * at each directory level, subdirectories (and their contents)
@@ -657,6 +665,8 @@ interface SingleFileDiffProps {
   onDeleteComment: (id: string) => Promise<boolean>;
   onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
   onReplyToComment: (id: string, body: string) => Promise<boolean>;
+  activeCommentId: string | null;
+  onNavigateComment: (id: string) => void;
 }
 
 interface GutterButtonProps {
@@ -708,26 +718,17 @@ const SingleFileDiff = memo(function SingleFileDiff({
   onDeleteComment,
   onResolveComment,
   onReplyToComment,
+  activeCommentId,
+  onNavigateComment,
 }: SingleFileDiffProps) {
   const { resolvedTheme } = useTheme();
   // `comments` is already scoped to this file by DiffViewer's commentsByFile split.
   const fileComments = comments;
-  const commentsById = useMemo(() => {
-    const map = new Map<string, Comment>();
-    for (const comment of fileComments) {
-      map.set(comment.id, comment);
-    }
-    return map;
-  }, [fileComments]);
   const headerId = `${sectionId}-header`;
   const panelId = `${sectionId}-panel`;
 
   const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
-    const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
-      lineNumber: c.lineNumber,
-      metadata: { commentId: c.id, type: "comment" as const },
-      side: toAnnotationSide(c.side),
-    }));
+    const annotations: DiffLineAnnotation<AnnotationData>[] = [];
 
     if (commentTarget) {
       annotations.push({
@@ -738,7 +739,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
     }
 
     return annotations;
-  }, [fileComments, commentTarget, file]);
+  }, [commentTarget, file]);
 
   const renderAnnotation = useCallback(
     (annotation: DiffLineAnnotation<AnnotationData>) => {
@@ -770,16 +771,24 @@ const SingleFileDiff = memo(function SingleFileDiff({
         );
       }
 
-      if (d.type === "comment") {
-        const comment = commentsById.get(d.commentId);
-        if (!comment) {
-          return null;
-        }
+      return null;
+    },
+    [file, onAddComment, onCommentTargetChange],
+  );
 
-        return (
+  const renderFileComments = (): React.JSX.Element | null => {
+    if (fileComments.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="border-t border-border/60 bg-muted/15 py-2">
+        <div className="px-4 pb-1 text-[11px] font-medium text-muted-foreground">Comments</div>
+        {fileComments.map((comment) => (
           <CommentDisplay
             key={comment.id}
             comment={comment}
+            active={comment.id === activeCommentId}
             // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onDelete={() => onDeleteComment(comment.id)}
             // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
@@ -787,21 +796,10 @@ const SingleFileDiff = memo(function SingleFileDiff({
             // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
             onReply={(body) => onReplyToComment(comment.id, body)}
           />
-        );
-      }
-
-      return null;
-    },
-    [
-      commentsById,
-      file,
-      onAddComment,
-      onCommentTargetChange,
-      onDeleteComment,
-      onReplyToComment,
-      onResolveComment,
-    ],
-  );
+        ))}
+      </div>
+    );
+  };
 
   const renderGutterUtility = useCallback(
     (getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined) => (
@@ -814,53 +812,69 @@ const SingleFileDiff = memo(function SingleFileDiff({
     onRenderPatch();
   }, [onRenderPatch]);
 
+  const handleJumpToFirstComment = useCallback(() => {
+    const [firstComment] = fileComments;
+    if (firstComment) {
+      onNavigateComment(firstComment.id);
+    }
+  }, [fileComments, onNavigateComment]);
+
   const hidePanel = collapsed && commentTarget === null;
   let panelContent: React.ReactNode = null;
 
   if (!hidePanel) {
     if (!filePatch) {
       panelContent = (
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          No textual patch available for this file.
-        </div>
+        <>
+          <div className="px-4 py-6 text-sm text-muted-foreground">
+            No textual patch available for this file.
+          </div>
+          {renderFileComments()}
+        </>
       );
     } else if (shouldRenderPatch) {
       panelContent = (
         <DiffErrorBoundary file={file}>
-          <PatchDiff
-            key={file}
-            patch={filePatch}
-            prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
-            disableWorkerPool
-            style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
-            options={{
-              diffStyle: layout === "split" ? "split" : "unified",
-              disableFileHeader: true,
-              disableLineNumbers: false,
-              enableGutterUtility: true,
-              expansionLineCount: 20,
-              hunkSeparators: "line-info",
-              lineDiffType: "word-alt",
-              lineHoverHighlight: "disabled",
-              maxLineDiffLength: 500,
-              overflow: "wrap",
-              theme: { dark: "github-dark", light: "github-light" },
-              themeType: resolvedTheme === "light" ? "light" : "dark",
-              unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
-            }}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={renderAnnotation}
-            renderGutterUtility={renderGutterUtility}
-          />
+          <>
+            <PatchDiff
+              key={file}
+              patch={filePatch}
+              prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
+              disableWorkerPool
+              style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
+              options={{
+                diffStyle: layout === "split" ? "split" : "unified",
+                disableFileHeader: true,
+                disableLineNumbers: false,
+                enableGutterUtility: true,
+                expansionLineCount: 20,
+                hunkSeparators: "line-info",
+                lineDiffType: "word-alt",
+                lineHoverHighlight: "disabled",
+                maxLineDiffLength: 500,
+                overflow: "wrap",
+                theme: { dark: "github-dark", light: "github-light" },
+                themeType: resolvedTheme === "light" ? "light" : "dark",
+                unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
+              }}
+              lineAnnotations={lineAnnotations}
+              renderAnnotation={renderAnnotation}
+              renderGutterUtility={renderGutterUtility}
+            />
+            {renderFileComments()}
+          </>
         </DiffErrorBoundary>
       );
     } else {
       panelContent = (
-        <DeferredDiffPlaceholder
-          onRender={handleRenderPatch}
-          variant={isLargeFile ? "large" : "auto"}
-          changes={fileStat?.changes}
-        />
+        <>
+          <DeferredDiffPlaceholder
+            onRender={handleRenderPatch}
+            variant={isLargeFile ? "large" : "auto"}
+            changes={fileStat?.changes}
+          />
+          {renderFileComments()}
+        </>
       );
     }
   }
@@ -876,6 +890,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
         collapsed={collapsed}
         active={active}
         onToggleCollapse={onToggleCollapse}
+        onJumpToFirstComment={handleJumpToFirstComment}
         headingId={headerId}
         panelId={panelId}
       />
@@ -902,6 +917,8 @@ interface DiffViewerProps {
   onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
   onReplyToComment: (id: string, body: string) => Promise<boolean>;
   activeFileId: string | null;
+  activeCommentId: string | null;
+  onNavigateComment: (id: string) => void;
   fileStats: DiffFileStat[];
   collapsedFiles: Set<string>;
   onToggleCollapse: (file: string) => void;
@@ -935,6 +952,8 @@ interface CollapsibleFileDiffProps {
   onDeleteComment: (id: string) => Promise<boolean>;
   onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
   onReplyToComment: (id: string, body: string) => Promise<boolean>;
+  activeCommentId: string | null;
+  onNavigateComment: (id: string) => void;
 }
 
 const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
@@ -956,6 +975,8 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   onDeleteComment,
   onResolveComment,
   onReplyToComment,
+  activeCommentId,
+  onNavigateComment,
 }: CollapsibleFileDiffProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
@@ -1017,52 +1038,14 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
     };
   }, [collapsed, fileStat, shouldRenderPatch]);
 
-  // Pin the section's height once @pierre/diffs has finished its post-mount
-  // resize cascades (Shiki tokenize, ResizeManager beats, font swap). After
-  // ~200ms of resize-idle, write the measured height to `min-height` so any
-  // later library-driven resize is absorbed inside the section instead of
-  // moving siblings. Reset the pin when collapse / comment / layout state
-  // changes, since those are user-initiated and legitimately want growth.
   useEffect(() => {
     const section = sectionRef.current;
-    if (!section || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    if (collapsed || commentTarget !== null || !shouldRenderPatch) {
+    if (!section || !shouldRenderPatch) {
       return;
     }
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastHeight = section.getBoundingClientRect().height;
-
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) {
-        return;
-      }
-      const next = entry.contentRect.height;
-      if (next === lastHeight) {
-        return;
-      }
-      lastHeight = next;
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        section.style.minHeight = `${section.getBoundingClientRect().height}px`;
-        observer.disconnect();
-      }, 200);
-    });
-
-    observer.observe(section);
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      observer.disconnect();
-      section.style.minHeight = "";
-    };
-  }, [collapsed, commentTarget, layout, shouldRenderPatch]);
+    section.style.minHeight = "";
+  }, [collapsed, commentTarget, comments, layout, shouldRenderPatch]);
 
   return (
     <section
@@ -1093,6 +1076,8 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         onDeleteComment={onDeleteComment}
         onResolveComment={onResolveComment}
         onReplyToComment={onReplyToComment}
+        activeCommentId={activeCommentId}
+        onNavigateComment={onNavigateComment}
       />
     </section>
   );
@@ -1108,6 +1093,8 @@ export const DiffViewer = ({
   onResolveComment,
   onReplyToComment,
   activeFileId,
+  activeCommentId,
+  onNavigateComment,
   fileStats,
   collapsedFiles,
   onToggleCollapse,
@@ -1192,6 +1179,8 @@ export const DiffViewer = ({
             fileStat={fileStat}
             collapsed={collapsedFiles.has(file)}
             active={activeFileId === file}
+            activeCommentId={activeCommentId}
+            onNavigateComment={onNavigateComment}
             // oxlint-disable-next-line typescript-eslint/no-non-null-assertion -- file always exists in toggleHandlers since both use orderedFiles
             onToggleCollapse={toggleHandlers.get(file)!}
             onVisible={onActiveFileChange}

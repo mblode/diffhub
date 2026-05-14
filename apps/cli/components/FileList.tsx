@@ -3,9 +3,11 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BubbleDotsIcon,
+  CheckIcon,
   Folder1Icon,
   FolderOpenFilledIcon,
   MagnifyingGlassIcon,
+  ReadingListIcon,
 } from "blode-icons-react";
 import { FileAddedIcon, FileDiffIcon, FileRemovedIcon } from "./icons/file-status-icons";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
@@ -22,7 +24,10 @@ interface FileListProps {
   files: DiffFileStat[];
   selectedFile: string | null;
   onSelectFile: (file: string, behavior?: ScrollBehavior) => void;
+  onSelectFileComment: (file: string) => void;
+  onSelectComment: (id: string) => void;
   comments: Comment[];
+  activeCommentId: string | null;
   filterQuery: string;
   onFilterChange: (q: string) => void;
   isLoading?: boolean;
@@ -143,6 +148,7 @@ interface FileRowProps {
   isSelected: boolean;
   commentCount: number;
   onNavigate: (path: string) => void;
+  onNavigateComment: (path: string) => void;
 }
 
 const FileRow = memo(function FileRow({
@@ -151,6 +157,7 @@ const FileRow = memo(function FileRow({
   isSelected,
   commentCount,
   onNavigate,
+  onNavigateComment,
 }: FileRowProps) {
   const indent = depth * 16 + 8;
   const { insertions, deletions } = node.fileStat;
@@ -170,9 +177,7 @@ const FileRow = memo(function FileRow({
   }
 
   return (
-    <button
-      type="button"
-      aria-current={isSelected ? "true" : undefined}
+    <div
       className={cn(
         "flex w-full cursor-pointer items-center gap-1.5 py-1 text-left transition-colors",
         isSelected
@@ -187,27 +192,46 @@ const FileRow = memo(function FileRow({
         paddingLeft: indent,
         paddingRight: 8,
       }}
-      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-      onClick={() => onNavigate(node.path)}
     >
-      <FileStatusIcon size={16} className={iconClass} />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="flex-1 truncate text-[12px] leading-tight text-muted-foreground" />
-          }
-        >
-          {node.name}
-        </TooltipTrigger>
-        <TooltipContent side="right">{node.path}</TooltipContent>
-      </Tooltip>
+      <button
+        type="button"
+        aria-current={isSelected ? "true" : undefined}
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+        onClick={() => onNavigate(node.path)}
+      >
+        <FileStatusIcon size={16} className={iconClass} />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="flex-1 truncate text-[12px] leading-tight text-muted-foreground" />
+            }
+          >
+            {node.name}
+          </TooltipTrigger>
+          <TooltipContent side="right">{node.path}</TooltipContent>
+        </Tooltip>
+      </button>
       {commentCount > 0 && (
-        <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-sidebar-foreground/50">
-          <BubbleDotsIcon size={10} />
-          {commentCount}
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-diff-purple transition-colors hover:bg-diff-purple/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+                aria-label={`Jump to first comment in ${node.path}`}
+                // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                onClick={() => onNavigateComment(node.path)}
+              />
+            }
+          >
+            <BubbleDotsIcon size={10} />
+            {commentCount}
+          </TooltipTrigger>
+          <TooltipContent side="right">Jump to first comment</TooltipContent>
+        </Tooltip>
       )}
-    </button>
+    </div>
   );
 });
 
@@ -227,6 +251,7 @@ interface FileTreeProps {
   collapsedFolders: Set<string>;
   onToggleFolder: (path: string) => void;
   onNavigate: (path: string) => void;
+  onNavigateComment: (path: string) => void;
 }
 
 const FolderRow = memo(function FolderRow({
@@ -293,6 +318,7 @@ const FileTree = memo(function FileTree({
   collapsedFolders,
   onToggleFolder,
   onNavigate,
+  onNavigateComment,
 }: FileTreeProps) {
   return nodes.map((node) => {
     if (node.type === "folder") {
@@ -312,6 +338,7 @@ const FileTree = memo(function FileTree({
             collapsedFolders={collapsedFolders}
             onToggleFolder={onToggleFolder}
             onNavigate={onNavigate}
+            onNavigateComment={onNavigateComment}
           />
         </FolderRow>
       );
@@ -325,9 +352,59 @@ const FileTree = memo(function FileTree({
         isSelected={selectedFile === node.path}
         commentCount={commentsByFile.get(node.path) ?? 0}
         onNavigate={onNavigate}
+        onNavigateComment={onNavigateComment}
       />
     );
   });
+});
+
+interface CommentListProps {
+  comments: Comment[];
+  activeCommentId: string | null;
+  onNavigateComment: (id: string) => void;
+}
+
+const getCommentPreview = (comment: Comment): string =>
+  comment.body.split(/\s+/).join(" ").trim() || "(empty comment)";
+
+const CommentList = memo(function CommentList({
+  comments,
+  activeCommentId,
+  onNavigateComment,
+}: CommentListProps) {
+  if (comments.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+        <p className="text-xs text-sidebar-foreground/50">No comments</p>
+      </div>
+    );
+  }
+
+  return comments.map((comment) => (
+    <button
+      type="button"
+      key={comment.id}
+      aria-current={activeCommentId === comment.id ? "true" : undefined}
+      className={cn(
+        "flex w-full flex-col gap-1 border-b border-sidebar-border/50 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+        activeCommentId === comment.id
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+      )}
+      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+      onClick={() => onNavigateComment(comment.id)}
+    >
+      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-sidebar-foreground/50">
+        <BubbleDotsIcon size={10} className="shrink-0 text-diff-purple" />
+        <span className="min-w-0 flex-1 truncate font-mono">{comment.file}</span>
+        <span className="shrink-0 font-mono">L{comment.lineNumber}</span>
+        {comment.resolved && <CheckIcon size={10} className="shrink-0 text-diff-green" />}
+      </span>
+      <span className="line-clamp-2 text-[12px] leading-snug text-sidebar-foreground/80">
+        {getCommentPreview(comment)}
+      </span>
+    </button>
+  ));
 });
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -338,7 +415,10 @@ export const FileList = ({
   files,
   selectedFile,
   onSelectFile,
+  onSelectFileComment,
+  onSelectComment,
   comments,
+  activeCommentId,
   filterQuery,
   onFilterChange,
   isLoading = false,
@@ -348,6 +428,7 @@ export const FileList = ({
   onSidebarWidthChange,
 }: FileListProps) => {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<"files" | "comments">("files");
 
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -402,6 +483,17 @@ export const FileList = ({
         : files,
     [files, filterQuery],
   );
+  const filteredComments = useMemo(() => {
+    const query = filterQuery.trim().toLowerCase();
+    if (!query) {
+      return comments;
+    }
+
+    return comments.filter((comment) => {
+      const haystack = `${comment.file} ${comment.body} ${comment.tag}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [comments, filterQuery]);
 
   const tree = useMemo(() => compactTree(buildTree(filtered)), [filtered]);
   const folderPaths = useMemo(() => collectFolderPaths(tree), [tree]);
@@ -460,6 +552,21 @@ export const FileList = ({
     [onSelectFile],
   );
 
+  const handleNavigateComment = useCallback(
+    (file: string) => {
+      onSelectFileComment(file);
+    },
+    [onSelectFileComment],
+  );
+
+  const showFiles = useCallback(() => {
+    setViewMode("files");
+  }, []);
+
+  const showComments = useCallback(() => {
+    setViewMode("comments");
+  }, []);
+
   let treeContent: React.ReactNode = null;
   if (isLoading) {
     treeContent = (
@@ -467,7 +574,7 @@ export const FileList = ({
         <p className="animate-pulse text-xs text-sidebar-foreground/50">Loading…</p>
       </div>
     );
-  } else if (filtered.length === 0) {
+  } else if (viewMode === "files" && filtered.length === 0) {
     treeContent = (
       <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
         <p className="text-xs text-sidebar-foreground/50">No changes</p>
@@ -479,24 +586,72 @@ export const FileList = ({
       </div>
     );
   } else {
-    treeContent = (
-      <FileTree
-        nodes={tree}
-        depth={0}
-        selectedFile={selectedFile}
-        commentsByFile={commentsByFile}
-        collapsedFolders={collapsedFolders}
-        onToggleFolder={toggleFolder}
-        onNavigate={handleNavigate}
-      />
-    );
+    treeContent =
+      viewMode === "comments" ? (
+        <CommentList
+          comments={filteredComments}
+          activeCommentId={activeCommentId}
+          onNavigateComment={onSelectComment}
+        />
+      ) : (
+        <FileTree
+          nodes={tree}
+          depth={0}
+          selectedFile={selectedFile}
+          commentsByFile={commentsByFile}
+          collapsedFolders={collapsedFolders}
+          onToggleFolder={toggleFolder}
+          onNavigate={handleNavigate}
+          onNavigateComment={handleNavigateComment}
+        />
+      );
   }
 
   return (
     <TooltipProvider delay={400}>
       <Sidebar collapsible="offcanvas" className="overflow-hidden border-r border-sidebar-border">
         {/* Filter */}
-        <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center py-0 px-2">
+        <SidebarHeader className="border-b border-sidebar-border h-[52px] flex-row items-center gap-1 py-0 px-2">
+          <div className="flex shrink-0 rounded-md border border-sidebar-border bg-sidebar-accent p-0.5">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="Show files"
+                    aria-pressed={viewMode === "files"}
+                    onClick={showFiles}
+                    className={cn(
+                      "rounded px-1.5 py-1 text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+                      viewMode === "files" && "bg-sidebar text-sidebar-foreground",
+                    )}
+                  />
+                }
+              >
+                <FileDiffIcon size={12} />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Files</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="Show comments"
+                    aria-pressed={viewMode === "comments"}
+                    onClick={showComments}
+                    className={cn(
+                      "rounded px-1.5 py-1 text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
+                      viewMode === "comments" && "bg-sidebar text-sidebar-foreground",
+                    )}
+                  />
+                }
+              >
+                <ReadingListIcon size={12} />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Comments</TooltipContent>
+            </Tooltip>
+          </div>
           <div className="relative flex w-full items-center">
             <MagnifyingGlassIcon
               size={12}
@@ -507,8 +662,8 @@ export const FileList = ({
               value={filterQuery}
               // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
               onChange={(e) => onFilterChange(e.target.value)}
-              placeholder="Filter files…"
-              aria-label="Filter files"
+              placeholder={viewMode === "comments" ? "Filter comments…" : "Filter files…"}
+              aria-label={viewMode === "comments" ? "Filter comments" : "Filter files"}
               className="w-full rounded-md border border-sidebar-border bg-sidebar-accent py-1.5 pl-7 pr-7 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 transition-colors focus:border-sidebar-ring/50 focus:outline-none"
             />
             {filterQuery && (
@@ -532,10 +687,16 @@ export const FileList = ({
         <SidebarFooter className="border-t border-sidebar-border px-3 py-2">
           <div className="flex items-center gap-2 text-[12px] font-mono text-sidebar-foreground/60">
             <span>
-              {files.length} {files.length === 1 ? "file" : "files"}
+              {viewMode === "comments"
+                ? `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`
+                : `${files.length} ${files.length === 1 ? "file" : "files"}`}
             </span>
-            {insertions > 0 && <span className="text-diff-green">+{insertions}</span>}
-            {deletions > 0 && <span className="text-destructive">−{deletions}</span>}
+            {viewMode === "files" && insertions > 0 && (
+              <span className="text-diff-green">+{insertions}</span>
+            )}
+            {viewMode === "files" && deletions > 0 && (
+              <span className="text-destructive">−{deletions}</span>
+            )}
           </div>
         </SidebarFooter>
 

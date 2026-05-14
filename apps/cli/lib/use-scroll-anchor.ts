@@ -3,76 +3,136 @@
 import { useEffect } from "react";
 
 interface ScrollAnchorOptions {
+  /** Prefer this visible element over the section under the toolbar. */
+  preferredSelector?: string | null;
   /** CSS selector that matches every observed section. */
   selector: string;
   /** Container whose descendants to observe (defaults to document.body). */
   rootRef?: React.RefObject<HTMLElement | null>;
+  /** Sticky header offset to preserve below (defaults to 52px status bar). */
+  topOffset?: number;
 }
 
 /**
  * Safari-safe scroll anchor.
  *
  * WebKit ships no native `overflow-anchor` ([WebKit #171099][1]), so any
- * height change above the viewport during scroll silently pushes the user.
- * This hook observes every section matching `selector`. When a section
- * resizes:
- *
- * - If the section is **entirely above** the viewport, we adjust the page's
- *   scroll position by the size delta so the user's visible content does not
- *   shift.
- * - If the section is in or below the viewport, we leave scrollY alone — the
- *   user expects to see growth happening within their view.
- *
- * Compensations are batched per animation frame so multiple sections growing
- * in the same tick produce a single `scrollBy` call.
+ * height change above the viewport silently pushes the user. Tracking only
+ * "resized sections above the viewport" misses first-render and near-top
+ * mutations, so this hook continuously records the section under the sticky
+ * toolbar and restores that section's screen position after resize/mutation
+ * batches.
  *
  * [1]: https://bugs.webkit.org/show_bug.cgi?id=171099
  */
-export const useScrollAnchor = ({ selector, rootRef }: ScrollAnchorOptions) => {
+export const useScrollAnchor = ({
+  preferredSelector,
+  selector,
+  rootRef,
+  topOffset = 52,
+}: ScrollAnchorOptions) => {
   useEffect(() => {
     if (typeof ResizeObserver === "undefined" || typeof MutationObserver === "undefined") {
       return;
     }
 
-    const observedHeights = new WeakMap<Element, number>();
-    let pendingDelta = 0;
-    let rafId = 0;
+    interface Anchor {
+      element: Element;
+      top: number;
+    }
 
-    const flush = () => {
-      rafId = 0;
-      if (pendingDelta === 0) {
-        return;
-      }
-      const delta = pendingDelta;
-      pendingDelta = 0;
-      window.scrollBy({ behavior: "instant", left: 0, top: delta });
+    let anchor: Anchor | null = null;
+    let restoreRafId = 0;
+    let captureRafId = 0;
+    let suppressCaptureUntil = 0;
+
+    const getRoot = (): HTMLElement => rootRef?.current ?? document.body;
+
+    const isVisibleAnchor = (element: Element): boolean => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > topOffset && rect.top < window.innerHeight;
     };
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const next = entry.contentRect.height;
-        const last = observedHeights.get(entry.target);
-        observedHeights.set(entry.target, next);
-        if (last === undefined || last === next) {
+    const captureAnchor = () => {
+      const root = getRoot();
+      const preferred = preferredSelector ? root.querySelector(preferredSelector) : null;
+      if (preferred && isVisibleAnchor(preferred)) {
+        anchor = {
+          element: preferred,
+          top: preferred.getBoundingClientRect().top,
+        };
+        return;
+      }
+
+      const sections = [...root.querySelectorAll(selector)];
+      if (sections.length === 0) {
+        anchor = null;
+        return;
+      }
+
+      let selected = sections[0] ?? null;
+      for (const section of sections) {
+        const rect = section.getBoundingClientRect();
+        if (rect.bottom <= topOffset) {
+          selected = section;
           continue;
         }
-        const rect = entry.target.getBoundingClientRect();
-        // Only compensate for changes that happened entirely above the
-        // viewport's top edge. Partial overlap is rare and self-correcting
-        // (the user sees the growth happening in their view).
-        if (rect.bottom <= 0) {
-          pendingDelta += next - last;
+        selected = section;
+        break;
+      }
+
+      if (!selected) {
+        anchor = null;
+        return;
+      }
+
+      anchor = {
+        element: selected,
+        top: selected.getBoundingClientRect().top,
+      };
+    };
+
+    const scheduleCapture = () => {
+      if (captureRafId !== 0 || Date.now() < suppressCaptureUntil) {
+        return;
+      }
+      captureRafId = requestAnimationFrame(() => {
+        captureRafId = 0;
+        captureAnchor();
+      });
+    };
+
+    const scheduleRestore = () => {
+      if (restoreRafId !== 0) {
+        return;
+      }
+      restoreRafId = requestAnimationFrame(() => {
+        restoreRafId = 0;
+
+        if (!anchor || !anchor.element.isConnected) {
+          captureAnchor();
+          return;
         }
-      }
-      if (pendingDelta !== 0 && rafId === 0) {
-        rafId = requestAnimationFrame(flush);
-      }
-    });
+
+        const nextTop = anchor.element.getBoundingClientRect().top;
+        const delta = nextTop - anchor.top;
+        if (Math.abs(delta) > 0.5) {
+          suppressCaptureUntil = Date.now() + 80;
+          window.scrollBy({ behavior: "instant", left: 0, top: delta });
+        }
+
+        anchor = {
+          element: anchor.element,
+          top: anchor.element.getBoundingClientRect().top,
+        };
+      });
+    };
+
+    const observer = new ResizeObserver(scheduleRestore);
 
     const seenSections = new WeakSet<Element>();
     const refresh = () => {
-      const root = rootRef?.current ?? document.body;
-      const sections = root.querySelectorAll(selector);
+      const sections = getRoot().querySelectorAll(selector);
       for (const section of sections) {
         if (seenSections.has(section)) {
           continue;
@@ -83,16 +143,27 @@ export const useScrollAnchor = ({ selector, rootRef }: ScrollAnchorOptions) => {
     };
 
     refresh();
-    const mutation = new MutationObserver(refresh);
-    const root = rootRef?.current ?? document.body;
+    captureAnchor();
+    const mutation = new MutationObserver(() => {
+      refresh();
+      scheduleRestore();
+    });
+    const root = getRoot();
     mutation.observe(root, { childList: true, subtree: true });
+    window.addEventListener("scroll", scheduleCapture, { passive: true });
+    window.addEventListener("resize", scheduleRestore);
 
     return () => {
-      if (rafId !== 0) {
-        cancelAnimationFrame(rafId);
+      if (restoreRafId !== 0) {
+        cancelAnimationFrame(restoreRafId);
+      }
+      if (captureRafId !== 0) {
+        cancelAnimationFrame(captureRafId);
       }
       observer.disconnect();
       mutation.disconnect();
+      window.removeEventListener("scroll", scheduleCapture);
+      window.removeEventListener("resize", scheduleRestore);
     };
-  }, [selector, rootRef]);
+  }, [preferredSelector, selector, rootRef, topOffset]);
 };
