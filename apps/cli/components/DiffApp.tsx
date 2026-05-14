@@ -1,11 +1,19 @@
 "use client";
 
 import type { AnnotationSide } from "@pierre/diffs";
-import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  startTransition,
+} from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
-import { DiffViewer, getDiffSectionId } from "./DiffViewer";
+import { DiffViewer, getCommentElementId, getDiffSectionId } from "./DiffViewer";
 import { useTheme } from "./theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -80,6 +88,7 @@ interface MainPanelProps {
   syncNotice: SyncNotice | null;
   layout: "split" | "stacked";
   comments: Comment[];
+  activeCommentId: string | null;
   onAddComment: (
     file: string,
     lineNumber: number,
@@ -90,6 +99,7 @@ interface MainPanelProps {
   onDeleteComment: (id: string) => Promise<boolean>;
   onResolveComment: (id: string, resolved: boolean) => Promise<boolean>;
   onReplyToComment: (id: string, body: string) => Promise<boolean>;
+  onNavigateComment: (id: string) => void;
   selectedFile: string | null;
   collapsedFiles: Set<string>;
   forceRenderFiles: ReadonlySet<string>;
@@ -238,6 +248,16 @@ const getFileSectionSelector = (file: string): string => {
   return `#${escaped}`;
 };
 
+const getCommentSelector = (id: string): string => {
+  const elementId = getCommentElementId(id);
+  if (typeof window !== "undefined" && window.CSS?.escape) {
+    return `#${window.CSS.escape(elementId)}`;
+  }
+
+  const escaped = elementId.replaceAll(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, "\\$&");
+  return `#${escaped}`;
+};
+
 const SyncBanner = ({ notice }: { notice: SyncNotice }): React.JSX.Element => {
   let toneClass = "border-border bg-muted/40 text-muted-foreground";
   if (notice.tone === "destructive") {
@@ -288,10 +308,12 @@ const MainPanel = ({
   syncNotice,
   layout,
   comments,
+  activeCommentId,
   onAddComment,
   onDeleteComment,
   onResolveComment,
   onReplyToComment,
+  onNavigateComment,
   selectedFile,
   collapsedFiles,
   forceRenderFiles,
@@ -353,10 +375,12 @@ const MainPanel = ({
         prerenderedHTMLByFile={deferredDiffData.prerenderedHTMLByFile}
         layout={layout}
         comments={comments}
+        activeCommentId={activeCommentId}
         onAddComment={onAddComment}
         onDeleteComment={onDeleteComment}
         onResolveComment={onResolveComment}
         onReplyToComment={onReplyToComment}
+        onNavigateComment={onNavigateComment}
         activeFileId={selectedFile}
         fileStats={filesData.files}
         collapsedFiles={collapsedFiles}
@@ -385,10 +409,16 @@ export const DiffApp = ({
   const filesDataRef = useRef<FilesData | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const commentsRef = useRef<Comment[]>([]);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
   const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", LAYOUT_OPTIONS);
+  const [resolvedCommentsMode, setResolvedCommentsMode] = useLocalStorage<"show" | "hide">(
+    "diffhub-resolved-comments",
+    "show",
+    ["show", "hide"] as const,
+  );
   const { resolvedTheme } = useTheme();
   const diffVariant: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
   const layoutRef = useRef<"split" | "stacked">(layout);
@@ -422,6 +452,34 @@ export const DiffApp = ({
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
   const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
+  const showResolvedComments = resolvedCommentsMode === "show";
+
+  const orderedVisibleComments = useMemo(() => {
+    const fileOrder = new Map(
+      (filesData?.files ?? []).map((fileStat, index) => [fileStat.file, index]),
+    );
+    return comments
+      .filter((comment) => showResolvedComments || !comment.resolved)
+      .toSorted((a, b) => {
+        const fileDelta =
+          (fileOrder.get(a.file) ?? Number.MAX_SAFE_INTEGER) -
+          (fileOrder.get(b.file) ?? Number.MAX_SAFE_INTEGER);
+        if (fileDelta !== 0) {
+          return fileDelta;
+        }
+        if (a.file !== b.file) {
+          return a.file.localeCompare(b.file);
+        }
+        if (a.lineNumber !== b.lineNumber) {
+          return a.lineNumber - b.lineNumber;
+        }
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+  }, [comments, filesData, showResolvedComments]);
+
+  const activeCommentIndex = orderedVisibleComments.findIndex(
+    (comment) => comment.id === activeCommentId,
+  );
 
   useEffect(() => {
     diffModeRef.current = diffMode;
@@ -434,6 +492,15 @@ export const DiffApp = ({
   useEffect(() => {
     commentsRef.current = comments;
   }, [comments]);
+
+  useEffect(() => {
+    if (
+      activeCommentId !== null &&
+      !orderedVisibleComments.some((comment) => comment.id === activeCommentId)
+    ) {
+      setActiveCommentId(null);
+    }
+  }, [activeCommentId, orderedVisibleComments]);
 
   // Sync collapsed files from localStorage after mount
   useEffect(() => {
@@ -474,12 +541,14 @@ export const DiffApp = ({
     diffErrorRef.current = diffError;
   }, [diffError]);
 
-  // Safari-safe scroll anchor: when any file section above the viewport
-  // changes height, compensate window.scrollY so the user's view doesn't
-  // shift. Replaces the previous diff-data-only captureViewportAnchor +
-  // useLayoutEffect pair, which fired too rarely to catch @pierre/diffs
-  // post-mount resize cascades.
-  useScrollAnchor({ selector: "[data-file-section]" });
+  const activeCommentSelector = useMemo(
+    () => (activeCommentId ? getCommentSelector(activeCommentId) : null),
+    [activeCommentId],
+  );
+
+  // Safari-safe scroll anchor: preserve the visible active comment first,
+  // otherwise preserve the file section under the sticky toolbar.
+  useScrollAnchor({ preferredSelector: activeCommentSelector, selector: "[data-file-section]" });
 
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
@@ -999,6 +1068,115 @@ export const DiffApp = ({
     [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
   );
 
+  const scrollToComment = useCallback(
+    (commentId: string, behavior: ScrollBehavior = "smooth") => {
+      const comment = orderedVisibleComments.find((candidate) => candidate.id === commentId);
+      if (!comment) {
+        return;
+      }
+
+      setActiveCommentId(comment.id);
+      lockActiveFile(comment.file);
+
+      const files = filesData?.files.map((stat) => stat.file) ?? [];
+      const index = files.indexOf(comment.file);
+      addForceRenderFiles([comment.file, files[index - 1], files[index + 1]]);
+
+      updateCollapsedFiles((previous) => {
+        if (previous.has(comment.file)) {
+          const next = new Set(previous);
+          next.delete(comment.file);
+          return next;
+        }
+        return previous;
+      });
+
+      const commentSelector = getCommentSelector(comment.id);
+      const performScroll = (element: HTMLElement): void => {
+        element.scrollIntoView({ behavior, block: "center" });
+      };
+
+      const commentElement = document.querySelector<HTMLElement>(commentSelector);
+      if (commentElement) {
+        performScroll(commentElement);
+        return;
+      }
+
+      scrollToFile(comment.file, behavior);
+
+      const container = document.querySelector("#diff-container");
+      if (!container) {
+        return;
+      }
+
+      const observer = new MutationObserver(() => {
+        const delayedCommentElement = document.querySelector<HTMLElement>(commentSelector);
+        if (delayedCommentElement) {
+          observer.disconnect();
+          performScroll(delayedCommentElement);
+        }
+      });
+
+      observer.observe(container, { childList: true, subtree: true });
+      setTimeout(() => observer.disconnect(), 5000);
+    },
+    [
+      addForceRenderFiles,
+      filesData,
+      lockActiveFile,
+      orderedVisibleComments,
+      scrollToFile,
+      updateCollapsedFiles,
+    ],
+  );
+
+  const scrollToFileComment = useCallback(
+    (file: string) => {
+      const comment = orderedVisibleComments.find((candidate) => candidate.file === file);
+      if (comment) {
+        scrollToComment(comment.id, "auto");
+        return;
+      }
+      scrollToFile(file, "auto");
+    },
+    [orderedVisibleComments, scrollToComment, scrollToFile],
+  );
+
+  const navigateRelativeComment = useCallback(
+    (direction: 1 | -1) => {
+      if (orderedVisibleComments.length === 0) {
+        return;
+      }
+
+      let currentIndex = activeCommentIndex;
+      if (currentIndex === -1) {
+        currentIndex = direction === 1 ? -1 : 0;
+      }
+      const nextIndex =
+        (currentIndex + direction + orderedVisibleComments.length) % orderedVisibleComments.length;
+      const nextComment = orderedVisibleComments[nextIndex];
+      if (nextComment) {
+        scrollToComment(nextComment.id, "auto");
+      }
+    },
+    [activeCommentIndex, orderedVisibleComments, scrollToComment],
+  );
+
+  const handlePreviousComment = useCallback(() => {
+    navigateRelativeComment(-1);
+  }, [navigateRelativeComment]);
+
+  const handleNextComment = useCallback(() => {
+    navigateRelativeComment(1);
+  }, [navigateRelativeComment]);
+
+  const handleShowResolvedCommentsChange = useCallback(
+    (show: boolean) => {
+      setResolvedCommentsMode(show ? "show" : "hide");
+    },
+    [setResolvedCommentsMode],
+  );
+
   const handleActiveFileChange = useCallback((file: string) => {
     const lock = activeFileLockRef.current;
     if (lock) {
@@ -1257,7 +1435,10 @@ export const DiffApp = ({
         files={filesData?.files ?? []}
         selectedFile={selectedFile}
         onSelectFile={scrollToFile}
-        comments={comments}
+        onSelectFileComment={scrollToFileComment}
+        onSelectComment={scrollToComment}
+        comments={orderedVisibleComments}
+        activeCommentId={activeCommentId}
         filterQuery={filterQuery}
         onFilterChange={setFilterQuery}
         isLoading={filesData === null}
@@ -1275,8 +1456,14 @@ export const DiffApp = ({
             refreshing={refreshing || diffRequestPending}
             onRefresh={handleManualRefresh}
             watchStatus={watchStatus}
-            comments={comments}
+            comments={orderedVisibleComments}
             onClearComments={handleClearComments}
+            totalCommentCount={comments.length}
+            activeCommentIndex={activeCommentIndex}
+            showResolvedComments={showResolvedComments}
+            onShowResolvedCommentsChange={handleShowResolvedCommentsChange}
+            onPreviousComment={handlePreviousComment}
+            onNextComment={handleNextComment}
             diffMode={diffMode}
             onDiffModeChange={handleDiffModeChange}
             layout={layout}
@@ -1291,11 +1478,13 @@ export const DiffApp = ({
           diffError={diffError}
           syncNotice={syncNotice}
           layout={layout}
-          comments={comments}
+          comments={orderedVisibleComments}
+          activeCommentId={activeCommentId}
           onAddComment={handleAddComment}
           onDeleteComment={handleDeleteComment}
           onResolveComment={handleResolveComment}
           onReplyToComment={handleReplyToComment}
+          onNavigateComment={scrollToComment}
           selectedFile={selectedFile}
           collapsedFiles={collapsedFiles}
           forceRenderFiles={forceRenderFiles}

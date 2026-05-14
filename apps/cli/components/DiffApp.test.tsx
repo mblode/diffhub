@@ -320,7 +320,7 @@ describe("DiffApp review flow", () => {
       value: { writeText },
     });
     let comments: Comment[] = [
-      {
+      withCommentDefaults({
         body: "Investigate this diff",
         createdAt: "2026-04-15T00:00:00.000Z",
         file: "src/b.ts",
@@ -328,7 +328,7 @@ describe("DiffApp review flow", () => {
         lineNumber: 12,
         side: "right",
         tag: "[must-fix]",
-      },
+      }),
     ];
 
     const fetchMock = vi.fn<typeof fetch>((input, init) => {

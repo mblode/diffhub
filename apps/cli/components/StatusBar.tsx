@@ -7,10 +7,14 @@ import {
   SunIcon,
   MoonIcon,
   SplitIcon,
+  ArrowDownIcon,
   ArrowRightIcon,
   ArrowRotateClockwiseIcon,
+  ArrowUpIcon,
+  EyeOpenIcon,
+  EyeSlashIcon,
 } from "blode-icons-react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Comment } from "@/lib/comment-types";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";
@@ -49,6 +53,12 @@ interface StatusBarProps {
   } | null;
   comments: Comment[];
   onClearComments: () => Promise<boolean>;
+  totalCommentCount: number;
+  activeCommentIndex: number;
+  showResolvedComments: boolean;
+  onShowResolvedCommentsChange: (show: boolean) => void;
+  onPreviousComment: () => void;
+  onNextComment: () => void;
   diffMode: DiffMode;
   onDiffModeChange: (mode: DiffMode) => void;
   layout: "split" | "stacked";
@@ -161,6 +171,105 @@ const useDismissableMenu = (
   }, [menuRef, onClose, open]);
 };
 
+const CommentNavigationControls = ({
+  activeCommentIndex,
+  commentCount,
+  onNextComment,
+  onPreviousComment,
+}: {
+  activeCommentIndex: number;
+  commentCount: number;
+  onNextComment: () => void;
+  onPreviousComment: () => void;
+}) => {
+  if (commentCount === 0) {
+    return null;
+  }
+
+  const label =
+    activeCommentIndex >= 0 ? `${activeCommentIndex + 1}/${commentCount}` : String(commentCount);
+
+  return (
+    <div className="flex items-center gap-0.5 rounded-md border border-border bg-background px-1 py-0.5">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onPreviousComment}
+              aria-label="Previous comment"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+            />
+          }
+        >
+          <ArrowUpIcon size={12} />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Previous comment</TooltipContent>
+      </Tooltip>
+      <span className="min-w-10 text-center font-mono text-[11px] text-muted-foreground">
+        {label}
+      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onNextComment}
+              aria-label="Next comment"
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+            />
+          }
+        >
+          <ArrowDownIcon size={12} />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Next comment</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
+const ResolvedCommentsToggle = ({
+  showResolvedComments,
+  totalCommentCount,
+  onShowResolvedCommentsChange,
+}: {
+  showResolvedComments: boolean;
+  totalCommentCount: number;
+  onShowResolvedCommentsChange: (show: boolean) => void;
+}) => {
+  const handleToggle = useCallback(() => {
+    onShowResolvedCommentsChange(!showResolvedComments);
+  }, [onShowResolvedCommentsChange, showResolvedComments]);
+
+  if (totalCommentCount === 0) {
+    return null;
+  }
+
+  const label = showResolvedComments ? "Hide resolved comments" : "Show resolved comments";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={handleToggle}
+            aria-label={label}
+            aria-pressed={!showResolvedComments}
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+          />
+        }
+      >
+        {showResolvedComments ? <EyeOpenIcon size={14} /> : <EyeSlashIcon size={14} />}
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+};
+
 export const StatusBar = ({
   branch,
   baseBranch,
@@ -170,6 +279,12 @@ export const StatusBar = ({
   syncNotice,
   comments,
   onClearComments,
+  totalCommentCount,
+  activeCommentIndex,
+  showResolvedComments,
+  onShowResolvedCommentsChange,
+  onPreviousComment,
+  onNextComment,
   diffMode,
   onDiffModeChange,
   layout,
@@ -369,7 +484,19 @@ export const StatusBar = ({
             )}
           </div>
 
-          {/* Comments export */}
+          <CommentNavigationControls
+            activeCommentIndex={activeCommentIndex}
+            commentCount={comments.length}
+            onNextComment={onNextComment}
+            onPreviousComment={onPreviousComment}
+          />
+
+          <ResolvedCommentsToggle
+            showResolvedComments={showResolvedComments}
+            totalCommentCount={totalCommentCount}
+            onShowResolvedCommentsChange={onShowResolvedCommentsChange}
+          />
+
           {comments.length > 0 && (
             <Tooltip>
               <TooltipTrigger

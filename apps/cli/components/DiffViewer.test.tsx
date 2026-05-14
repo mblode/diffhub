@@ -1,11 +1,39 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DiffViewer } from "./DiffViewer";
+import { DiffViewer, getCommentElementId } from "./DiffViewer";
+import type { Comment } from "@/lib/comment-types";
 import type * as ThemeProviderModule from "./theme-provider";
 
 const { MockPatchDiff } = vi.hoisted(() => ({
-  MockPatchDiff: ({ patch }: { patch: string }) => <div data-testid="patch-viewer">{patch}</div>,
+  MockPatchDiff: ({
+    lineAnnotations,
+    patch,
+    renderAnnotation,
+  }: {
+    lineAnnotations?: { lineNumber: number; metadata?: unknown; side: string }[];
+    patch: string;
+    renderAnnotation?: (annotation: {
+      lineNumber: number;
+      metadata?: unknown;
+      side: string;
+    }) => React.ReactNode;
+  }) => (
+    <div data-testid="patch-viewer">
+      {patch}
+      {lineAnnotations?.map((annotation) => {
+        const metadata =
+          typeof annotation.metadata === "object" && annotation.metadata !== null
+            ? JSON.stringify(annotation.metadata)
+            : String(annotation.metadata ?? "");
+        return (
+          <div key={`${annotation.side}:${annotation.lineNumber}:${metadata}`}>
+            {renderAnnotation?.(annotation)}
+          </div>
+        );
+      })}
+    </div>
+  ),
 }));
 
 vi.mock(import("./theme-provider"), async (importOriginal) => {
@@ -42,9 +70,10 @@ vi.mock(import("next/dynamic"), async (importOriginal) => {
 const makeProps = (fileCount: number) => {
   const files = Array.from({ length: fileCount }, (_, index) => `src/file-${index}.ts`);
   return {
+    activeCommentId: null,
     activeFileId: files[0],
     collapsedFiles: new Set<string>(),
-    comments: [],
+    comments: [] as Comment[],
     fileStats: files.map((file) => ({
       binary: false,
       changes: 1,
@@ -67,6 +96,7 @@ const makeProps = (fileCount: number) => {
       >()
       .mockResolvedValue(true),
     onDeleteComment: vi.fn<(id: string) => Promise<boolean>>().mockResolvedValue(true),
+    onNavigateComment: vi.fn<(id: string) => void>(),
     onReplyToComment: vi
       .fn<(id: string, body: string) => Promise<boolean>>()
       .mockResolvedValue(true),
@@ -84,6 +114,26 @@ const makeProps = (fileCount: number) => {
     repoPath: "/tmp/repo",
   };
 };
+
+const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
+  anchor: {
+    afterContext: [],
+    beforeContext: [],
+    fileSha: "",
+    lineContent: "",
+  },
+  body: "comment body",
+  createdAt: "2026-05-14T00:00:00.000Z",
+  file: "src/file-0.ts",
+  id: "comment-1",
+  lineNumber: 1,
+  replies: [],
+  resolved: false,
+  side: "right",
+  staleness: "fresh",
+  tag: "",
+  ...overrides,
+});
 
 describe("diff viewer rendering", () => {
   afterEach(() => {
@@ -175,5 +225,25 @@ describe("diff viewer rendering", () => {
 
     expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
+  });
+
+  it("renders comments in a stable file-level comments block", () => {
+    const props = makeProps(1);
+    props.comments = [
+      makeComment({
+        body: "resolved outside patch",
+        id: "comment-outside",
+        lineNumber: 99,
+        resolved: true,
+        resolvedAt: "2026-05-14T01:00:00.000Z",
+        resolvedBy: "Reviewer",
+      }),
+    ];
+
+    render(<DiffViewer {...props} />);
+
+    expect(screen.getByText("Comments")).toBeTruthy();
+    expect(screen.getByText(/resolved outside patch/)).toBeTruthy();
+    expect(document.querySelector(`#${getCommentElementId("comment-outside")}`)).not.toBeNull();
   });
 });
