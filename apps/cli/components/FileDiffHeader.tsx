@@ -15,6 +15,7 @@ interface FileDiffHeaderProps {
   collapsed?: boolean;
   active?: boolean;
   onToggleCollapse?: () => void;
+  onJumpToFirstComment?: () => void;
   headingId?: string;
   panelId?: string;
 }
@@ -28,6 +29,7 @@ export const FileDiffHeader = ({
   collapsed = false,
   active = false,
   onToggleCollapse,
+  onJumpToFirstComment,
   headingId,
   panelId,
 }: FileDiffHeaderProps) => {
@@ -48,6 +50,11 @@ export const FileDiffHeader = ({
         detail: { file },
       }),
     );
+  };
+
+  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+  const handleJumpToFirstComment = () => {
+    onJumpToFirstComment?.();
   };
 
   return (
@@ -113,10 +120,22 @@ export const FileDiffHeader = ({
 
         {/* Comment badge */}
         {commentCount > 0 && (
-          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-diff-purple/10 text-diff-purple text-[10px] shrink-0">
-            <BubbleDotsIcon size={10} />
-            {commentCount}
-          </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={handleJumpToFirstComment}
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-diff-purple/10 px-1.5 py-0.5 text-[10px] text-diff-purple transition-colors hover:bg-diff-purple/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-diff-purple/50"
+                  aria-label={`Jump to first comment in ${file}`}
+                />
+              }
+            >
+              <BubbleDotsIcon size={10} />
+              {commentCount}
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Jump to first comment</TooltipContent>
+          </Tooltip>
         )}
       </div>
     </TooltipProvider>
