@@ -14,7 +14,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   findMissingStandaloneNodeModuleAliases,
@@ -23,6 +23,7 @@ import {
 
 const execFile = promisify(execFileCb);
 const __dirname = import.meta.dirname;
+const __filename = import.meta.filename;
 const PREFERRED_BASE_BRANCHES = ["main", "master", "develop", "dev"];
 
 // Fast-fail on unsupported Node.js versions
@@ -147,10 +148,18 @@ const getCmuxWriterPidPath = (repoPath) => {
   return join(tmpdir(), `diffhub-cmux-writer-${hash}.pid`);
 };
 
+const getCmuxWatchEventsPidPath = (repoPath) => {
+  const hash = createHash("md5").update(repoPath).digest("hex").slice(0, 8);
+  return join(tmpdir(), `diffhub-cmux-watch-events-${hash}.pid`);
+};
+
 const createServerBootId = (repoPath, baseBranch) =>
   createHash("sha1")
     .update(`${repoPath}:${baseBranch}:${Date.now()}:${Math.random()}`)
     .digest("hex");
+
+const createWatchToken = () =>
+  createHash("sha1").update(`watch:${process.pid}:${Date.now()}:${Math.random()}`).digest("hex");
 
 const clearRepoSnapshotFiles = (repoPath) => {
   const prefix = `diffhub-snapshot-${createHash("sha1").update(repoPath).digest("hex")}-`;
@@ -305,6 +314,36 @@ const resolveBaseBranch = async (repoPath, explicitBaseBranch) => {
   }
 
   return "origin/main";
+};
+
+const getGitDirectory = (repoPath) =>
+  execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-dir"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+
+const getTrackedWatchDirectories = (repoPath) => {
+  const rawFiles = execFileSync("git", ["ls-files", "-z"], {
+    cwd: repoPath,
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const directories = new Set([repoPath]);
+
+  for (const file of rawFiles.split("\0")) {
+    if (!file) {
+      continue;
+    }
+
+    const relativeDirectory = dirname(file);
+    const directory = relativeDirectory === "." ? repoPath : join(repoPath, relativeDirectory);
+    if (existsSync(directory)) {
+      directories.add(directory);
+    }
+  }
+
+  return [...directories];
 };
 
 const buildSnapshot = async (repoPath, explicitBaseBranch, mode, serverBootId) => {
@@ -480,6 +519,89 @@ const startSnapshotWriter = async (repoPath, explicitBaseBranch, serverBootId) =
   };
 };
 
+const postWatchEvent = async (port, token, event, path) => {
+  const response = await fetch(`http://127.0.0.1:${port}/api/watch-events`, {
+    body: JSON.stringify({ event, path }),
+    headers: {
+      Connection: "close",
+      "Content-Type": "application/json",
+      "x-diffhub-watch-token": token,
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(`watch event POST failed with ${response.status}`);
+  }
+};
+
+const startWatchEventForwarder = (repoPath, port, token) => {
+  const gitDir = getGitDirectory(repoPath);
+  const watchTargets = [
+    ...getTrackedWatchDirectories(repoPath),
+    join(gitDir, "HEAD"),
+    join(gitDir, "index"),
+    join(gitDir, "packed-refs"),
+  ].filter(existsSync);
+
+  let sendTimer = null;
+  let pendingEvent = null;
+
+  const sendPendingEvent = async (nextEvent) => {
+    try {
+      await postWatchEvent(port, token, nextEvent.event, nextEvent.path);
+    } catch (error) {
+      console.error("[diffhub] failed to forward watch event", { error });
+    }
+  };
+
+  const flushPendingEvent = () => {
+    const nextEvent = pendingEvent;
+    pendingEvent = null;
+    sendTimer = null;
+
+    if (!nextEvent) {
+      return;
+    }
+
+    void sendPendingEvent(nextEvent);
+  };
+
+  const scheduleEvent = (event, path = null) => {
+    pendingEvent = { event, path };
+    if (sendTimer) {
+      clearTimeout(sendTimer);
+    }
+
+    sendTimer = setTimeout(flushPendingEvent, 150);
+  };
+
+  const watcher = watch(watchTargets, {
+    atomic: true,
+    depth: 0,
+    ignoreInitial: true,
+    ignored: (pathToCheck) => shouldIgnoreWatchPath(pathToCheck, repoPath),
+    persistent: true,
+  });
+
+  watcher.on("add", (path) => scheduleEvent("add", path));
+  watcher.on("addDir", (path) => scheduleEvent("addDir", path));
+  watcher.on("change", (path) => scheduleEvent("change", path));
+  watcher.on("unlink", (path) => scheduleEvent("unlink", path));
+  watcher.on("unlinkDir", (path) => scheduleEvent("unlinkDir", path));
+  watcher.on("error", (error) => {
+    console.error("[diffhub] watch event forwarder failed", { error });
+  });
+
+  return async () => {
+    if (sendTimer) {
+      clearTimeout(sendTimer);
+      sendTimer = null;
+    }
+    await watcher.close();
+  };
+};
+
 const listSnapshotWriterProcesses = async (repoPath) => {
   try {
     const { stdout } = await execFile("ps", ["-axo", "pid=,command="], {
@@ -592,6 +714,115 @@ const stopSnapshotWriterProcess = async (repoPath) => {
   } catch {
     // empty
   }
+};
+
+const listWatchEventProcesses = async (repoPath) => {
+  try {
+    const { stdout } = await execFile("ps", ["-axo", "pid=,command="], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const repoMatcher = `--repo ${repoPath}`;
+    return stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const firstSpace = line.indexOf(" ");
+        if (firstSpace === -1) {
+          return null;
+        }
+
+        const pid = Number.parseInt(line.slice(0, firstSpace), 10);
+        const command = line.slice(firstSpace + 1);
+        if (
+          !Number.isInteger(pid) ||
+          pid <= 0 ||
+          pid === process.pid ||
+          !command.includes("internal-watch-events") ||
+          !command.includes(repoMatcher)
+        ) {
+          return null;
+        }
+
+        return { command, pid };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const stopWatchEventsProcess = async (repoPath) => {
+  const pidPath = getCmuxWatchEventsPidPath(repoPath);
+  const targetPids = new Set();
+
+  try {
+    const pid = Number.parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
+    if (Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+      targetPids.add(pid);
+    }
+  } catch {
+    // empty
+  }
+
+  const runningWatchers = await listWatchEventProcesses(repoPath);
+  for (const watcher of runningWatchers) {
+    targetPids.add(watcher.pid);
+  }
+
+  for (const pid of targetPids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // empty
+    }
+  }
+
+  const remainingPids = [...targetPids];
+  const exited = await waitForProcessesToExit(remainingPids);
+  if (!exited) {
+    for (const pid of remainingPids) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // empty
+      }
+    }
+
+    await waitForProcessesToExit(remainingPids, 1000);
+  }
+
+  try {
+    unlinkSync(pidPath);
+  } catch {
+    // empty
+  }
+};
+
+const startWatchEventsProcess = (repoPath, port, token) => {
+  const child = spawn(
+    process.execPath,
+    [
+      __filename,
+      "internal-watch-events",
+      "--repo",
+      repoPath,
+      "--port",
+      String(port),
+      "--token",
+      token,
+    ],
+    {
+      detached: true,
+      stdio: "ignore",
+    },
+  );
+
+  child.unref();
+  writeFileSync(getCmuxWatchEventsPidPath(repoPath), `${child.pid ?? ""}\n`);
+  return child;
 };
 
 const REPO_POINTER = "/tmp/diffhub-active-repo";
@@ -734,8 +965,10 @@ const startServer = (repoPath, baseBranch, port, options = {}) => {
     cmux = false,
     detached = false,
     disableWatch,
+    externalWatcher = false,
     logPath,
     serverBootId = createServerBootId(repoPath, baseBranch),
+    watchToken,
   } = options;
   const shouldDisableWatch = disableWatch ?? Boolean(logPath);
   let stdio = ["ignore", "inherit", "inherit"];
@@ -759,7 +992,9 @@ const startServer = (repoPath, baseBranch, port, options = {}) => {
     ...process.env,
     ...(baseBranch ? { DIFFHUB_BASE: baseBranch } : {}),
     ...(cmux ? { DIFFHUB_CMUX: "1" } : {}),
+    ...(externalWatcher ? { DIFFHUB_EXTERNAL_WATCHER: "1" } : {}),
     ...(shouldDisablePrerender ? { DIFFHUB_DISABLE_PRERENDER: "1" } : {}),
+    ...(watchToken ? { DIFFHUB_WATCH_TOKEN: watchToken } : {}),
     DIFFHUB_REPO: repoPath,
     DIFFHUB_SERVER_BOOT_ID: serverBootId,
     HOSTNAME: "127.0.0.1",
@@ -862,6 +1097,25 @@ const internalSnapshotWriterAction = async (opts) => {
   process.on("SIGTERM", cleanup);
 };
 
+const internalWatchEventsAction = (opts) => {
+  const repoPath = validateRepo(resolve(opts.repo));
+  const port = Number.parseInt(opts.port, 10);
+  if (!Number.isInteger(port) || port <= 0) {
+    console.error("❌ Invalid port:", opts.port);
+    process.exit(1);
+  }
+
+  const stopWatchEventForwarder = startWatchEventForwarder(repoPath, port, opts.token);
+
+  const cleanup = async () => {
+    await stopWatchEventForwarder();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+};
+
 // -- serve action (default) --------------------------------------------------
 
 const serveAction = async (opts) => {
@@ -933,26 +1187,34 @@ const cmuxAction = async (opts) => {
   const serverLogPath = getCmuxServerLogPath(repoPath);
   const restoreRepoPointer = syncCmuxRepoPointer(repoPath);
   const serverBootId = createServerBootId(repoPath, baseBranch);
+  const watchToken = createWatchToken();
 
   await stopListeningProcesses(port);
   await stopSnapshotWriterProcess(repoPath);
+  await stopWatchEventsProcess(repoPath);
   clearRepoSnapshotFiles(repoPath);
 
   await cmuxNotify("diffhub", "Starting server...");
 
-  // Let the server handle file watching and diff computation directly.
-  // The external snapshot writer is not used — it hits EBADF errors on
-  // macOS when chokidar's FSEvents interacts with child_process spawning.
-  // The server's built-in fs.watch + async spawn pipeline works reliably.
+  // Keep chokidar out of the standalone Next server. A separate helper watches
+  // files and forwards local events into the server, so git spawning and
+  // FSEvents live in different processes.
   const { bootId, server } = startServer(repoPath, baseBranch, port, {
     cmux: true,
     detached: true,
     disableWatch: false,
+    externalWatcher: true,
     logPath: serverLogPath,
     serverBootId,
+    watchToken,
   });
+  let watchEventsProcess = null;
 
   const cleanup = () => {
+    if (watchEventsProcess && !watchEventsProcess.killed) {
+      watchEventsProcess.kill();
+    }
+    rmSync(getCmuxWatchEventsPidPath(repoPath), { force: true });
     server.kill();
     restoreRepoPointer();
     process.exit(0);
@@ -968,6 +1230,7 @@ const cmuxAction = async (opts) => {
     return;
   }
 
+  watchEventsProcess = startWatchEventsProcess(repoPath, port, watchToken);
   await cmuxNotify("diffhub", `Opening diff: ${repoPath}`);
 
   const surfaceRef = await cmuxOpenSplit(url);
@@ -1013,5 +1276,12 @@ program
   .option("-b, --base <branch>", "Base branch to diff against")
   .requiredOption("--boot-id <id>", "Boot identifier for snapshot generation")
   .action(internalSnapshotWriterAction);
+
+program
+  .command("internal-watch-events")
+  .option("-r, --repo <path>", "Git repository path")
+  .requiredOption("--port <port>", "DiffHub server port")
+  .requiredOption("--token <token>", "Watch event authentication token")
+  .action(internalWatchEventsAction);
 
 program.parse(process.argv);

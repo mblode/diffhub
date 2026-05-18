@@ -519,6 +519,76 @@ describe("DiffApp review flow", () => {
     expect(FakeEventSource.instances[0]?.close).toHaveBeenCalledOnce();
   });
 
+  it("supports a polling fallback without opening EventSource", async () => {
+    let version = 1;
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(
+          jsonResponse({
+            ...filesPayload,
+            files: filesPayload.files.map((file) =>
+              file.file === "src/b.ts" && version === 2
+                ? { ...file, changes: 2, insertions: 2 }
+                : file,
+            ),
+            fingerprint: `fingerprint-${version}`,
+            generation: `generation-${version}`,
+            insertions: version === 2 ? 3 : 2,
+          }),
+        );
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(
+          jsonResponse({
+            ...diffPayload,
+            generation: `generation-${version}`,
+            patchesByFile: {
+              ...diffPayload.patchesByFile,
+              "src/b.ts":
+                version === 2
+                  ? "diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+polled\n"
+                  : diffPayload.patchesByFile["src/b.ts"],
+            },
+          }),
+        );
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { unmount } = render(
+      <DiffApp repoPath="/tmp/repo-under-test" watchMode="poll" watchPollMs={25} />,
+    );
+
+    await screen.findByText("feature/diff-review");
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+    });
+    await screen.findByText("Live");
+
+    version = 2;
+
+    await screen.findByText(/polled/);
+    await screen.findByText("Updated just now");
+    expect(FakeEventSource.instances).toHaveLength(0);
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),
+    ).toBeTruthy();
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
+
+    unmount();
+  });
+
   it("keeps the inline draft open when comment creation fails", async () => {
     const user = userEvent.setup();
 
