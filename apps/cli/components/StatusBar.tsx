@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 export type DiffMode = "all" | "uncommitted";
+export type WatchStatus = "connecting" | "live" | "offline" | "updated";
 
 const DIFF_MODES: { value: DiffMode; label: string }[] = [
   { label: "All", value: "all" },
@@ -40,12 +41,14 @@ interface StatusBarProps {
   baseBranch: string;
   refreshing: boolean;
   onRefresh: () => void;
+  watchStatus: WatchStatus;
   syncNotice: {
     detail?: string;
     label: string;
     tone: "neutral" | "warning" | "destructive";
   } | null;
   comments: Comment[];
+  onClearComments: () => Promise<boolean>;
   diffMode: DiffMode;
   onDiffModeChange: (mode: DiffMode) => void;
   layout: "split" | "stacked";
@@ -79,6 +82,51 @@ const SyncNoticeChip = ({ syncNotice }: { syncNotice: StatusBarProps["syncNotice
       )}
     >
       {syncNotice.label}
+    </div>
+  );
+};
+
+const getWatchStatusMeta = (status: WatchStatus, updating: boolean) => {
+  if (updating) {
+    return {
+      className: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
+      label: "Updating…",
+    };
+  }
+
+  if (status === "updated") {
+    return {
+      className: "border-diff-green/30 bg-diff-green/10 text-diff-green",
+      label: "Updated just now",
+    };
+  }
+
+  if (status === "offline") {
+    return {
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      label: "Watch offline",
+    };
+  }
+
+  if (status === "connecting") {
+    return {
+      className: "border-border bg-muted/40 text-muted-foreground",
+      label: "Connecting…",
+    };
+  }
+
+  return {
+    className: "border-border bg-muted/40 text-muted-foreground",
+    label: "Live",
+  };
+};
+
+const WatchStatusChip = ({ status, updating }: { status: WatchStatus; updating: boolean }) => {
+  const meta = getWatchStatusMeta(status, updating);
+
+  return (
+    <div className={cn("rounded-full border px-2 py-1 text-[11px] leading-none", meta.className)}>
+      {meta.label}
     </div>
   );
 };
@@ -118,8 +166,10 @@ export const StatusBar = ({
   baseBranch,
   refreshing,
   onRefresh,
+  watchStatus,
   syncNotice,
   comments,
+  onClearComments,
   diffMode,
   onDiffModeChange,
   layout,
@@ -154,6 +204,10 @@ export const StatusBar = ({
     try {
       const text = exportCommentsAsPrompt(comments);
       await navigator.clipboard.writeText(text);
+      const cleared = await onClearComments();
+      if (!cleared) {
+        return;
+      }
       if (copiedTimerRef.current) {
         clearTimeout(copiedTimerRef.current);
       }
@@ -251,8 +305,8 @@ export const StatusBar = ({
 
         <div className="flex items-center gap-0.5">
           <SyncNoticeChip syncNotice={syncNotice} />
+          <WatchStatusChip status={watchStatus} updating={refreshing} />
 
-          {/* Refresh */}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -261,7 +315,7 @@ export const StatusBar = ({
                   size="icon-xs"
                   onClick={onRefresh}
                   disabled={refreshing}
-                  aria-label="Refresh diff"
+                  aria-label="Force refresh diff"
                   className="text-muted-foreground hover:text-foreground hover:bg-secondary"
                 />
               }
@@ -269,7 +323,7 @@ export const StatusBar = ({
               <ArrowRotateClockwiseIcon size={14} className={cn(refreshing && "animate-spin")} />
             </TooltipTrigger>
             <TooltipContent side="bottom" className="flex items-center gap-2">
-              <span>Refresh</span>
+              <span>Force refresh</span>
               <Kbd>R</Kbd>
             </TooltipContent>
           </Tooltip>
@@ -335,9 +389,11 @@ export const StatusBar = ({
                 )}
                 {copied
                   ? "Copied!"
-                  : `Copy ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+                  : `Copy & clear ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
               </TooltipTrigger>
-              <TooltipContent side="bottom">Copy all comments as AI prompt</TooltipContent>
+              <TooltipContent side="bottom">
+                Copy all comments as AI prompt, then clear them
+              </TooltipContent>
             </Tooltip>
           )}
 

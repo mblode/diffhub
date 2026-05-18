@@ -96,4 +96,33 @@ describe("/api/comments", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toStrictEqual({ error: "id required" });
   });
+
+  it("clears all comments when requested", async () => {
+    for (const body of ["First review note", "Second review note"]) {
+      const response = await POST(
+        new Request("http://localhost/api/comments", {
+          body: JSON.stringify({
+            body,
+            file: "src/a.ts",
+            lineNumber: 12,
+            side: "right",
+            tag: "",
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(201);
+    }
+
+    await expect(GET().json()).resolves.toHaveLength(2);
+
+    const response = await DELETE(
+      new Request("http://localhost/api/comments?all=1", { method: "DELETE" }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ ok: true });
+    await expect(GET().json()).resolves.toStrictEqual([]);
+  });
 });
