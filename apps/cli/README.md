@@ -48,7 +48,7 @@ diffhub --no-open
 - **Whitespace filtering** — ignore whitespace-only changes from the top bar when reviewing formatting-heavy diffs
 - **Inline AI comments** — add `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]` notes on any diff line; copy all comments as a formatted prompt
 - **"Open in" context menu** — right-click any file to open in Zed, VS Code, Ghostty, Terminal, Finder, or copy the path
-- **Live refresh** — polls for changes every 5 seconds; manual refresh with `r`
+- **Live refresh** — watches local file changes and updates the diff automatically; force refresh with `r`
 - **File sidebar** — filter files with `/`, see per-file `+`/`-` stats at a glance
 
 ## Development notes
@@ -64,7 +64,7 @@ diffhub --no-open
 | `j` / `k` | Next / previous file        |
 | `s`       | Toggle split / unified view |
 | `/`       | Focus file filter           |
-| `r`       | Refresh diff                |
+| `r`       | Force refresh diff          |
 
 ## Options
 

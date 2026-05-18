@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
 import type { Comment } from "@/lib/comment-types";
+import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 
 interface MockAnnotation {
   lineNumber: number;
@@ -127,9 +128,53 @@ const countFetchCalls = (
 const getDiffSection = (file: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`[data-filename="${file}"]`);
 
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+
+  listeners = new Map<string, Set<EventListener>>();
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+    FakeEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: EventListener) {
+    const listeners = this.listeners.get(type) ?? new Set<EventListener>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  close = vi.fn<() => void>();
+
+  emit(type: string) {
+    const event = new MessageEvent(type);
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
+  }
+
+  emitReady() {
+    this.emit(WATCH_STREAM_EVENTS.READY);
+  }
+
+  emitChange() {
+    this.emit(WATCH_STREAM_EVENTS.CHANGE);
+  }
+
+  removeEventListener(type: string, listener: EventListener) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  static reset() {
+    FakeEventSource.instances = [];
+  }
+}
+
 describe("DiffApp review flow", () => {
   beforeEach(() => {
     localStorage.clear();
+    FakeEventSource.reset();
   });
 
   afterEach(() => {
@@ -248,7 +293,73 @@ describe("DiffApp review flow", () => {
     );
   });
 
-  it("refetches files and diff when the user clicks the refresh button", async () => {
+  it("copies comments as a prompt and clears them after a successful copy", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    let comments: Comment[] = [
+      {
+        body: "Investigate this diff",
+        createdAt: "2026-04-15T00:00:00.000Z",
+        file: "src/b.ts",
+        id: "comment-1",
+        lineNumber: 12,
+        side: "right",
+        tag: "[must-fix]",
+      },
+    ];
+
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse(comments));
+      }
+
+      if (url === "/api/comments?all=1" && method === "DELETE") {
+        comments = [];
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    const copyButton = await screen.findByRole("button", {
+      name: /copy & clear 1 comment/i,
+    });
+    await user.click(copyButton);
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        expect.stringContaining("- [must-fix] **src/b.ts:12**: Investigate this diff"),
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/comments?all=1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /copy & clear/i })).toBeNull();
+    });
+  });
+
+  it("refetches files and diff when the user clicks the force refresh button", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -282,7 +393,7 @@ describe("DiffApp review flow", () => {
     const initialCommentsCalls = countFetchCalls(fetchMock, "/api/comments");
     const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
 
-    await user.click(screen.getByRole("button", { name: /refresh diff/i }));
+    await user.click(screen.getByRole("button", { name: /force refresh diff/i }));
 
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/files")).toBe(initialFilesCalls + 1);
@@ -334,6 +445,78 @@ describe("DiffApp review flow", () => {
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls + 1);
     });
+  });
+
+  it("refetches files and diff when the watch stream reports a change", async () => {
+    let version = 1;
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(
+          jsonResponse({
+            ...filesPayload,
+            files: filesPayload.files.map((file) =>
+              file.file === "src/b.ts" && version === 2
+                ? { ...file, changes: 2, insertions: 2 }
+                : file,
+            ),
+            fingerprint: `fingerprint-${version}`,
+            generation: `generation-${version}`,
+            insertions: version === 2 ? 3 : 2,
+          }),
+        );
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(
+          jsonResponse({
+            ...diffPayload,
+            generation: `generation-${version}`,
+            patchesByFile: {
+              ...diffPayload.patchesByFile,
+              "src/b.ts":
+                version === 2
+                  ? "diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+watched\n"
+                  : diffPayload.patchesByFile["src/b.ts"],
+            },
+          }),
+        );
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("EventSource", FakeEventSource);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { unmount } = render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    await waitFor(() => {
+      expect(FakeEventSource.instances).toHaveLength(1);
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+    });
+    FakeEventSource.instances[0]?.emitReady();
+    await screen.findByText("Live");
+
+    version = 2;
+    FakeEventSource.instances[0]?.emitChange();
+
+    await screen.findByText(/watched/);
+    await screen.findByText("Updated just now");
+    expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(2);
+    expect(FakeEventSource.instances[0]?.url).toBe("/api/watch");
+
+    unmount();
+    expect(FakeEventSource.instances[0]?.close).toHaveBeenCalledOnce();
   });
 
   it("keeps the inline draft open when comment creation fails", async () => {

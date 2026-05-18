@@ -4,7 +4,7 @@ import type { AnnotationSide } from "@pierre/diffs";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
-import type { DiffMode } from "./StatusBar";
+import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer, getDiffSectionId } from "./DiffViewer";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -15,6 +15,7 @@ import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { useScrollAnchor } from "@/lib/use-scroll-anchor";
+import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 
 interface FilesData {
   files: {
@@ -60,6 +61,10 @@ interface DiffErrorResponse {
 }
 
 type SyncNoticeTone = "neutral" | "warning" | "destructive";
+
+interface PollFilesOptions {
+  includeComments?: boolean;
+}
 
 interface SyncNotice {
   label: string;
@@ -372,6 +377,8 @@ export const DiffApp = ({
   const [filterQuery, setFilterQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [refreshing, setRefreshing] = useState(false);
+  const [watchStatus, setWatchStatus] = useState<WatchStatus>("connecting");
+  const watchStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [diffRequestPending, setDiffRequestPending] = useState(false);
@@ -668,91 +675,159 @@ export const DiffApp = ({
     setDiffError(null);
   }, []);
 
-  const pollFilesRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const pollFilesRef = useRef<(options?: PollFilesOptions) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
 
-  const pollFiles = useCallback(async () => {
-    const finishPoll = () => {
-      setRefreshing(false);
+  const pollFiles = useCallback(
+    async (options: PollFilesOptions = {}) => {
+      const includeComments = options.includeComments ?? true;
+      const finishPoll = () => {
+        setRefreshing(false);
 
-      fetchingRef.current = false;
-      if (queuedPollRef.current) {
-        queuedPollRef.current = false;
-        queueMicrotask(() => {
-          void pollFilesRef.current();
-        });
+        fetchingRef.current = false;
+        if (queuedPollRef.current) {
+          queuedPollRef.current = false;
+          queueMicrotask(() => {
+            void pollFilesRef.current();
+          });
+        }
+      };
+
+      if (fetchingRef.current) {
+        queuedPollRef.current = true;
+        return;
       }
-    };
 
-    if (fetchingRef.current) {
-      queuedPollRef.current = true;
-      return;
-    }
+      fetchingRef.current = true;
+      setRefreshing(true);
+      setLoadError(null);
 
-    fetchingRef.current = true;
-    setRefreshing(true);
-    setLoadError(null);
+      const pollResult = await Promise.all([
+        fetch(`/api/files${buildFilesQuery()}`),
+        includeComments
+          ? fetch("/api/comments")
+              .then(async (response) => {
+                if (!response.ok) {
+                  throw new Error(`Failed to load comments (${response.status})`);
+                }
 
-    const pollResult = await Promise.all([
-      fetch(`/api/files${buildFilesQuery()}`),
-      fetch("/api/comments")
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Failed to load comments (${response.status})`);
-          }
+                return (await response.json()) as Comment[];
+              })
+              .catch((error) => {
+                console.error("[diffhub] comments refresh failed", { error });
+                return null;
+              })
+          : Promise.resolve(null),
+      ]).catch((error) => {
+        setLoadError(error instanceof Error ? error.message : String(error));
+        return null;
+      });
 
-          return (await response.json()) as Comment[];
-        })
-        .catch((error) => {
-          console.error("[diffhub] comments refresh failed", { error });
-          return null;
-        }),
-    ]).catch((error) => {
-      setLoadError(error instanceof Error ? error.message : String(error));
-      return null;
-    });
-
-    if (!pollResult) {
-      finishPoll();
-      return;
-    }
-
-    const [filesResponse, nextComments] = pollResult;
-
-    if (!filesResponse.ok) {
-      const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
-      setLoadError(errorBody.error ?? "Failed to load files");
-      finishPoll();
-      return;
-    }
-
-    const nextFilesData = (await filesResponse.json()) as FilesData;
-    const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
-    const shouldUpdateComments =
-      nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
-
-    if (shouldUpdateFiles || shouldUpdateComments) {
-      if (shouldUpdateFiles) {
-        filesDataRef.current = nextFilesData;
+      if (!pollResult) {
+        finishPoll();
+        return;
       }
-      if (shouldUpdateComments && nextComments !== null) {
-        commentsRef.current = nextComments;
+
+      const [filesResponse, nextComments] = pollResult;
+
+      if (!filesResponse.ok) {
+        const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
+        setLoadError(errorBody.error ?? "Failed to load files");
+        finishPoll();
+        return;
       }
-      startTransition(() => {
+
+      const nextFilesData = (await filesResponse.json()) as FilesData;
+      const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
+      const shouldUpdateComments =
+        nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
+
+      if (shouldUpdateFiles || shouldUpdateComments) {
         if (shouldUpdateFiles) {
-          setFilesData(nextFilesData);
+          filesDataRef.current = nextFilesData;
         }
         if (shouldUpdateComments && nextComments !== null) {
-          setComments(nextComments);
+          commentsRef.current = nextComments;
         }
-      });
-    }
-    reconcileSelectedFile(nextFilesData);
-    finishPoll();
-  }, [buildFilesQuery, reconcileSelectedFile]);
+        startTransition(() => {
+          if (shouldUpdateFiles) {
+            setFilesData(nextFilesData);
+          }
+          if (shouldUpdateComments && nextComments !== null) {
+            setComments(nextComments);
+          }
+        });
+      }
+      reconcileSelectedFile(nextFilesData);
+      finishPoll();
+    },
+    [buildFilesQuery, reconcileSelectedFile],
+  );
 
   useEffect(() => {
     pollFilesRef.current = pollFiles;
   }, [pollFiles]);
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") {
+      setWatchStatus("offline");
+      return;
+    }
+
+    let active = true;
+    setWatchStatus("connecting");
+    const source = new EventSource("/api/watch");
+    const clearWatchStatusTimer = () => {
+      if (watchStatusTimerRef.current) {
+        clearTimeout(watchStatusTimerRef.current);
+        watchStatusTimerRef.current = null;
+      }
+    };
+    const handleReady = () => {
+      clearWatchStatusTimer();
+      setWatchStatus("live");
+    };
+    const handleChange = () => {
+      clearWatchStatusTimer();
+      void (async () => {
+        await pollFilesRef.current({ includeComments: false });
+        if (!active) {
+          return;
+        }
+        setWatchStatus("updated");
+        watchStatusTimerRef.current = setTimeout(() => {
+          if (active) {
+            setWatchStatus("live");
+          }
+        }, 2500);
+      })();
+    };
+    const handleWatchError = (event: Event) => {
+      console.error("[diffhub] file watch stream reported an error", { event });
+      clearWatchStatusTimer();
+      setWatchStatus("offline");
+    };
+    const handleStreamError = () => {
+      clearWatchStatusTimer();
+      setWatchStatus("offline");
+    };
+
+    source.addEventListener(WATCH_STREAM_EVENTS.READY, handleReady);
+    source.addEventListener(WATCH_STREAM_EVENTS.CHANGE, handleChange);
+    source.addEventListener(WATCH_STREAM_EVENTS.ERROR, handleWatchError);
+    source.addEventListener("error", handleStreamError);
+
+    return () => {
+      active = false;
+      clearWatchStatusTimer();
+      source.removeEventListener(WATCH_STREAM_EVENTS.READY, handleReady);
+      source.removeEventListener(WATCH_STREAM_EVENTS.CHANGE, handleChange);
+      source.removeEventListener(WATCH_STREAM_EVENTS.ERROR, handleWatchError);
+      source.removeEventListener("error", handleStreamError);
+      source.close();
+    };
+  }, [repoPath]);
 
   const forceDiffRefetch = useCallback(() => {
     setDiffWatchdogTripped(false);
@@ -1016,6 +1091,27 @@ export const DiffApp = ({
     return true;
   }, []);
 
+  const handleClearComments = useCallback(async () => {
+    if (commentsRef.current.length === 0) {
+      return true;
+    }
+
+    const response = await fetch("/api/comments?all=1", { method: "DELETE" });
+    if (!response.ok) {
+      const errorBody = (await response
+        .json()
+        .catch(() => ({ error: "Failed to clear comments" }))) as DiffErrorResponse;
+      console.error("[diffhub] clear comments failed", {
+        error: errorBody.error ?? `Failed to clear comments (${response.status})`,
+      });
+      return false;
+    }
+
+    commentsRef.current = [];
+    setComments([]);
+    return true;
+  }, []);
+
   const syncNotice = getSyncNotice(loadError, filesData, deferredDiffData, diffError);
 
   if (loadError && filesData === null) {
@@ -1061,7 +1157,9 @@ export const DiffApp = ({
             baseBranch={filesData?.baseBranch ?? "main"}
             refreshing={refreshing || diffRequestPending}
             onRefresh={handleManualRefresh}
+            watchStatus={watchStatus}
             comments={comments}
+            onClearComments={handleClearComments}
             diffMode={diffMode}
             onDiffModeChange={handleDiffModeChange}
             layout={layout}

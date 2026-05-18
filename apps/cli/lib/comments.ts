@@ -94,3 +94,8 @@ export const deleteComment = (id: string): Promise<void> =>
       comments.splice(index, 1);
     }
   });
+
+export const clearComments = (): Promise<void> =>
+  mutateComments((comments) => {
+    comments.splice(0);
+  });

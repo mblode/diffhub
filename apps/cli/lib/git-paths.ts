@@ -11,7 +11,11 @@ export class InvalidRepoFilePathError extends Error {
 }
 
 export const getGitDirectory = (repoPath: string): string => {
-  const gitPath = join(repoPath, ".git");
+  const gitPath = join(
+    /*turbopackIgnore: true*/
+    repoPath,
+    ".git",
+  );
   if (!existsSync(gitPath)) {
     return gitPath;
   }
@@ -26,7 +30,11 @@ export const getGitDirectory = (repoPath: string): string => {
   }
 
   const relativeGitDir = gitPointer.slice(GITDIR_PREFIX.length).trim();
-  return resolve(dirname(gitPath), relativeGitDir);
+  return resolve(
+    /*turbopackIgnore: true*/
+    dirname(gitPath),
+    relativeGitDir,
+  );
 };
 
 export const resolveRepoFilePath = (repoPath: string, filePath: string): string => {

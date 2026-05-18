@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseCommentSide } from "@/lib/comment-sides";
-import { addComment, deleteComment, readComments } from "@/lib/comments";
+import { addComment, clearComments, deleteComment, readComments } from "@/lib/comments";
 import type { CommentTag } from "@/lib/comments";
 
 const VALID_TAGS = new Set<CommentTag>(["[must-fix]", "[suggestion]", "[nit]", "[question]", ""]);
@@ -61,13 +61,18 @@ export const POST = async (request: Request) => {
 
 export const DELETE = async (request: Request) => {
   const { searchParams } = new URL(request.url);
+  const clearAll = searchParams.get("all") === "1";
   const id = searchParams.get("id");
-  if (!id) {
+  if (!clearAll && !id) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
   try {
-    await deleteComment(id);
+    if (clearAll) {
+      await clearComments();
+    } else if (id) {
+      await deleteComment(id);
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

@@ -967,7 +967,7 @@ export const DiffViewer = ({
         </EmptyHeader>
         <EmptyContent>
           <p className="text-xs text-muted-foreground/60">
-            Press <Kbd>r</Kbd> to refresh
+            Press <Kbd>r</Kbd> to force refresh
           </p>
         </EmptyContent>
       </Empty>
