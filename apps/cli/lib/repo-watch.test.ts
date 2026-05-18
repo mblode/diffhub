@@ -55,6 +55,8 @@ vi.mock(import("./git"), () => ({
 
 const tempPaths: string[] = [];
 const originalDisableWatch = process.env.DIFFHUB_DISABLE_WATCH;
+const originalCmuxRuntime = process.env.DIFFHUB_CMUX;
+const originalExternalWatcher = process.env.DIFFHUB_EXTERNAL_WATCHER;
 
 const createRepo = (): string => {
   const repoPath = mkdtempSync(join(tmpdir(), "diffhub-watch-"));
@@ -78,6 +80,8 @@ describe("repo watcher", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     delete process.env.DIFFHUB_DISABLE_WATCH;
+    delete process.env.DIFFHUB_CMUX;
+    delete process.env.DIFFHUB_EXTERNAL_WATCHER;
     chokidarMock.reset();
     gitMock.invalidateGitCache.mockClear();
     resetGlobalWatchState();
@@ -92,6 +96,16 @@ describe("repo watcher", () => {
       delete process.env.DIFFHUB_DISABLE_WATCH;
     } else {
       process.env.DIFFHUB_DISABLE_WATCH = originalDisableWatch;
+    }
+    if (originalCmuxRuntime === undefined) {
+      delete process.env.DIFFHUB_CMUX;
+    } else {
+      process.env.DIFFHUB_CMUX = originalCmuxRuntime;
+    }
+    if (originalExternalWatcher === undefined) {
+      delete process.env.DIFFHUB_EXTERNAL_WATCHER;
+    } else {
+      process.env.DIFFHUB_EXTERNAL_WATCHER = originalExternalWatcher;
     }
 
     for (const tempPath of tempPaths.splice(0)) {
@@ -171,5 +185,41 @@ describe("repo watcher", () => {
     subscribeRepoChanges(repoPath, vi.fn<(event: unknown) => void>());
 
     expect(chokidarMock.watch).not.toHaveBeenCalled();
+  });
+
+  it("does not create a watcher in cmux runtime without an external watcher", async () => {
+    process.env.DIFFHUB_CMUX = "1";
+    const { isRepoWatchDisabled, subscribeRepoChanges } = await import("./repo-watch");
+    const repoPath = createRepo();
+
+    expect(isRepoWatchDisabled()).toBeTruthy();
+    subscribeRepoChanges(repoPath, vi.fn<(event: unknown) => void>());
+
+    expect(chokidarMock.watch).not.toHaveBeenCalled();
+  });
+
+  it("subscribes to external cmux watch events without creating a local watcher", async () => {
+    process.env.DIFFHUB_CMUX = "1";
+    process.env.DIFFHUB_EXTERNAL_WATCHER = "1";
+    const { isRepoWatchDisabled, publishExternalRepoChange, subscribeRepoChanges } =
+      await import("./repo-watch");
+    const repoPath = createRepo();
+    const listener = vi.fn<(event: unknown) => void>();
+
+    expect(isRepoWatchDisabled()).toBeFalsy();
+    subscribeRepoChanges(repoPath, listener);
+    publishExternalRepoChange(repoPath, { event: "change", path: join(repoPath, "src/a.ts") });
+
+    expect(chokidarMock.watch).not.toHaveBeenCalled();
+    expect(gitMock.invalidateGitCache).toHaveBeenCalledExactlyOnceWith(repoPath);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "change",
+        id: 1,
+        path: join(repoPath, "src/a.ts"),
+        repoPath,
+        type: "change",
+      }),
+    );
   });
 });

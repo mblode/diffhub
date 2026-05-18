@@ -7,6 +7,7 @@ import { invalidateGitCache } from "./git";
 const WATCH_DEBOUNCE_MS = 150;
 const IGNORED_ROOTS = [".next", ".turbo", "node_modules"] as const;
 const GIT_WATCH_PATHS = ["HEAD", "index", "packed-refs", "refs"] as const;
+const DEFAULT_EXTERNAL_CHANGE: PendingChange = { event: "change", path: null };
 const noop = (): void => undefined;
 
 export type RepoWatchFsEvent = "add" | "addDir" | "change" | "unlink" | "unlinkDir";
@@ -42,7 +43,7 @@ interface RepoWatchEntry {
   repoPath: string;
   subscribers: Set<RepoWatchListener>;
   timer: ReturnType<typeof setTimeout> | null;
-  watcher: FSWatcher;
+  watcher: FSWatcher | null;
 }
 
 interface RepoWatchRuntimeState {
@@ -60,7 +61,11 @@ const getRuntimeState = (): RepoWatchRuntimeState => {
 
 const toPosixPath = (value: string): string => value.replaceAll("\\", "/");
 
-export const isRepoWatchDisabled = (): boolean => process.env.DIFFHUB_DISABLE_WATCH === "1";
+const usesExternalRepoWatcher = (): boolean => process.env.DIFFHUB_EXTERNAL_WATCHER === "1";
+
+export const isRepoWatchDisabled = (): boolean =>
+  process.env.DIFFHUB_DISABLE_WATCH === "1" ||
+  (process.env.DIFFHUB_CMUX === "1" && !usesExternalRepoWatcher());
 
 export const shouldIgnoreWatchPath = (pathToCheck: string, repoPath: string): boolean => {
   const normalizedRepoPath = repoPath.endsWith("/") ? repoPath : `${repoPath}/`;
@@ -156,25 +161,26 @@ const scheduleChange = (
 };
 
 const createWatchEntry = (repoPath: string): RepoWatchEntry => {
+  const watcher = watch(getWatchTargets(repoPath), {
+    atomic: true,
+    ignoreInitial: true,
+    ignored: (pathToCheck) => shouldIgnoreWatchPath(pathToCheck, repoPath),
+    persistent: true,
+  });
   const entry: RepoWatchEntry = {
     eventId: 0,
     pendingChange: null,
     repoPath,
     subscribers: new Set(),
     timer: null,
-    watcher: watch(getWatchTargets(repoPath), {
-      atomic: true,
-      ignoreInitial: true,
-      ignored: (pathToCheck) => shouldIgnoreWatchPath(pathToCheck, repoPath),
-      persistent: true,
-    }),
+    watcher,
   };
 
   for (const event of ["add", "addDir", "change", "unlink", "unlinkDir"] as const) {
-    entry.watcher.on(event, (path) => scheduleChange(entry, event, path ?? null));
+    watcher.on(event, (path) => scheduleChange(entry, event, path ?? null));
   }
 
-  entry.watcher.on("error", (error) => {
+  watcher.on("error", (error) => {
     entry.eventId += 1;
     emitToSubscribers(entry, {
       createdAt: new Date().toISOString(),
@@ -188,6 +194,15 @@ const createWatchEntry = (repoPath: string): RepoWatchEntry => {
   return entry;
 };
 
+const createExternalWatchEntry = (repoPath: string): RepoWatchEntry => ({
+  eventId: 0,
+  pendingChange: null,
+  repoPath,
+  subscribers: new Set(),
+  timer: null,
+  watcher: null,
+});
+
 const closeEntry = (entry: RepoWatchEntry): void => {
   if (entry.timer) {
     clearTimeout(entry.timer);
@@ -195,9 +210,13 @@ const closeEntry = (entry: RepoWatchEntry): void => {
   }
 
   entry.subscribers.clear();
+  const { watcher } = entry;
+  if (!watcher) {
+    return;
+  }
   const closeWatcher = async (): Promise<void> => {
     try {
-      await entry.watcher.close();
+      await watcher.close();
     } catch (error) {
       console.error("[diffhub] failed to close repo watcher", { error });
     }
@@ -216,7 +235,9 @@ export const subscribeRepoChanges = (
   const runtimeState = getRuntimeState();
   let entry = runtimeState.entries.get(repoPath);
   if (!entry) {
-    entry = createWatchEntry(repoPath);
+    entry = usesExternalRepoWatcher()
+      ? createExternalWatchEntry(repoPath)
+      : createWatchEntry(repoPath);
     runtimeState.entries.set(repoPath, entry);
   }
 
@@ -234,6 +255,26 @@ export const subscribeRepoChanges = (
       closeEntry(currentEntry);
     }
   };
+};
+
+export const publishExternalRepoChange = (repoPath: string, change?: PendingChange): void => {
+  const nextChange = change ?? DEFAULT_EXTERNAL_CHANGE;
+  invalidateGitCache(repoPath);
+
+  const entry = getRuntimeState().entries.get(repoPath);
+  if (!entry || entry.subscribers.size === 0) {
+    return;
+  }
+
+  entry.eventId += 1;
+  emitToSubscribers(entry, {
+    createdAt: new Date().toISOString(),
+    event: nextChange.event,
+    id: entry.eventId,
+    path: nextChange.path,
+    repoPath,
+    type: "change",
+  });
 };
 
 export const resetRepoWatchersForTest = (): void => {

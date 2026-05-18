@@ -63,6 +63,7 @@ interface DiffErrorResponse {
 type SyncNoticeTone = "neutral" | "warning" | "destructive";
 
 interface PollFilesOptions {
+  forceRefresh?: boolean;
   includeComments?: boolean;
 }
 
@@ -106,8 +107,10 @@ interface PlaceholderProps {
 const DIFF_REQUEST_TIMEOUT_MS = 15_000;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
+const CMUX_WATCH_POLL_MS = 2000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
+type WatchMode = "poll" | "stream";
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
   if (typeof window === "undefined") {
@@ -358,9 +361,13 @@ const MainPanel = ({
 export const DiffApp = ({
   repoPath,
   defaultSidebarOpen = true,
+  watchMode = "stream",
+  watchPollMs = CMUX_WATCH_POLL_MS,
 }: {
   repoPath: string;
   defaultSidebarOpen?: boolean;
+  watchPollMs?: number;
+  watchMode?: WatchMode;
 }) => {
   const [filesData, setFilesData] = useState<FilesData | null>(null);
   const filesDataRef = useRef<FilesData | null>(null);
@@ -462,10 +469,13 @@ export const DiffApp = ({
   // post-mount resize cascades.
   useScrollAnchor({ selector: "[data-file-section]" });
 
-  const buildFilesQuery = useCallback(() => {
+  const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (diffModeRef.current === "uncommitted") {
       params.set("mode", "uncommitted");
+    }
+    if (options.forceRefresh) {
+      params.set("refresh", "1");
     }
     const query = params.toString();
     return query ? `?${query}` : "";
@@ -675,12 +685,13 @@ export const DiffApp = ({
     setDiffError(null);
   }, []);
 
-  const pollFilesRef = useRef<(options?: PollFilesOptions) => Promise<void>>(() =>
-    Promise.resolve(),
+  const pollFilesRef = useRef<(options?: PollFilesOptions) => Promise<boolean>>(() =>
+    Promise.resolve(false),
   );
 
   const pollFiles = useCallback(
-    async (options: PollFilesOptions = {}) => {
+    async (options: PollFilesOptions = {}): Promise<boolean> => {
+      const forceRefresh = options.forceRefresh ?? false;
       const includeComments = options.includeComments ?? true;
       const finishPoll = () => {
         setRefreshing(false);
@@ -696,7 +707,7 @@ export const DiffApp = ({
 
       if (fetchingRef.current) {
         queuedPollRef.current = true;
-        return;
+        return false;
       }
 
       fetchingRef.current = true;
@@ -704,7 +715,7 @@ export const DiffApp = ({
       setLoadError(null);
 
       const pollResult = await Promise.all([
-        fetch(`/api/files${buildFilesQuery()}`),
+        fetch(`/api/files${buildFilesQuery({ forceRefresh })}`),
         includeComments
           ? fetch("/api/comments")
               .then(async (response) => {
@@ -726,7 +737,7 @@ export const DiffApp = ({
 
       if (!pollResult) {
         finishPoll();
-        return;
+        return false;
       }
 
       const [filesResponse, nextComments] = pollResult;
@@ -735,7 +746,7 @@ export const DiffApp = ({
         const errorBody = await filesResponse.json().catch(() => ({ error: "Network error" }));
         setLoadError(errorBody.error ?? "Failed to load files");
         finishPoll();
-        return;
+        return false;
       }
 
       const nextFilesData = (await filesResponse.json()) as FilesData;
@@ -761,6 +772,7 @@ export const DiffApp = ({
       }
       reconcileSelectedFile(nextFilesData);
       finishPoll();
+      return shouldUpdateFiles;
     },
     [buildFilesQuery, reconcileSelectedFile],
   );
@@ -770,6 +782,47 @@ export const DiffApp = ({
   }, [pollFiles]);
 
   useEffect(() => {
+    if (watchMode === "poll") {
+      let active = true;
+      setWatchStatus("live");
+      const interval = setInterval(() => {
+        if (!active) {
+          return;
+        }
+
+        void (async () => {
+          const didUpdate = await pollFilesRef.current({
+            forceRefresh: true,
+            includeComments: false,
+          });
+          if (!active) {
+            return;
+          }
+          if (!didUpdate) {
+            return;
+          }
+          setWatchStatus("updated");
+          if (watchStatusTimerRef.current) {
+            clearTimeout(watchStatusTimerRef.current);
+          }
+          watchStatusTimerRef.current = setTimeout(() => {
+            if (active) {
+              setWatchStatus("live");
+            }
+          }, 2500);
+        })();
+      }, watchPollMs);
+
+      return () => {
+        active = false;
+        clearInterval(interval);
+        if (watchStatusTimerRef.current) {
+          clearTimeout(watchStatusTimerRef.current);
+          watchStatusTimerRef.current = null;
+        }
+      };
+    }
+
     if (typeof EventSource === "undefined") {
       setWatchStatus("offline");
       return;
@@ -791,7 +844,7 @@ export const DiffApp = ({
     const handleChange = () => {
       clearWatchStatusTimer();
       void (async () => {
-        await pollFilesRef.current({ includeComments: false });
+        await pollFilesRef.current({ forceRefresh: true, includeComments: false });
         if (!active) {
           return;
         }
@@ -827,7 +880,7 @@ export const DiffApp = ({
       source.removeEventListener("error", handleStreamError);
       source.close();
     };
-  }, [repoPath]);
+  }, [repoPath, watchMode, watchPollMs]);
 
   const forceDiffRefetch = useCallback(() => {
     setDiffWatchdogTripped(false);
@@ -838,12 +891,12 @@ export const DiffApp = ({
   }, []);
 
   const handleRetry = useCallback(() => {
-    void pollFiles();
+    void pollFiles({ forceRefresh: true });
   }, [pollFiles]);
 
   const handleManualRefresh = useCallback(() => {
     forceDiffRefetch();
-    void pollFiles();
+    void pollFiles({ forceRefresh: true });
   }, [forceDiffRefetch, pollFiles]);
 
   const handleRetryDiff = useCallback(() => {
@@ -1039,7 +1092,7 @@ export const DiffApp = ({
       diffModeRef.current = mode;
       setDiffMode(mode);
       invalidateDiffState();
-      void pollFiles();
+      void pollFiles({ forceRefresh: true });
     },
     [invalidateDiffState, pollFiles, setDiffMode],
   );

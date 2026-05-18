@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { getDiffStats } from "@/lib/git";
+import { getDiffStats, invalidateGitCache } from "@/lib/git";
 
 export const GET = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const base = searchParams.get("base") ?? undefined;
   const mode = searchParams.get("mode") === "uncommitted" ? ("uncommitted" as const) : undefined;
   const whitespace = searchParams.get("ws") === "ignore" ? ("ignore" as const) : undefined;
+  const shouldRefresh = searchParams.get("refresh") === "1";
   try {
+    if (shouldRefresh) {
+      invalidateGitCache();
+    }
     const result = await getDiffStats(base, mode, whitespace);
     return NextResponse.json(result);
   } catch (error) {
