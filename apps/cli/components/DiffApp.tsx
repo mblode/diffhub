@@ -446,6 +446,7 @@ export const DiffApp = ({
   const diffFetchInFlightRef = useRef(false);
   const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
+  const pendingFileScrollCancelRef = useRef<VoidFunction | null>(null);
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
@@ -488,6 +489,14 @@ export const DiffApp = ({
   useEffect(() => {
     filesDataRef.current = filesData;
   }, [filesData]);
+
+  useEffect(
+    () => () => {
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     commentsRef.current = comments;
@@ -1089,10 +1098,19 @@ export const DiffApp = ({
 
       const section = document.querySelector<HTMLElement>(getFileSectionSelector(file));
       if (section) {
+        pendingFileScrollCancelRef.current?.();
+        pendingFileScrollCancelRef.current = null;
         performScroll(section);
         return;
       }
-      waitForElement(getFileSectionSelector(file), performScroll);
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = waitForElement(
+        getFileSectionSelector(file),
+        (element) => {
+          pendingFileScrollCancelRef.current = null;
+          performScroll(element);
+        },
+      );
     },
     [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
   );

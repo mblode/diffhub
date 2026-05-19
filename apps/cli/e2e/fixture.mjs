@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -212,9 +212,5 @@ const comments = [
 
 writeFileSync(join(repoPath, ".git", "diffhub-comments.json"), JSON.stringify(comments, null, 2));
 writeFileSync(repoPathFile, repoPath);
-
-if (!existsSync(join(repoPath, ".git", "diffhub-comments.json"))) {
-  throw new Error("fixture comments were not written");
-}
 
 console.info(`[diffhub:e2e] fixture repo: ${repoPath}`);
