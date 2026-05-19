@@ -115,16 +115,6 @@ export const useScrollAnchor = ({
           return;
         }
 
-        const root = getRoot();
-        const preferred = preferredSelector ? root.querySelector(preferredSelector) : null;
-        if (preferred) {
-          anchor = {
-            element: preferred,
-            top: preferred.getBoundingClientRect().top,
-          };
-          return;
-        }
-
         if (!anchor || !anchor.element.isConnected) {
           captureAnchor();
           return;
