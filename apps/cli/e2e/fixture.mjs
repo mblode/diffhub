@@ -10,11 +10,20 @@ const repoPath = join(outputDir, "fixture-repo");
 const repoPathFile = join(outputDir, "fixture-repo-path");
 
 const runGit = (args, options = {}) => {
-  execFileSync("git", args, {
-    cwd: options.cwd ?? repoPath,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    stdio: options.stdio ?? "ignore",
-  });
+  try {
+    execFileSync("git", args, {
+      cwd: options.cwd ?? repoPath,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const stdout = error?.stdout?.toString?.().trim();
+    const stderr = error?.stderr?.toString?.().trim();
+    const details = [stderr, stdout].filter(Boolean).join("\n");
+    throw new Error(`git ${args.join(" ")} failed${details ? `:\n${details}` : ""}`, {
+      cause: error,
+    });
+  }
 };
 
 const write = (path, content) => {
