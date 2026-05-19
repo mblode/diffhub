@@ -429,6 +429,7 @@ const CommentDisplay = ({
   const handleStartReply = useCallback(() => {
     setIsExpanded(true);
     setIsReplying(true);
+    setReplyError(null);
   }, []);
 
   const borderAccent = comment.tag
