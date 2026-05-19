@@ -33,8 +33,13 @@ test("comments load quickly and render compactly", async ({ page }) => {
   const resolvedBox = await getBox(resolvedCard);
   expect(resolvedBox.height).toBeLessThanOrEqual(40);
 
-  const firstRepeated = await getBox(page.locator(commentSelector("comment-repeat-a")));
-  const secondRepeated = await getBox(page.locator(commentSelector("comment-repeat-b")));
+  const firstRepeatedCard = page.locator(commentSelector("comment-repeat-a"));
+  const secondRepeatedCard = page.locator(commentSelector("comment-repeat-b"));
+  await firstRepeatedCard.scrollIntoViewIfNeeded();
+  await expect(firstRepeatedCard).toBeVisible();
+  await expect(secondRepeatedCard).toBeVisible();
+  const firstRepeated = await getBox(firstRepeatedCard);
+  const secondRepeated = await getBox(secondRepeatedCard);
   const gap = secondRepeated.y - (firstRepeated.y + firstRepeated.height);
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThanOrEqual(8);

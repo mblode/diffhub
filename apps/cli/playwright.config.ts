@@ -12,7 +12,11 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        deviceScaleFactor: 1,
+        viewport: { height: 720, width: 1280 },
+      },
     },
   ],
   reporter: [["list"], ["html", { open: "never", outputFolder: "test-results/visual/report" }]],
