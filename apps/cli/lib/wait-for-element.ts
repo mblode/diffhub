@@ -59,6 +59,7 @@ export const waitForElement = (
     if (rafId !== 0) {
       cancelAnimationFrame(rafId);
     }
+    timeoutId = null;
   }, timeoutMs);
 
   return () => {

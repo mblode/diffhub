@@ -577,7 +577,8 @@ export const DiffApp = ({
       }
 
       const rect = element.getBoundingClientRect();
-      const top = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
+      const idealOffset = Math.max(0, (window.innerHeight - rect.height) / 2);
+      const top = window.scrollY + rect.top - idealOffset;
       window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
       window.scrollTo({ behavior: "auto", top });
     };
