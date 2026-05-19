@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { CommentSide } from "./comment-sides";
 import { isCommentSide } from "./comment-sides";
 import type {
   Comment,
@@ -9,6 +10,7 @@ import type {
   CommentStaleness,
   CommentTag,
 } from "./comment-types";
+import { getBaseBranch, getFileAtRef, getMergeBase } from "./git";
 import { getGitDirectory, resolveRepoFilePath } from "./git-paths";
 import { getConfiguredRepoPath } from "./repo-path";
 
@@ -160,18 +162,23 @@ const readFileSnapshot = (file: string): FileSnapshot => {
   return snapshot;
 };
 
-const buildAnchor = (file: string, lineNumber: number, diffHunkHeader?: string): CommentAnchor => {
-  const snapshot = readFileSnapshot(file);
+const buildAnchorFromLines = (
+  lines: string[],
+  exists: boolean,
+  fileSha: string,
+  lineNumber: number,
+  diffHunkHeader?: string,
+): CommentAnchor => {
   const lineIndex = lineNumber - 1;
-  const lineContent = snapshot.lines[lineIndex] ?? "";
+  const lineContent = lines[lineIndex] ?? "";
   const beforeStart = Math.max(0, lineIndex - CONTEXT_LINES);
-  const afterEnd = Math.min(snapshot.lines.length, lineIndex + CONTEXT_LINES + 1);
+  const afterEnd = Math.min(lines.length, lineIndex + CONTEXT_LINES + 1);
 
   const anchor: CommentAnchor = {
-    afterContext: snapshot.lines.slice(lineIndex + 1, afterEnd).map(truncateContext),
-    beforeContext: snapshot.lines.slice(beforeStart, lineIndex).map(truncateContext),
-    createdFromMissingFile: !snapshot.exists,
-    fileSha: snapshot.fileSha,
+    afterContext: lines.slice(lineIndex + 1, afterEnd).map(truncateContext),
+    beforeContext: lines.slice(beforeStart, lineIndex).map(truncateContext),
+    createdFromMissingFile: !exists,
+    fileSha,
     lineContent,
   };
 
@@ -180,6 +187,41 @@ const buildAnchor = (file: string, lineNumber: number, diffHunkHeader?: string):
   }
 
   return anchor;
+};
+
+const buildAnchor = (file: string, lineNumber: number, diffHunkHeader?: string): CommentAnchor => {
+  const snapshot = readFileSnapshot(file);
+  return buildAnchorFromLines(
+    snapshot.lines,
+    snapshot.exists,
+    snapshot.fileSha,
+    lineNumber,
+    diffHunkHeader,
+  );
+};
+
+const buildAnchorAsync = async (
+  file: string,
+  lineNumber: number,
+  side: CommentSide,
+  diffHunkHeader?: string,
+): Promise<CommentAnchor> => {
+  if (side === "left") {
+    try {
+      const baseBranch = await getBaseBranch();
+      const mergeBase = await getMergeBase(baseBranch);
+      const content = await getFileAtRef(file, mergeBase);
+      const lines = content.split(/\r?\n/);
+      if (lines.at(-1) === "") {
+        lines.pop();
+      }
+      const exists = content.length > 0;
+      return buildAnchorFromLines(lines, exists, "", lineNumber, diffHunkHeader);
+    } catch {
+      return buildAnchor(file, lineNumber, diffHunkHeader);
+    }
+  }
+  return buildAnchor(file, lineNumber, diffHunkHeader);
 };
 
 const lineMatchesContext = (expected: string | undefined, actual: string | undefined): boolean =>
@@ -397,16 +439,17 @@ const mutateComments = <T>(updater: (comments: Comment[]) => T): Promise<T> => {
   return nextMutation;
 };
 
-export const addComment = (
+export const addComment = async (
   data: Omit<Comment, "anchor" | "createdAt" | "id" | "replies" | "resolved" | "staleness"> & {
     diffHunkHeader?: string;
   },
-): Promise<Comment> =>
-  mutateComments((comments) => {
-    const { diffHunkHeader, ...commentData } = data;
+): Promise<Comment> => {
+  const { diffHunkHeader, ...commentData } = data;
+  const anchor = await buildAnchorAsync(data.file, data.lineNumber, data.side, diffHunkHeader);
+  return mutateComments((comments) => {
     const comment: Comment = {
       ...commentData,
-      anchor: buildAnchor(data.file, data.lineNumber, diffHunkHeader),
+      anchor,
       createdAt: new Date().toISOString(),
       id: crypto.randomUUID(),
       replies: [],
@@ -416,6 +459,7 @@ export const addComment = (
     comments.push(comment);
     return comment;
   });
+};
 
 const getCurrentUser = (): string => {
   if (process.env.DIFFHUB_USER) {

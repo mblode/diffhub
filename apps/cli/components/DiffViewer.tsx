@@ -11,7 +11,7 @@ import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
 import { FileDiffHeader } from "./FileDiffHeader";
-import { useTheme } from "./theme-provider";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
@@ -1045,6 +1045,30 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
     }
 
     section.style.minHeight = "";
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new ResizeObserver(() => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        if (section.isConnected) {
+          section.style.minHeight = `${section.offsetHeight}px`;
+        }
+      }, 200);
+    });
+
+    observer.observe(section);
+    return () => {
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      observer.disconnect();
+    };
   }, [collapsed, commentTarget, comments, layout, shouldRenderPatch]);
 
   return (
