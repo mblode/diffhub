@@ -105,6 +105,11 @@ const hasRenderableBox = (element: HTMLElement): boolean => {
   return rect.width > 0 && rect.height > 0 && element.getClientRects().length > 0;
 };
 
+/**
+ * Returns a cancel handle only when an observer is pending. A null return
+ * means either the element was handled synchronously or no diff container is
+ * available to observe.
+ */
 export const waitForElement = (
   selector: string,
   onReady: (element: HTMLElement) => void,

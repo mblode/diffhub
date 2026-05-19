@@ -120,6 +120,8 @@ const DIFF_REQUEST_TIMEOUT_MS = 15_000;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
 const CMUX_WATCH_POLL_MS = 2000;
+const COMMENT_POSITION_DELAY_MS = 350;
+const COMMENT_POSITION_WAIT_MS = 1500;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 type WatchMode = "poll" | "stream";
@@ -581,8 +583,12 @@ export const DiffApp = ({
     };
 
     timeoutId = setTimeout(() => {
-      cancelWait = waitForElement(activeCommentSelector, positionActiveComment, 1650);
-    }, 350);
+      cancelWait = waitForElement(
+        activeCommentSelector,
+        positionActiveComment,
+        COMMENT_POSITION_WAIT_MS,
+      );
+    }, COMMENT_POSITION_DELAY_MS);
 
     return () => {
       cancelled = true;
