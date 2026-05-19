@@ -49,6 +49,19 @@ const commentRuntimeState = getRuntimeState();
 const getRepoPath = (): string => getConfiguredRepoPath();
 const getCommentsPath = (): string => join(getGitDirectory(getRepoPath()), COMMENTS_FILENAME);
 
+type CommentCreateData = Omit<
+  Comment,
+  "anchor" | "createdAt" | "id" | "replies" | "resolved" | "staleness"
+> & {
+  diffHunkHeader?: string;
+};
+
+export interface ImportCommentsResult {
+  comments: Comment[];
+  created: Comment[];
+  existing: Comment[];
+}
+
 export const clearCommentCache = (): void => {
   commentRuntimeState.fileSnapshots.clear();
 };
@@ -284,6 +297,10 @@ const normalizeComment = (raw: Record<string, unknown>): { changed: boolean; com
     delete comment.createdBy;
     changed = true;
   }
+  if (raw.externalId !== undefined && typeof raw.externalId !== "string") {
+    delete comment.externalId;
+    changed = true;
+  }
 
   return { changed, comment };
 };
@@ -377,7 +394,8 @@ const readCommentsWithMetadata = ({ persistChanges = true } = {}): {
   return { changed, comments };
 };
 
-export const readComments = (): Comment[] => readCommentsWithMetadata().comments;
+export const readComments = ({ persistChanges = true } = {}): Comment[] =>
+  readCommentsWithMetadata({ persistChanges }).comments;
 
 const mutateComments = <T>(updater: (comments: Comment[]) => T): Promise<T> => {
   const runUpdate = (): T => {
@@ -397,24 +415,47 @@ const mutateComments = <T>(updater: (comments: Comment[]) => T): Promise<T> => {
   return nextMutation;
 };
 
-export const addComment = (
-  data: Omit<Comment, "anchor" | "createdAt" | "id" | "replies" | "resolved" | "staleness"> & {
-    diffHunkHeader?: string;
-  },
-): Promise<Comment> =>
+const createComment = (data: CommentCreateData): Comment => {
+  const { diffHunkHeader, ...commentData } = data;
+  return {
+    ...commentData,
+    anchor: buildAnchor(data.file, data.lineNumber, diffHunkHeader),
+    createdAt: new Date().toISOString(),
+    id: crypto.randomUUID(),
+    replies: [],
+    resolved: false,
+    staleness: "fresh",
+  };
+};
+
+export const addComment = (data: CommentCreateData): Promise<Comment> =>
   mutateComments((comments) => {
-    const { diffHunkHeader, ...commentData } = data;
-    const comment: Comment = {
-      ...commentData,
-      anchor: buildAnchor(data.file, data.lineNumber, diffHunkHeader),
-      createdAt: new Date().toISOString(),
-      id: crypto.randomUUID(),
-      replies: [],
-      resolved: false,
-      staleness: "fresh",
-    };
+    const comment = createComment(data);
     comments.push(comment);
     return comment;
+  });
+
+export const importComments = (incoming: CommentCreateData[]): Promise<ImportCommentsResult> =>
+  mutateComments((comments) => {
+    const created: Comment[] = [];
+    const existing: Comment[] = [];
+
+    for (const data of incoming) {
+      const duplicate =
+        data.externalId === undefined
+          ? undefined
+          : comments.find((comment) => comment.externalId === data.externalId);
+      if (duplicate) {
+        existing.push(duplicate);
+        continue;
+      }
+
+      const comment = createComment(data);
+      comments.push(comment);
+      created.push(comment);
+    }
+
+    return { comments: [...created, ...existing], created, existing };
   });
 
 const getCurrentUser = (): string => {

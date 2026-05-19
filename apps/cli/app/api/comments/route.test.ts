@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -87,6 +87,90 @@ describe("/api/comments", () => {
     await expect(response.json()).resolves.toStrictEqual({
       error: "side must be 'left', 'right', 'deletions', or 'additions'",
     });
+  });
+
+  it("imports comments idempotently through the API", async () => {
+    const payload = {
+      comments: [
+        {
+          body: "Automated finding",
+          createdBy: "automated-review:test",
+          externalId: "automated-review:test:src/a.ts:12:first",
+          file: "src/a.ts",
+          lineNumber: 12,
+          side: "right",
+          tag: "[suggestion]",
+        },
+        {
+          body: "Second finding",
+          createdBy: "automated-review:test",
+          externalId: "automated-review:test:src/b.ts:4:second",
+          file: "src/b.ts",
+          lineNumber: 4,
+          side: "right",
+          tag: "[must-fix]",
+        },
+      ],
+    };
+
+    const firstResponse = await POST(
+      new Request("http://localhost/api/comments", {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(firstResponse.status).toBe(201);
+    await expect(firstResponse.json()).resolves.toMatchObject({
+      comments: [
+        { body: "Automated finding", externalId: "automated-review:test:src/a.ts:12:first" },
+        { body: "Second finding", externalId: "automated-review:test:src/b.ts:4:second" },
+      ],
+      created: 2,
+      existing: 0,
+    });
+
+    const secondResponse = await POST(
+      new Request("http://localhost/api/comments", {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(secondResponse.status).toBe(200);
+    await expect(secondResponse.json()).resolves.toMatchObject({
+      created: 0,
+      existing: 2,
+    });
+    await expect(GET().json()).resolves.toHaveLength(2);
+  });
+
+  it("supports read-only comment listing without persisting normalized metadata", async () => {
+    const commentsPath = join(process.env.DIFFHUB_REPO as string, ".git", "diffhub-comments.json");
+    const storedComment = {
+      body: "Missing metadata",
+      createdAt: "2026-05-19T00:00:00.000Z",
+      file: "src/a.ts",
+      id: "comment-without-anchor",
+      lineNumber: 1,
+      side: "right",
+      tag: "",
+    };
+    mkdirSync(join(process.env.DIFFHUB_REPO as string, "src"));
+    writeFileSync(join(process.env.DIFFHUB_REPO as string, "src/a.ts"), "target\n");
+    writeFileSync(commentsPath, JSON.stringify([storedComment], null, 2));
+
+    const response = GET(new Request("http://localhost/api/comments?readonly=1"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject([
+      {
+        anchor: { lineContent: "target" },
+        id: "comment-without-anchor",
+        resolved: false,
+      },
+    ]);
+    expect(JSON.parse(readFileSync(commentsPath, "utf-8"))[0]?.anchor).toBeUndefined();
   });
 
   it("rejects non-positive and non-integer line numbers", async () => {
