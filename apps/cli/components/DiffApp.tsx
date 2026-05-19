@@ -21,8 +21,14 @@ import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
+import {
+  COMMENT_POSITION_DELAY_MS,
+  COMMENT_POSITION_WAIT_MS,
+  COMMENT_SCROLL_ANIMATION_MS,
+} from "@/lib/comment-scroll-timing";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { useScrollAnchor } from "@/lib/use-scroll-anchor";
+import { hasRenderableBox, waitForElement } from "@/lib/wait-for-element";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 
 interface FilesData {
@@ -73,7 +79,47 @@ type SyncNoticeTone = "neutral" | "warning" | "destructive";
 interface PollFilesOptions {
   forceRefresh?: boolean;
   includeComments?: boolean;
+  onFilesUpdate?: () => void;
+  showRefreshing?: boolean;
 }
+
+const mergePollUpdateCallbacks = (
+  previous: PollFilesOptions["onFilesUpdate"],
+  next: PollFilesOptions["onFilesUpdate"],
+): PollFilesOptions["onFilesUpdate"] => {
+  if (!previous) {
+    return next;
+  }
+  if (!next) {
+    return previous;
+  }
+
+  return () => {
+    previous();
+    next();
+  };
+};
+
+const mergeShowRefreshing = (
+  previous: PollFilesOptions["showRefreshing"],
+  next: PollFilesOptions["showRefreshing"],
+): boolean => (previous ?? true) || (next ?? true);
+
+const mergePollOptions = (
+  previous: PollFilesOptions | null,
+  next: PollFilesOptions,
+): PollFilesOptions => {
+  if (!previous) {
+    return next;
+  }
+
+  return {
+    forceRefresh: (previous.forceRefresh ?? false) || (next.forceRefresh ?? false),
+    includeComments: (previous.includeComments ?? true) || (next.includeComments ?? true),
+    onFilesUpdate: mergePollUpdateCallbacks(previous.onFilesUpdate, next.onFilesUpdate),
+    showRefreshing: mergeShowRefreshing(previous.showRefreshing, next.showRefreshing),
+  };
+};
 
 interface SyncNotice {
   label: string;
@@ -116,10 +162,11 @@ interface PlaceholderProps {
   pulse?: boolean;
 }
 
-const DIFF_REQUEST_TIMEOUT_MS = 15_000;
+const DIFF_REQUEST_TIMEOUT_MS = 30_000;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
-const CMUX_WATCH_POLL_MS = 2000;
+const CMUX_WATCH_POLL_MS = 10000;
+const FILE_SECTION_WAIT_MS = 5000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 type WatchMode = "poll" | "stream";
@@ -410,6 +457,7 @@ export const DiffApp = ({
   const [comments, setComments] = useState<Comment[]>([]);
   const commentsRef = useRef<Comment[]>([]);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [commentScrollSeq, setCommentScrollSeq] = useState(0);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
@@ -443,9 +491,11 @@ export const DiffApp = ({
   const currentFilesGenerationRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
   const queuedPollRef = useRef(false);
+  const queuedPollOptionsRef = useRef<PollFilesOptions | null>(null);
   const diffFetchInFlightRef = useRef(false);
   const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
+  const pendingFileScrollCancelRef = useRef<VoidFunction | null>(null);
   const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
   const [diffHintShown, setDiffHintShown] = useState(false);
   const [, startDiffTransition] = useTransition();
@@ -488,6 +538,14 @@ export const DiffApp = ({
   useEffect(() => {
     filesDataRef.current = filesData;
   }, [filesData]);
+
+  useEffect(
+    () => () => {
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     commentsRef.current = comments;
@@ -550,6 +608,103 @@ export const DiffApp = ({
   // otherwise preserve the file section under the sticky toolbar.
   useScrollAnchor({ preferredSelector: activeCommentSelector, selector: "[data-file-section]" });
 
+  // activeCommentSelector handles a newly-active comment; commentScrollSeq
+  // handles explicit navigation to the same already-active comment.
+  useEffect(() => {
+    if (!activeCommentSelector) {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelWait: VoidFunction | null = null;
+    let scrollRafId = 0;
+    let cancelled = false;
+
+    const cancelScrollAnimation = () => {
+      if (scrollRafId !== 0) {
+        cancelAnimationFrame(scrollRafId);
+        scrollRafId = 0;
+      }
+    };
+
+    const positionActiveComment = (element: HTMLElement) => {
+      if (cancelled) {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      const idealOffset = Math.max(0, (window.innerHeight - rect.height) / 2);
+      const top = window.scrollY + rect.top - idealOffset;
+      window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
+      cancelScrollAnimation();
+
+      const startTop = window.scrollY;
+      const delta = top - startTop;
+      const reduceMotion =
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      if (reduceMotion || Math.abs(delta) <= 4) {
+        window.scrollTo({ behavior: "auto", top });
+        return;
+      }
+
+      const startedAt = performance.now();
+      const animate = (now: number) => {
+        if (cancelled) {
+          scrollRafId = 0;
+          return;
+        }
+
+        const progress = Math.min(1, (now - startedAt) / COMMENT_SCROLL_ANIMATION_MS);
+        const eased = 1 - (1 - progress) ** 3;
+        window.scrollTo({ behavior: "instant", top: startTop + delta * eased });
+        if (progress < 1) {
+          scrollRafId = requestAnimationFrame(animate);
+          return;
+        }
+        scrollRafId = 0;
+      };
+      scrollRafId = requestAnimationFrame(animate);
+    };
+
+    const isInViewport = (element: HTMLElement): boolean => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    };
+
+    const initial = document.querySelector<HTMLElement>(activeCommentSelector);
+    if (initial && hasRenderableBox(initial) && isInViewport(initial)) {
+      positionActiveComment(initial);
+      return () => {
+        cancelled = true;
+        cancelScrollAnimation();
+      };
+    }
+
+    // Offscreen sections can report a renderable box while content-visibility
+    // is still settling after a collapsed/deferred file opens. Keep those on
+    // the deferred path; only already-visible comments take the immediate path.
+    timeoutId = setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
+      cancelWait = waitForElement(
+        activeCommentSelector,
+        positionActiveComment,
+        COMMENT_POSITION_WAIT_MS,
+      );
+    }, COMMENT_POSITION_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      cancelWait?.();
+      cancelScrollAnimation();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [activeCommentSelector, commentScrollSeq]);
+
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (diffModeRef.current === "uncommitted") {
@@ -580,6 +735,9 @@ export const DiffApp = ({
     async (requestId: number) => {
       const requestGeneration = currentFilesGenerationRef.current;
       const requestFingerprint = currentFilesFingerprintRef.current;
+      const hasMatchingDiffData = () =>
+        diffDataRef.current?.generation === requestGeneration &&
+        diffDataRef.current.sourceFingerprint === requestFingerprint;
       setDiffWatchdogTripped(false);
       setDiffError(null);
 
@@ -658,7 +816,7 @@ export const DiffApp = ({
           requestId,
         });
 
-        if (requestId === latestDiffRequestRef.current) {
+        if (requestId === latestDiffRequestRef.current && !hasMatchingDiffData()) {
           setDiffError(error instanceof Error ? error.message : String(error));
         }
       } finally {
@@ -774,25 +932,34 @@ export const DiffApp = ({
     async (options: PollFilesOptions = {}): Promise<boolean> => {
       const forceRefresh = options.forceRefresh ?? false;
       const includeComments = options.includeComments ?? true;
+      const onFilesUpdate = options.onFilesUpdate;
+      const showRefreshing = options.showRefreshing ?? true;
       const finishPoll = () => {
-        setRefreshing(false);
+        if (showRefreshing) {
+          setRefreshing(false);
+        }
 
         fetchingRef.current = false;
         if (queuedPollRef.current) {
+          const queuedPollOptions = queuedPollOptionsRef.current ?? undefined;
           queuedPollRef.current = false;
+          queuedPollOptionsRef.current = null;
           queueMicrotask(() => {
-            void pollFilesRef.current();
+            void pollFilesRef.current(queuedPollOptions);
           });
         }
       };
 
       if (fetchingRef.current) {
         queuedPollRef.current = true;
+        queuedPollOptionsRef.current = mergePollOptions(queuedPollOptionsRef.current, options);
         return false;
       }
 
       fetchingRef.current = true;
-      setRefreshing(true);
+      if (showRefreshing) {
+        setRefreshing(true);
+      }
       setLoadError(null);
 
       const pollResult = await Promise.all([
@@ -852,6 +1019,9 @@ export const DiffApp = ({
         });
       }
       reconcileSelectedFile(nextFilesData);
+      if (shouldUpdateFiles) {
+        onFilesUpdate?.();
+      }
       finishPoll();
       return shouldUpdateFiles;
     },
@@ -866,32 +1036,31 @@ export const DiffApp = ({
     if (watchMode === "poll") {
       let active = true;
       setWatchStatus("live");
+      const markUpdated = () => {
+        if (!active) {
+          return;
+        }
+        setWatchStatus("updated");
+        if (watchStatusTimerRef.current) {
+          clearTimeout(watchStatusTimerRef.current);
+        }
+        watchStatusTimerRef.current = setTimeout(() => {
+          if (active) {
+            setWatchStatus("live");
+          }
+        }, 2500);
+      };
       const interval = setInterval(() => {
         if (!active) {
           return;
         }
 
-        void (async () => {
-          const didUpdate = await pollFilesRef.current({
-            forceRefresh: true,
-            includeComments: false,
-          });
-          if (!active) {
-            return;
-          }
-          if (!didUpdate) {
-            return;
-          }
-          setWatchStatus("updated");
-          if (watchStatusTimerRef.current) {
-            clearTimeout(watchStatusTimerRef.current);
-          }
-          watchStatusTimerRef.current = setTimeout(() => {
-            if (active) {
-              setWatchStatus("live");
-            }
-          }, 2500);
-        })();
+        void pollFilesRef.current({
+          forceRefresh: true,
+          includeComments: false,
+          onFilesUpdate: markUpdated,
+          showRefreshing: false,
+        });
       }, watchPollMs);
 
       return () => {
@@ -923,19 +1092,24 @@ export const DiffApp = ({
       setWatchStatus("live");
     };
     const handleChange = () => {
-      clearWatchStatusTimer();
-      void (async () => {
-        await pollFilesRef.current({ forceRefresh: true, includeComments: false });
+      const markUpdated = () => {
         if (!active) {
           return;
         }
+        clearWatchStatusTimer();
         setWatchStatus("updated");
         watchStatusTimerRef.current = setTimeout(() => {
           if (active) {
             setWatchStatus("live");
           }
         }, 2500);
-      })();
+      };
+      void pollFilesRef.current({
+        forceRefresh: true,
+        includeComments: false,
+        onFilesUpdate: markUpdated,
+        showRefreshing: false,
+      });
     };
     const handleWatchError = (event: Event) => {
       console.error("[diffhub] file watch stream reported an error", { event });
@@ -1045,37 +1219,35 @@ export const DiffApp = ({
 
       const section = document.querySelector<HTMLElement>(getFileSectionSelector(file));
       if (section) {
+        pendingFileScrollCancelRef.current?.();
+        pendingFileScrollCancelRef.current = null;
         performScroll(section);
         return;
       }
-
-      const container = document.querySelector("#diff-container");
-      if (!container) {
-        return;
-      }
-
-      const observer = new MutationObserver(() => {
-        const delayedSection = document.querySelector<HTMLElement>(getFileSectionSelector(file));
-        if (delayedSection) {
-          observer.disconnect();
-          performScroll(delayedSection);
-        }
-      });
-
-      observer.observe(container, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = waitForElement(
+        getFileSectionSelector(file),
+        (element) => {
+          pendingFileScrollCancelRef.current = null;
+          performScroll(element);
+        },
+        FILE_SECTION_WAIT_MS,
+      );
     },
     [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
   );
 
   const scrollToComment = useCallback(
-    (commentId: string, behavior: ScrollBehavior = "smooth") => {
+    (commentId: string) => {
       const comment = orderedVisibleComments.find((candidate) => candidate.id === commentId);
       if (!comment) {
         return;
       }
 
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = null;
       setActiveCommentId(comment.id);
+      setCommentScrollSeq((seq) => seq + 1);
       lockActiveFile(comment.file);
 
       const files = filesData?.files.map((stat) => stat.file) ?? [];
@@ -1091,41 +1263,16 @@ export const DiffApp = ({
         return previous;
       });
 
-      const commentSelector = getCommentSelector(comment.id);
-      const performScroll = (element: HTMLElement): void => {
-        element.scrollIntoView({ behavior, block: "center" });
-      };
-
-      const commentElement = document.querySelector<HTMLElement>(commentSelector);
-      if (commentElement) {
-        performScroll(commentElement);
-        return;
-      }
-
-      scrollToFile(comment.file, behavior);
-
-      const container = document.querySelector("#diff-container");
-      if (!container) {
-        return;
-      }
-
-      const observer = new MutationObserver(() => {
-        const delayedCommentElement = document.querySelector<HTMLElement>(commentSelector);
-        if (delayedCommentElement) {
-          observer.disconnect();
-          performScroll(delayedCommentElement);
-        }
-      });
-
-      observer.observe(container, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+      // The final positioning is handled by the active-comment effect after
+      // React commits any collapsed/deferred file changes. Scrolling here can
+      // race the Safari scroll-anchor restoration and produce a visible double
+      // jump.
     },
     [
       addForceRenderFiles,
       filesData,
       lockActiveFile,
       orderedVisibleComments,
-      scrollToFile,
       updateCollapsedFiles,
     ],
   );
@@ -1134,7 +1281,7 @@ export const DiffApp = ({
     (file: string) => {
       const comment = orderedVisibleComments.find((candidate) => candidate.file === file);
       if (comment) {
-        scrollToComment(comment.id, "auto");
+        scrollToComment(comment.id);
         return;
       }
       scrollToFile(file, "auto");
@@ -1156,7 +1303,7 @@ export const DiffApp = ({
         (currentIndex + direction + orderedVisibleComments.length) % orderedVisibleComments.length;
       const nextComment = orderedVisibleComments[nextIndex];
       if (nextComment) {
-        scrollToComment(nextComment.id, "auto");
+        scrollToComment(nextComment.id);
       }
     },
     [activeCommentIndex, orderedVisibleComments, scrollToComment],

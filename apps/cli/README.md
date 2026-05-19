@@ -56,6 +56,7 @@ diffhub --no-open
 - The standalone CLI injects `DIFFHUB_REPO` into the Next.js server process.
 - Local development can also point at a repo through `DIFFHUB_REPO` or the `/tmp/diffhub-active-repo` pointer file used by `diffhub-point`.
 - The app ships a standalone Next.js build via `bin/diffhub.mjs`, not `next start`.
+- Browser coverage for the comments UI lives in `e2e/` and runs with `npm -w apps/cli run test:visual` from the monorepo root. The Playwright harness creates a deterministic fixture git repo and writes screenshots, traces, and reports under `apps/cli/test-results/`.
 
 ## Keyboard shortcuts
 

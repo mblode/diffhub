@@ -27,6 +27,7 @@ export interface Comment {
   tag: CommentTag;
   createdAt: string;
   createdBy?: string;
+  externalId?: string;
   anchor: CommentAnchor;
   staleness: CommentStaleness;
   rebasedFromLine?: number;

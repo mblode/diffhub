@@ -538,6 +538,53 @@ describe("DiffApp review flow", () => {
     expect(FakeEventSource.instances[0]?.close).toHaveBeenCalledOnce();
   });
 
+  it("keeps the watch chip steady when a stream event does not change the diff", async () => {
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+
+      if (url.startsWith("/api/files")) {
+        return Promise.resolve(jsonResponse(filesPayload));
+      }
+
+      if (url.startsWith("/api/diff")) {
+        return Promise.resolve(jsonResponse(diffPayload));
+      }
+
+      if (url === "/api/comments" && method === "GET") {
+        return Promise.resolve(jsonResponse([]));
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${method} ${url}`));
+    });
+
+    vi.stubGlobal("EventSource", FakeEventSource);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { unmount } = render(<DiffApp repoPath="/tmp/repo-under-test" />);
+
+    await screen.findByText("feature/diff-review");
+    await waitFor(() => {
+      expect(FakeEventSource.instances).toHaveLength(1);
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+    });
+    FakeEventSource.instances[0]?.emitReady();
+    await screen.findByText("Live");
+
+    const initialDiffCalls = countFetchCalls(fetchMock, "/api/diff");
+    FakeEventSource.instances[0]?.emitChange();
+
+    await waitFor(() => {
+      expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
+    });
+    expect(screen.queryByText("Updated just now")).toBeNull();
+    expect(screen.queryByText("Updating…")).toBeNull();
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(initialDiffCalls);
+
+    unmount();
+  });
+
   it("supports a polling fallback without opening EventSource", async () => {
     let version = 1;
     const fetchMock = vi.fn<typeof fetch>((input, init) => {

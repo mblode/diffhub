@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { COMMENT_POSITION_SETTLE_MS } from "./comment-scroll-timing";
 
 interface ScrollAnchorOptions {
   /** Prefer this visible element over the section under the toolbar. */
@@ -12,6 +13,8 @@ interface ScrollAnchorOptions {
   /** Sticky header offset to preserve below (defaults to 52px status bar). */
   topOffset?: number;
 }
+
+const USER_SCROLL_CAPTURE_SUPPRESSION_MS = 80;
 
 /**
  * Safari-safe scroll anchor.
@@ -45,6 +48,7 @@ export const useScrollAnchor = ({
     let restoreRafId = 0;
     let captureRafId = 0;
     let suppressCaptureUntil = 0;
+    let suppressRestoreUntil = 0;
 
     const getRoot = (): HTMLElement => rootRef?.current ?? document.body;
 
@@ -109,6 +113,11 @@ export const useScrollAnchor = ({
       restoreRafId = requestAnimationFrame(() => {
         restoreRafId = 0;
 
+        if (Date.now() < suppressRestoreUntil) {
+          captureAnchor();
+          return;
+        }
+
         if (!anchor || !anchor.element.isConnected) {
           captureAnchor();
           return;
@@ -117,7 +126,7 @@ export const useScrollAnchor = ({
         const nextTop = anchor.element.getBoundingClientRect().top;
         const delta = nextTop - anchor.top;
         if (Math.abs(delta) > 0.5) {
-          suppressCaptureUntil = Date.now() + 80;
+          suppressCaptureUntil = Date.now() + USER_SCROLL_CAPTURE_SUPPRESSION_MS;
           window.scrollBy({ behavior: "instant", left: 0, top: delta });
         }
 
@@ -126,6 +135,11 @@ export const useScrollAnchor = ({
           top: anchor.element.getBoundingClientRect().top,
         };
       });
+    };
+
+    const handleProgrammaticScroll = () => {
+      suppressRestoreUntil = Date.now() + COMMENT_POSITION_SETTLE_MS;
+      suppressCaptureUntil = Date.now() + USER_SCROLL_CAPTURE_SUPPRESSION_MS;
     };
 
     const observer = new ResizeObserver(scheduleRestore);
@@ -150,6 +164,7 @@ export const useScrollAnchor = ({
     });
     const root = getRoot();
     mutation.observe(root, { childList: true, subtree: true });
+    window.addEventListener("diffhub:programmatic-scroll", handleProgrammaticScroll);
     window.addEventListener("scroll", scheduleCapture, { passive: true });
     window.addEventListener("resize", scheduleRestore);
 
@@ -162,6 +177,7 @@ export const useScrollAnchor = ({
       }
       observer.disconnect();
       mutation.disconnect();
+      window.removeEventListener("diffhub:programmatic-scroll", handleProgrammaticScroll);
       window.removeEventListener("scroll", scheduleCapture);
       window.removeEventListener("resize", scheduleRestore);
     };
