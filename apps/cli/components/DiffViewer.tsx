@@ -109,16 +109,16 @@ export const waitForElement = (
   selector: string,
   onReady: (element: HTMLElement) => void,
   timeoutMs = COMMENT_SCROLL_TIMEOUT_MS,
-): VoidFunction => {
+): VoidFunction | null => {
   const initial = document.querySelector<HTMLElement>(selector);
   if (initial && hasRenderableBox(initial)) {
     onReady(initial);
-    return () => null;
+    return null;
   }
 
   const container = document.querySelector("#diff-container");
   if (!container) {
-    return () => null;
+    return null;
   }
 
   let done = false;
