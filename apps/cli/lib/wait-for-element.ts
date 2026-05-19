@@ -7,7 +7,9 @@ export const hasRenderableBox = (element: HTMLElement): boolean => {
 
 /**
  * Returns a cancel handle only when an observer is pending. A null return
- * means the element was handled synchronously.
+ * means the element was handled synchronously. onReady can run before the
+ * caller receives this function's return value, so it must not read a caller's
+ * cancel-handle ref.
  */
 export const waitForElement = (
   selector: string,

@@ -562,6 +562,8 @@ export const DiffApp = ({
   // otherwise preserve the file section under the sticky toolbar.
   useScrollAnchor({ preferredSelector: activeCommentSelector, selector: "[data-file-section]" });
 
+  // activeCommentSelector handles a newly-active comment; commentScrollSeq
+  // handles explicit navigation to the same already-active comment.
   useEffect(() => {
     if (!activeCommentSelector) {
       return;

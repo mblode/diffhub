@@ -149,7 +149,9 @@ test("comment navigation waits for a collapsed deferred target without a second 
 
   await page.evaluate(() => window.scrollTo({ behavior: "instant", top: 0 }));
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 1000 }).toBeLessThanOrEqual(1);
-  await page.locator(`[data-testid="diffhub-sidebar-comment"][data-comment-id="${targetId}"]`).click();
+  await page
+    .locator(`[data-testid="diffhub-sidebar-comment"][data-comment-id="${targetId}"]`)
+    .click({ timeout: 2000 });
   await expect
     .poll(
       async () => {
