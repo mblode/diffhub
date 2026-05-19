@@ -565,39 +565,28 @@ export const DiffApp = ({
       return;
     }
 
-    let rafId = 0;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelWait: VoidFunction | null = null;
     let cancelled = false;
-    const deadline = Date.now() + 2000;
 
-    const positionActiveComment = () => {
+    const positionActiveComment = (element: HTMLElement) => {
       if (cancelled) {
         return;
       }
 
-      const element = document.querySelector<HTMLElement>(activeCommentSelector);
-      const rect = element?.getBoundingClientRect();
-      if (element && rect && rect.width > 0 && rect.height > 0) {
-        const top = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
-        window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
-        window.scrollTo({ behavior: "auto", top });
-        return;
-      }
-
-      if (Date.now() >= deadline) {
-        return;
-      }
-
-      rafId = requestAnimationFrame(positionActiveComment);
+      const rect = element.getBoundingClientRect();
+      const top = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
+      window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
+      window.scrollTo({ behavior: "auto", top });
     };
 
-    timeoutId = setTimeout(positionActiveComment, 350);
+    timeoutId = setTimeout(() => {
+      cancelWait = waitForElement(activeCommentSelector, positionActiveComment, 1650);
+    }, 350);
 
     return () => {
       cancelled = true;
-      if (rafId !== 0) {
-        cancelAnimationFrame(rafId);
-      }
+      cancelWait?.();
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

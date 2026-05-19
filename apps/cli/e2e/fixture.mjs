@@ -189,6 +189,7 @@ const comments = [
     file: "src/moved.ts",
     id: "comment-moved",
     lineNumber: 3,
+    rebasedFromLine: 3,
     staleness: "moved",
     tag: "[must-fix]",
   }),
