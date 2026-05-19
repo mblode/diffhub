@@ -602,6 +602,10 @@ export const DiffApp = ({
     // is still settling after a collapsed/deferred file opens. Keep those on
     // the deferred path; only already-visible comments take the immediate path.
     timeoutId = setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
       cancelWait = waitForElement(
         activeCommentSelector,
         positionActiveComment,
