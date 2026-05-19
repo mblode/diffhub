@@ -312,6 +312,7 @@ const CommentDisplay = ({
   const [isReplying, setIsReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -382,8 +383,26 @@ const CommentDisplay = ({
   );
 
   const handleExpandToggle = useCallback(() => {
-    setIsExpanded((value) => !value);
-  }, []);
+    const nextExpanded = !isExpanded;
+    window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
+    setIsExpanded(nextExpanded);
+
+    if (nextExpanded) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const card = cardRef.current;
+          if (!card) {
+            return;
+          }
+          const stickyOffset = 72;
+          const rect = card.getBoundingClientRect();
+          if (rect.top < stickyOffset) {
+            window.scrollBy({ behavior: "instant", top: rect.top - stickyOffset });
+          }
+        });
+      });
+    }
+  }, [isExpanded]);
 
   const handleResolveClick = useCallback(() => {
     void handleResolve(true);
@@ -447,6 +466,7 @@ const CommentDisplay = ({
 
   return (
     <div
+      ref={cardRef}
       id={getCommentElementId(comment.id)}
       data-comment-id={comment.id}
       data-testid="diffhub-comment-card"
