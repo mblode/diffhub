@@ -100,6 +100,19 @@ const mergePollUpdateCallbacks = (
   };
 };
 
+const mergeShowRefreshing = (
+  previous: PollFilesOptions["showRefreshing"],
+  next: PollFilesOptions["showRefreshing"],
+): boolean => {
+  if (previous === true || next === true) {
+    return true;
+  }
+  if (previous === false || next === false) {
+    return false;
+  }
+  return true;
+};
+
 const mergePollOptions = (
   previous: PollFilesOptions | null,
   next: PollFilesOptions,
@@ -112,7 +125,7 @@ const mergePollOptions = (
     forceRefresh: (previous.forceRefresh ?? false) || (next.forceRefresh ?? false),
     includeComments: (previous.includeComments ?? true) || (next.includeComments ?? true),
     onFilesUpdate: mergePollUpdateCallbacks(previous.onFilesUpdate, next.onFilesUpdate),
-    showRefreshing: (previous.showRefreshing ?? false) || (next.showRefreshing ?? false),
+    showRefreshing: mergeShowRefreshing(previous.showRefreshing, next.showRefreshing),
   };
 };
 
