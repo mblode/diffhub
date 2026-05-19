@@ -1137,6 +1137,8 @@ export const DiffApp = ({
         return;
       }
 
+      pendingFileScrollCancelRef.current?.();
+      pendingFileScrollCancelRef.current = null;
       setActiveCommentId(comment.id);
       setCommentScrollSeq((seq) => seq + 1);
       lockActiveFile(comment.file);
