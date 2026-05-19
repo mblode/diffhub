@@ -139,9 +139,9 @@ test("comment navigation waits for a collapsed deferred target without a second 
       ((window as typeof window & { __diffhubAfterVisibleScrolls?: number[] })
         .__diffhubAfterVisibleScrolls ?? []) as number[];
     let changes = 0;
-    let previous = samples[0];
+    let previous = samples[0] ?? 0;
     for (const sample of samples.slice(1)) {
-      if (previous === undefined || Math.abs(sample - previous) <= 1) {
+      if (Math.abs(sample - previous) <= 1) {
         previous = sample;
         continue;
       }

@@ -38,6 +38,8 @@ export const waitForElement = (
       if (!element || !hasRenderableBox(element) || done) {
         return;
       }
+      // Clean up before invoking the caller so thrown callback errors cannot
+      // leave the observer or timeout alive.
       done = true;
       observer.disconnect();
       if (timeoutId) {
