@@ -671,6 +671,7 @@ export const DiffApp = ({
       positionActiveComment(initial);
       return () => {
         cancelled = true;
+        cancelScrollAnimation();
       };
     }
 
