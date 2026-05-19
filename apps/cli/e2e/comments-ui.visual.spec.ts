@@ -144,5 +144,19 @@ test("comment navigation waits for a collapsed deferred target without a second 
   });
 
   expect(changesAfterVisible).toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => window.scrollTo({ behavior: "instant", top: 0 }));
+  await page.locator(`[data-testid="diffhub-sidebar-comment"][data-comment-id="${targetId}"]`).click();
+  await expect
+    .poll(
+      async () => {
+        const box = await target.boundingBox();
+        const expectedCommentTop = box ? viewportHeight / 2 - box.height / 2 : 0;
+        return box ? Math.abs(box.y - expectedCommentTop) : Number.POSITIVE_INFINITY;
+      },
+      { timeout: 2000 },
+    )
+    .toBeLessThanOrEqual(24);
+
   await page.screenshot({ path: join(visualOutputDir, "comments-navigation.png") });
 });

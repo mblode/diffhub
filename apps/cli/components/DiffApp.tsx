@@ -410,6 +410,7 @@ export const DiffApp = ({
   const [comments, setComments] = useState<Comment[]>([]);
   const commentsRef = useRef<Comment[]>([]);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [commentScrollSeq, setCommentScrollSeq] = useState(0);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
   const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
@@ -601,7 +602,7 @@ export const DiffApp = ({
         clearTimeout(timeoutId);
       }
     };
-  }, [activeCommentSelector, collapsedFiles, forceRenderFiles]);
+  }, [activeCommentSelector, collapsedFiles, commentScrollSeq, forceRenderFiles]);
 
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
@@ -1123,6 +1124,7 @@ export const DiffApp = ({
       }
 
       setActiveCommentId(comment.id);
+      setCommentScrollSeq((seq) => seq + 1);
       lockActiveFile(comment.file);
 
       const files = filesData?.files.map((stat) => stat.file) ?? [];
