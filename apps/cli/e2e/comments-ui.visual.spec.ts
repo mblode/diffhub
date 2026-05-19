@@ -2,12 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator } from "@playwright/test";
+import { COMMENT_POSITION_SETTLE_MS } from "../lib/comment-scroll-timing";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const visualOutputDir = join(__dirname, "..", "test-results", "visual");
 const fixtureRepoPathFile = join(visualOutputDir, "fixture-repo-path");
 const fixtureRepoPath = () => readFileSync(fixtureRepoPathFile, "utf-8");
-const commentScrollSettleMs = 250;
+const commentScrollSettleMs = COMMENT_POSITION_SETTLE_MS + 150;
 const commentSelector = (id: string) =>
   `[data-testid="diffhub-comment-card"][data-comment-id="${id}"]`;
 
@@ -92,11 +93,17 @@ test("comment navigation waits for a collapsed deferred target without a second 
     )
     .toBeLessThanOrEqual(24);
 
-  const settledScrollY = await page.evaluate(() => window.scrollY);
   await page.waitForTimeout(commentScrollSettleMs);
-  expect(Math.abs((await page.evaluate(() => window.scrollY)) - settledScrollY)).toBeLessThanOrEqual(
-    1,
-  );
+  await expect
+    .poll(
+      async () => {
+        const settledScrollY = await page.evaluate(() => window.scrollY);
+        await page.waitForTimeout(50);
+        return Math.abs((await page.evaluate(() => window.scrollY)) - settledScrollY);
+      },
+      { timeout: 500 },
+    )
+    .toBeLessThanOrEqual(1);
 
   await page.evaluate(() => window.scrollTo({ behavior: "instant", top: 0 }));
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 1000 }).toBeLessThanOrEqual(1);

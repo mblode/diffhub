@@ -21,7 +21,11 @@ import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
-import { COMMENT_POSITION_DELAY_MS, COMMENT_POSITION_WAIT_MS } from "@/lib/comment-scroll-timing";
+import {
+  COMMENT_POSITION_DELAY_MS,
+  COMMENT_POSITION_WAIT_MS,
+  COMMENT_SCROLL_ANIMATION_MS,
+} from "@/lib/comment-scroll-timing";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { useScrollAnchor } from "@/lib/use-scroll-anchor";
 import { hasRenderableBox, waitForElement } from "@/lib/wait-for-element";
@@ -158,7 +162,6 @@ const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
 const CMUX_WATCH_POLL_MS = 2000;
 const FILE_SECTION_WAIT_MS = 5000;
-const COMMENT_SCROLL_ANIMATION_MS = 180;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 type WatchMode = "poll" | "stream";

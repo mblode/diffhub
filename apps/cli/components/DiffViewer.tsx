@@ -781,6 +781,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
   const fileComments = comments;
   const headerId = `${sectionId}-header`;
   const panelId = `${sectionId}-panel`;
+  const [clientRenderLayout, setClientRenderLayout] = useState<"split" | "stacked" | null>(null);
 
   const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
     const annotations: DiffLineAnnotation<AnnotationData>[] = [];
@@ -871,10 +872,16 @@ const SingleFileDiff = memo(function SingleFileDiff({
   );
   const themeType = resolvedTheme === "light" ? "light" : "dark";
   const activePrerenderedHTML = prerenderedHTML?.[themeType];
+  const canClientRenderPatch = !requirePrerenderedHTML || clientRenderLayout === layout;
 
   const handleRenderPatch = useCallback(() => {
     onRenderPatch();
   }, [onRenderPatch]);
+
+  const handleClientRenderPatch = useCallback(() => {
+    setClientRenderLayout(layout);
+    onRenderPatch();
+  }, [layout, onRenderPatch]);
 
   const handleJumpToFirstComment = useCallback(() => {
     const [firstComment] = fileComments;
@@ -896,7 +903,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
           {renderFileComments()}
         </>
       );
-    } else if (shouldRenderPatch && (!requirePrerenderedHTML || activePrerenderedHTML)) {
+    } else if (shouldRenderPatch && (canClientRenderPatch || activePrerenderedHTML)) {
       panelContent = (
         <DiffErrorBoundary file={file}>
           <>
@@ -932,8 +939,12 @@ const SingleFileDiff = memo(function SingleFileDiff({
     } else {
       panelContent = (
         <>
-          {shouldRenderPatch ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">Loading diff view…</div>
+          {shouldRenderPatch && requirePrerenderedHTML ? (
+            <DeferredDiffPlaceholder
+              onRender={handleClientRenderPatch}
+              variant={isLargeFile ? "large" : "auto"}
+              changes={fileStat?.changes}
+            />
           ) : (
             <DeferredDiffPlaceholder
               onRender={handleRenderPatch}
