@@ -130,11 +130,17 @@ const DiffSkeleton = () => (
 
 interface DeferredDiffPlaceholderProps {
   onRender: () => void;
+  message?: string;
   variant: "auto" | "large";
   changes?: number;
 }
 
-const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPlaceholderProps) => {
+const DeferredDiffPlaceholder = ({
+  onRender,
+  message,
+  variant,
+  changes,
+}: DeferredDiffPlaceholderProps) => {
   const isLarge = variant === "large";
   return (
     <div
@@ -146,9 +152,10 @@ const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPla
         Load diff
       </Button>
       <p className="text-sm text-muted-foreground">
-        {isLarge
-          ? "Large diffs are not rendered by default."
-          : "Diff rendering is deferred. Load this file to render its diff."}
+        {message ??
+          (isLarge
+            ? "Large diffs are not rendered by default."
+            : "Diff rendering is deferred. Load this file to render its diff.")}
       </p>
       {isLarge && changes !== undefined ? (
         <p className="text-xs text-muted-foreground/70">{changes.toLocaleString()} changed lines</p>
@@ -782,6 +789,13 @@ const SingleFileDiff = memo(function SingleFileDiff({
   const headerId = `${sectionId}-header`;
   const panelId = `${sectionId}-panel`;
   const [clientRenderLayout, setClientRenderLayout] = useState<"split" | "stacked" | null>(null);
+  const [showPrerenderFallback, setShowPrerenderFallback] = useState(false);
+
+  useEffect(() => {
+    setShowPrerenderFallback(false);
+    const timeoutId = setTimeout(() => setShowPrerenderFallback(true), 3000);
+    return () => clearTimeout(timeoutId);
+  }, [layout, requirePrerenderedHTML]);
 
   const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
     const annotations: DiffLineAnnotation<AnnotationData>[] = [];
@@ -940,11 +954,18 @@ const SingleFileDiff = memo(function SingleFileDiff({
       panelContent = (
         <>
           {shouldRenderPatch && requirePrerenderedHTML ? (
-            <DeferredDiffPlaceholder
-              onRender={handleClientRenderPatch}
-              variant={isLargeFile ? "large" : "auto"}
-              changes={fileStat?.changes}
-            />
+            showPrerenderFallback ? (
+              <DeferredDiffPlaceholder
+                onRender={handleClientRenderPatch}
+                message="Still waiting for the server-rendered diff. Load this file locally if you need it now."
+                variant={isLargeFile ? "large" : "auto"}
+                changes={fileStat?.changes}
+              />
+            ) : (
+              <div className="px-4 py-6 text-sm text-muted-foreground">
+                Loading server-rendered diff…
+              </div>
+            )
           ) : (
             <DeferredDiffPlaceholder
               onRender={handleRenderPatch}
