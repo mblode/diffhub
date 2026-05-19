@@ -579,7 +579,7 @@ export const DiffApp = ({
       if (element && rect && rect.width > 0 && rect.height > 0) {
         const top = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
         window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
-        window.scrollTo({ behavior: "auto", left: 0, top });
+        window.scrollTo({ behavior: "auto", top });
         return;
       }
 
