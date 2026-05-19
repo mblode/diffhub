@@ -696,6 +696,7 @@ interface SingleFileDiffProps {
   filePatch: string;
   layout: "split" | "stacked";
   prerenderedHTML?: { dark?: string; light?: string };
+  requirePrerenderedHTML: boolean;
   shouldRenderPatch: boolean;
   comments: Comment[];
   fileStat: DiffFileStat | undefined;
@@ -755,6 +756,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
   filePatch,
   layout,
   prerenderedHTML,
+  requirePrerenderedHTML,
   shouldRenderPatch,
   comments,
   fileStat,
@@ -867,6 +869,8 @@ const SingleFileDiff = memo(function SingleFileDiff({
     ),
     [onCommentTargetChange],
   );
+  const themeType = resolvedTheme === "light" ? "light" : "dark";
+  const activePrerenderedHTML = prerenderedHTML?.[themeType];
 
   const handleRenderPatch = useCallback(() => {
     onRenderPatch();
@@ -892,16 +896,16 @@ const SingleFileDiff = memo(function SingleFileDiff({
           {renderFileComments()}
         </>
       );
-    } else if (shouldRenderPatch) {
+    } else if (shouldRenderPatch && (!requirePrerenderedHTML || activePrerenderedHTML)) {
       panelContent = (
         <DiffErrorBoundary file={file}>
           <>
             <PatchDiff
               key={file}
               patch={filePatch}
-              prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
+              prerenderedHTML={activePrerenderedHTML}
               disableWorkerPool
-              style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
+              style={{ colorScheme: themeType }}
               options={{
                 diffStyle: layout === "split" ? "split" : "unified",
                 disableFileHeader: true,
@@ -914,7 +918,7 @@ const SingleFileDiff = memo(function SingleFileDiff({
                 maxLineDiffLength: 500,
                 overflow: "wrap",
                 theme: { dark: "github-dark", light: "github-light" },
-                themeType: resolvedTheme === "light" ? "light" : "dark",
+                themeType,
                 unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
               }}
               lineAnnotations={lineAnnotations}
@@ -928,11 +932,15 @@ const SingleFileDiff = memo(function SingleFileDiff({
     } else {
       panelContent = (
         <>
-          <DeferredDiffPlaceholder
-            onRender={handleRenderPatch}
-            variant={isLargeFile ? "large" : "auto"}
-            changes={fileStat?.changes}
-          />
+          {shouldRenderPatch ? (
+            <div className="px-4 py-6 text-sm text-muted-foreground">Loading diff view…</div>
+          ) : (
+            <DeferredDiffPlaceholder
+              onRender={handleRenderPatch}
+              variant={isLargeFile ? "large" : "auto"}
+              changes={fileStat?.changes}
+            />
+          )}
           {renderFileComments()}
         </>
       );
@@ -992,6 +1000,7 @@ interface CollapsibleFileDiffProps {
   filePatch: string;
   layout: "split" | "stacked";
   prerenderedHTML?: PrerenderedDiffHtml;
+  requirePrerenderedHTML: boolean;
   deferPatchRendering: boolean;
   isLargeFile: boolean;
   forceRender: boolean;
@@ -1021,6 +1030,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
   filePatch,
   layout,
   prerenderedHTML,
+  requirePrerenderedHTML,
   deferPatchRendering,
   isLargeFile,
   forceRender,
@@ -1120,6 +1130,7 @@ const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
         filePatch={filePatch}
         layout={layout}
         prerenderedHTML={prerenderedHTML?.[layout]}
+        requirePrerenderedHTML={requirePrerenderedHTML}
         shouldRenderPatch={shouldRenderPatch}
         comments={comments}
         fileStat={fileStat}
@@ -1191,6 +1202,7 @@ export const DiffViewer = ({
   const deferPatchRendering =
     orderedFiles.length >= LARGE_DIFF_FALLBACK_FILE_THRESHOLD &&
     Object.keys(prerenderedHTMLByFile ?? {}).length === 0;
+  const requirePrerenderedHTML = prerenderedHTMLByFile !== undefined;
 
   const toggleHandlers = useMemo(() => {
     const handlers = new Map<string, () => void>();
@@ -1232,6 +1244,7 @@ export const DiffViewer = ({
             filePatch={patch}
             layout={layout}
             prerenderedHTML={prerenderedHTMLByFile?.[file]}
+            requirePrerenderedHTML={requirePrerenderedHTML}
             deferPatchRendering={deferPatchRendering}
             isLargeFile={isLargeFile}
             forceRender={forceRenderFiles?.has(file) ?? false}
