@@ -13,6 +13,9 @@ interface ScrollAnchorOptions {
   topOffset?: number;
 }
 
+const PROGRAMMATIC_SCROLL_SUPPRESSION_MS = 1850;
+const USER_SCROLL_CAPTURE_SUPPRESSION_MS = 80;
+
 /**
  * Safari-safe scroll anchor.
  *
@@ -123,7 +126,7 @@ export const useScrollAnchor = ({
         const nextTop = anchor.element.getBoundingClientRect().top;
         const delta = nextTop - anchor.top;
         if (Math.abs(delta) > 0.5) {
-          suppressCaptureUntil = Date.now() + 80;
+          suppressCaptureUntil = Date.now() + USER_SCROLL_CAPTURE_SUPPRESSION_MS;
           window.scrollBy({ behavior: "instant", left: 0, top: delta });
         }
 
@@ -135,8 +138,8 @@ export const useScrollAnchor = ({
     };
 
     const handleProgrammaticScroll = () => {
-      suppressRestoreUntil = Date.now() + 2000;
-      suppressCaptureUntil = Date.now() + 80;
+      suppressRestoreUntil = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESSION_MS;
+      suppressCaptureUntil = Date.now() + USER_SCROLL_CAPTURE_SUPPRESSION_MS;
     };
 
     const observer = new ResizeObserver(scheduleRestore);

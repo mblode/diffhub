@@ -120,10 +120,7 @@ export const waitForElement = (
     return null;
   }
 
-  const container = document.querySelector("#diff-container") ?? document.body;
-  if (!container) {
-    return null;
-  }
+  const container = document.querySelector("#diff-container") ?? document.body ?? document.documentElement;
 
   let done = false;
   let rafId = 0;
