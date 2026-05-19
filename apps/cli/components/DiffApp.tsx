@@ -13,7 +13,7 @@ import {
 import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
-import { DiffViewer, getCommentElementId, getDiffSectionId, waitForElement } from "./DiffViewer";
+import { DiffViewer, getCommentElementId, getDiffSectionId } from "./DiffViewer";
 import { useTheme } from "./theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { splitPatchByFile } from "@/lib/split-patch";
 import { COMMENT_POSITION_DELAY_MS, COMMENT_POSITION_WAIT_MS } from "@/lib/comment-scroll-timing";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { useScrollAnchor } from "@/lib/use-scroll-anchor";
+import { hasRenderableBox, waitForElement } from "@/lib/wait-for-element";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 
 interface FilesData {
@@ -580,6 +581,19 @@ export const DiffApp = ({
       window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
       window.scrollTo({ behavior: "auto", top });
     };
+
+    const isInViewport = (element: HTMLElement): boolean => {
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    };
+
+    const initial = document.querySelector<HTMLElement>(activeCommentSelector);
+    if (initial && hasRenderableBox(initial) && isInViewport(initial)) {
+      positionActiveComment(initial);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     timeoutId = setTimeout(() => {
       cancelWait = waitForElement(
