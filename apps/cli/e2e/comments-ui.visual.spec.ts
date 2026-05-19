@@ -143,6 +143,8 @@ test("comment navigation waits for a collapsed deferred target without a second 
     return changes;
   });
 
+  // The target can become renderable before the delayed centering scroll fires,
+  // so one multi-pixel post-visible change is the expected centering action.
   expect(changesAfterVisible).toBeLessThanOrEqual(1);
 
   await page.evaluate(() => window.scrollTo({ behavior: "instant", top: 0 }));

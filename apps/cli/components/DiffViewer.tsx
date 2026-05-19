@@ -440,6 +440,10 @@ const CommentDisplay = ({
       const updated = await onResolve(resolved).catch(() => false);
       if (updated) {
         setIsExpanded(!resolved);
+        if (resolved) {
+          setIsReplying(false);
+          setReplyError(null);
+        }
       } else {
         setDeleteError("Failed to update comment.");
       }
