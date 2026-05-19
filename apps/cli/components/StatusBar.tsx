@@ -135,7 +135,12 @@ const WatchStatusChip = ({ status, updating }: { status: WatchStatus; updating: 
   const meta = getWatchStatusMeta(status, updating);
 
   return (
-    <div className={cn("rounded-full border px-2 py-1 text-[11px] leading-none", meta.className)}>
+    <div
+      className={cn(
+        "flex min-w-24 justify-center rounded-full border px-2 py-1 text-[11px] leading-none transition-colors",
+        meta.className,
+      )}
+    >
       {meta.label}
     </div>
   );

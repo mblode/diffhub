@@ -75,6 +75,7 @@ type SyncNoticeTone = "neutral" | "warning" | "destructive";
 interface PollFilesOptions {
   forceRefresh?: boolean;
   includeComments?: boolean;
+  showRefreshing?: boolean;
 }
 
 interface SyncNotice {
@@ -846,8 +847,11 @@ export const DiffApp = ({
     async (options: PollFilesOptions = {}): Promise<boolean> => {
       const forceRefresh = options.forceRefresh ?? false;
       const includeComments = options.includeComments ?? true;
+      const showRefreshing = options.showRefreshing ?? true;
       const finishPoll = () => {
-        setRefreshing(false);
+        if (showRefreshing) {
+          setRefreshing(false);
+        }
 
         fetchingRef.current = false;
         if (queuedPollRef.current) {
@@ -864,7 +868,9 @@ export const DiffApp = ({
       }
 
       fetchingRef.current = true;
-      setRefreshing(true);
+      if (showRefreshing) {
+        setRefreshing(true);
+      }
       setLoadError(null);
 
       const pollResult = await Promise.all([
@@ -947,6 +953,7 @@ export const DiffApp = ({
           const didUpdate = await pollFilesRef.current({
             forceRefresh: true,
             includeComments: false,
+            showRefreshing: false,
           });
           if (!active) {
             return;
@@ -997,8 +1004,15 @@ export const DiffApp = ({
     const handleChange = () => {
       clearWatchStatusTimer();
       void (async () => {
-        await pollFilesRef.current({ forceRefresh: true, includeComments: false });
+        const didUpdate = await pollFilesRef.current({
+          forceRefresh: true,
+          includeComments: false,
+          showRefreshing: false,
+        });
         if (!active) {
+          return;
+        }
+        if (!didUpdate) {
           return;
         }
         setWatchStatus("updated");
