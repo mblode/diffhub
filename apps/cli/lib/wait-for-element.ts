@@ -5,6 +5,12 @@ export const hasRenderableBox = (element: HTMLElement): boolean => {
   return rect.width > 0 && rect.height > 0 && element.getClientRects().length > 0;
 };
 
+const rethrowAsync = (error: unknown) => {
+  setTimeout(() => {
+    throw error;
+  }, 0);
+};
+
 /**
  * Returns a cancel handle only when an observer is pending. A null return
  * means the element was handled synchronously. onReady can run before the
@@ -44,7 +50,11 @@ export const waitForElement = (
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      onReady(element);
+      try {
+        onReady(element);
+      } catch (error) {
+        rethrowAsync(error);
+      }
     });
   });
 

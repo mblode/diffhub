@@ -1,11 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator } from "@playwright/test";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const visualOutputDir = join(__dirname, "..", "test-results", "visual");
-const fixtureRepoPath = () => readFileSync(join(visualOutputDir, "fixture-repo-path"), "utf-8");
+const fixtureRepoPathFile = join(visualOutputDir, "fixture-repo-path");
+const fixtureRepoPath = () => readFileSync(fixtureRepoPathFile, "utf-8");
 const commentSelector = (id: string) =>
   `[data-testid="diffhub-comment-card"][data-comment-id="${id}"]`;
 
@@ -14,6 +15,13 @@ const getBox = async (locator: Locator) => {
   expect(box).not.toBeNull();
   return box as NonNullable<typeof box>;
 };
+
+test.beforeAll(() => {
+  expect(
+    existsSync(fixtureRepoPathFile),
+    `Expected visual fixture repo path file to exist at ${fixtureRepoPathFile}. The fixture webServer likely failed before writing it.`,
+  ).toBeTruthy();
+});
 
 test("comments load quickly and render compactly", async ({ page }) => {
   await page.goto("/");
