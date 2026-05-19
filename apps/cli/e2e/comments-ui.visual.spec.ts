@@ -21,10 +21,8 @@ test("comments load quickly and render compactly", async ({ page }) => {
     timeout: 15_000,
   });
 
-  const readyAt = Date.now();
   const normalCard = page.locator(commentSelector("comment-normal-alpha"));
   await expect(normalCard).toBeVisible({ timeout: 2000 });
-  expect(Date.now() - readyAt).toBeLessThanOrEqual(2000);
 
   const normalBox = await getBox(normalCard);
   expect(normalBox.height).toBeLessThanOrEqual(88);
@@ -112,7 +110,6 @@ test("comment navigation waits for a collapsed deferred target without a second 
 
   const target = page.locator(commentSelector(targetId));
   await expect(target).toBeVisible({ timeout: 2000 });
-  await page.waitForTimeout(500);
 
   const viewportHeight = page.viewportSize()?.height ?? 720;
   await expect

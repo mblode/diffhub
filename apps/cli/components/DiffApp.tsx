@@ -1116,7 +1116,7 @@ export const DiffApp = ({
   );
 
   const scrollToComment = useCallback(
-    (commentId: string, behavior: ScrollBehavior = "auto") => {
+    (commentId: string) => {
       const comment = orderedVisibleComments.find((candidate) => candidate.id === commentId);
       if (!comment) {
         return;
@@ -1156,7 +1156,7 @@ export const DiffApp = ({
     (file: string) => {
       const comment = orderedVisibleComments.find((candidate) => candidate.file === file);
       if (comment) {
-        scrollToComment(comment.id, "auto");
+        scrollToComment(comment.id);
         return;
       }
       scrollToFile(file, "auto");
@@ -1178,7 +1178,7 @@ export const DiffApp = ({
         (currentIndex + direction + orderedVisibleComments.length) % orderedVisibleComments.length;
       const nextComment = orderedVisibleComments[nextIndex];
       if (nextComment) {
-        scrollToComment(nextComment.id, "auto");
+        scrollToComment(nextComment.id);
       }
     },
     [activeCommentIndex, orderedVisibleComments, scrollToComment],
