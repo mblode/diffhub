@@ -362,6 +362,7 @@ const CommentDisplay = ({
       if (updated) {
         setIsExpanded(!resolved);
         if (resolved) {
+          setReplyBody("");
           setIsReplying(false);
           setReplyError(null);
         }
