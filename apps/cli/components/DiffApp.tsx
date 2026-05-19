@@ -1002,7 +1002,6 @@ export const DiffApp = ({
       setWatchStatus("live");
     };
     const handleChange = () => {
-      clearWatchStatusTimer();
       void (async () => {
         const didUpdate = await pollFilesRef.current({
           forceRefresh: true,
@@ -1015,6 +1014,7 @@ export const DiffApp = ({
         if (!didUpdate) {
           return;
         }
+        clearWatchStatusTimer();
         setWatchStatus("updated");
         watchStatusTimerRef.current = setTimeout(() => {
           if (active) {
