@@ -602,7 +602,7 @@ export const DiffApp = ({
         clearTimeout(timeoutId);
       }
     };
-  }, [activeCommentSelector, collapsedFiles, commentScrollSeq, forceRenderFiles]);
+  }, [activeCommentSelector, commentScrollSeq]);
 
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
