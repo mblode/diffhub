@@ -662,6 +662,7 @@ const CommentDisplay = ({
       {isExpanded && isReplying && (
         <div className="border-t border-border/40 px-2.5 py-1.5">
           <textarea
+            autoFocus
             value={replyBody}
             onChange={handleReplyChange}
             onKeyDown={handleReplyKeyDown}
