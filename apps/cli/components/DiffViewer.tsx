@@ -459,6 +459,19 @@ const CommentDisplay = ({
     setReplyBody(event.target.value);
   }, []);
 
+  const handleCancelReply = useCallback(() => {
+    setReplyBody("");
+    setReplyError(null);
+    setIsReplying(false);
+  }, []);
+
+  const handleReplyKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleCancelReply();
+    }
+  }, [handleCancelReply]);
+
   const handleReply = useCallback(async (): Promise<void> => {
     const trimmed = replyBody.trim();
     if (!trimmed || isUpdating) {
@@ -642,21 +655,33 @@ const CommentDisplay = ({
           <textarea
             value={replyBody}
             onChange={handleReplyChange}
+            onKeyDown={handleReplyKeyDown}
             placeholder="Reply"
             rows={2}
             className="w-full resize-none rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring/50"
           />
           <div className="mt-1 flex items-center justify-between gap-2">
             {replyError ? <p className="text-xs text-destructive">{replyError}</p> : <span />}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!replyBody.trim() || isUpdating}
-              onClick={handleReplyClick}
-            >
-              Reply
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 px-1.5 text-[11px] text-muted-foreground"
+                onClick={handleCancelReply}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!replyBody.trim() || isUpdating}
+                onClick={handleReplyClick}
+              >
+                Reply
+              </Button>
+            </div>
           </div>
         </div>
       )}
