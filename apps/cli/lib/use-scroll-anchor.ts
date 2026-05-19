@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { COMMENT_POSITION_TOTAL_MS } from "./comment-scroll-timing";
 
 interface ScrollAnchorOptions {
   /** Prefer this visible element over the section under the toolbar. */
@@ -13,7 +14,6 @@ interface ScrollAnchorOptions {
   topOffset?: number;
 }
 
-const PROGRAMMATIC_SCROLL_SUPPRESSION_MS = 1850;
 const USER_SCROLL_CAPTURE_SUPPRESSION_MS = 80;
 
 /**
@@ -138,7 +138,7 @@ export const useScrollAnchor = ({
     };
 
     const handleProgrammaticScroll = () => {
-      suppressRestoreUntil = Date.now() + PROGRAMMATIC_SCROLL_SUPPRESSION_MS;
+      suppressRestoreUntil = Date.now() + COMMENT_POSITION_TOTAL_MS;
       suppressCaptureUntil = Date.now() + USER_SCROLL_CAPTURE_SUPPRESSION_MS;
     };
 

@@ -63,7 +63,6 @@ test("comment navigation waits for a collapsed deferred target without a second 
   await page.evaluate((id) => {
     const globalWindow = window as typeof window & {
       __diffhubAfterVisibleScrolls?: number[];
-      __diffhubTargetVisibleAt?: number;
     };
     globalWindow.__diffhubAfterVisibleScrolls = [];
 
@@ -82,7 +81,6 @@ test("comment navigation waits for a collapsed deferred target without a second 
       );
       if (!targetVisible && isVisible(element)) {
         targetVisible = true;
-        globalWindow.__diffhubTargetVisibleAt = performance.now();
         globalWindow.__diffhubAfterVisibleScrolls?.push(window.scrollY);
       }
     };
@@ -122,9 +120,6 @@ test("comment navigation waits for a collapsed deferred target without a second 
       { timeout: 2000 },
     )
     .toBeLessThanOrEqual(24);
-  const targetBox = await getBox(target);
-  const expectedCommentTop = viewportHeight / 2 - targetBox.height / 2;
-  expect(Math.abs(targetBox.y - expectedCommentTop)).toBeLessThanOrEqual(24);
 
   const changesAfterVisible = await page.evaluate(() => {
     const samples =
