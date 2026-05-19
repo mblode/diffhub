@@ -158,6 +158,7 @@ const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
 const CMUX_WATCH_POLL_MS = 2000;
 const FILE_SECTION_WAIT_MS = 5000;
+const COMMENT_SCROLL_ANIMATION_MS = 180;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 type WatchMode = "poll" | "stream";
@@ -608,7 +609,15 @@ export const DiffApp = ({
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let cancelWait: VoidFunction | null = null;
+    let scrollRafId = 0;
     let cancelled = false;
+
+    const cancelScrollAnimation = () => {
+      if (scrollRafId !== 0) {
+        cancelAnimationFrame(scrollRafId);
+        scrollRafId = 0;
+      }
+    };
 
     const positionActiveComment = (element: HTMLElement) => {
       if (cancelled) {
@@ -619,7 +628,34 @@ export const DiffApp = ({
       const idealOffset = Math.max(0, (window.innerHeight - rect.height) / 2);
       const top = window.scrollY + rect.top - idealOffset;
       window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
-      window.scrollTo({ behavior: "auto", top });
+      cancelScrollAnimation();
+
+      const startTop = window.scrollY;
+      const delta = top - startTop;
+      const reduceMotion =
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      if (reduceMotion || Math.abs(delta) <= 4) {
+        window.scrollTo({ behavior: "auto", top });
+        return;
+      }
+
+      const startedAt = performance.now();
+      const animate = (now: number) => {
+        if (cancelled) {
+          scrollRafId = 0;
+          return;
+        }
+
+        const progress = Math.min(1, (now - startedAt) / COMMENT_SCROLL_ANIMATION_MS);
+        const eased = 1 - (1 - progress) ** 3;
+        window.scrollTo({ behavior: "instant", top: startTop + delta * eased });
+        if (progress < 1) {
+          scrollRafId = requestAnimationFrame(animate);
+          return;
+        }
+        scrollRafId = 0;
+      };
+      scrollRafId = requestAnimationFrame(animate);
     };
 
     const isInViewport = (element: HTMLElement): boolean => {
@@ -653,6 +689,7 @@ export const DiffApp = ({
     return () => {
       cancelled = true;
       cancelWait?.();
+      cancelScrollAnimation();
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

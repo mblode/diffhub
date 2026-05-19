@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const visualOutputDir = join(__dirname, "..", "test-results", "visual");
 const fixtureRepoPathFile = join(visualOutputDir, "fixture-repo-path");
 const fixtureRepoPath = () => readFileSync(fixtureRepoPathFile, "utf-8");
+const commentScrollSettleMs = 250;
 const commentSelector = (id: string) =>
   `[data-testid="diffhub-comment-card"][data-comment-id="${id}"]`;
 
@@ -73,49 +74,6 @@ test("comment navigation waits for a collapsed deferred target without a second 
   });
 
   const targetId = "comment-large-deferred";
-  await page.evaluate((id) => {
-    const globalWindow = window as typeof window & {
-      __diffhubAfterVisibleScrolls?: number[];
-    };
-    globalWindow.__diffhubAfterVisibleScrolls = [];
-
-    let targetVisible = false;
-    const isVisible = (element: Element | null): boolean => {
-      if (!(element instanceof HTMLElement)) {
-        return false;
-      }
-      const rect = element.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    };
-
-    const recordIfVisible = () => {
-      const element = document.querySelector(
-        `[data-testid="diffhub-comment-card"][data-comment-id="${id}"]`,
-      );
-      if (!targetVisible && isVisible(element)) {
-        targetVisible = true;
-        globalWindow.__diffhubAfterVisibleScrolls?.push(window.scrollY);
-      }
-    };
-
-    const observer = new MutationObserver(recordIfVisible);
-    observer.observe(document.body, {
-      attributeFilter: ["class", "hidden", "style"],
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (targetVisible) {
-          globalWindow.__diffhubAfterVisibleScrolls?.push(window.scrollY);
-        }
-      },
-      { passive: true },
-    );
-  }, targetId);
-
   await page.getByRole("button", { name: "Show comments" }).click();
   await page.locator(`[data-testid="diffhub-sidebar-comment"][data-comment-id="${targetId}"]`).click();
 
@@ -134,26 +92,11 @@ test("comment navigation waits for a collapsed deferred target without a second 
     )
     .toBeLessThanOrEqual(24);
 
-  const changesAfterVisible = await page.evaluate(() => {
-    const samples =
-      ((window as typeof window & { __diffhubAfterVisibleScrolls?: number[] })
-        .__diffhubAfterVisibleScrolls ?? []) as number[];
-    let changes = 0;
-    let previous = samples[0] ?? 0;
-    for (const sample of samples.slice(1)) {
-      if (Math.abs(sample - previous) <= 1) {
-        previous = sample;
-        continue;
-      }
-      changes += 1;
-      previous = sample;
-    }
-    return changes;
-  });
-
-  // The target can become renderable before the delayed centering scroll fires,
-  // so one multi-pixel post-visible change is the expected centering action.
-  expect(changesAfterVisible).toBeLessThanOrEqual(1);
+  const settledScrollY = await page.evaluate(() => window.scrollY);
+  await page.waitForTimeout(commentScrollSettleMs);
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - settledScrollY)).toBeLessThanOrEqual(
+    1,
+  );
 
   await page.evaluate(() => window.scrollTo({ behavior: "instant", top: 0 }));
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 1000 }).toBeLessThanOrEqual(1);
