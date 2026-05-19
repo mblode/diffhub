@@ -103,15 +103,7 @@ const mergePollUpdateCallbacks = (
 const mergeShowRefreshing = (
   previous: PollFilesOptions["showRefreshing"],
   next: PollFilesOptions["showRefreshing"],
-): boolean => {
-  if (previous === true || next === true) {
-    return true;
-  }
-  if (previous === false || next === false) {
-    return false;
-  }
-  return true;
-};
+): boolean => (previous ?? true) || (next ?? true);
 
 const mergePollOptions = (
   previous: PollFilesOptions | null,
