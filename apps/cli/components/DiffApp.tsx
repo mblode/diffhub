@@ -595,6 +595,9 @@ export const DiffApp = ({
       };
     }
 
+    // Offscreen sections can report a renderable box while content-visibility
+    // is still settling after a collapsed/deferred file opens. Keep those on
+    // the deferred path; only already-visible comments take the immediate path.
     timeoutId = setTimeout(() => {
       cancelWait = waitForElement(
         activeCommentSelector,
