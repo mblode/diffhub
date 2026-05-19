@@ -78,6 +78,21 @@ interface PollFilesOptions {
   showRefreshing?: boolean;
 }
 
+const mergePollOptions = (
+  previous: PollFilesOptions | null,
+  next: PollFilesOptions,
+): PollFilesOptions => {
+  if (!previous) {
+    return next;
+  }
+
+  return {
+    forceRefresh: (previous.forceRefresh ?? false) || (next.forceRefresh ?? false),
+    includeComments: (previous.includeComments ?? true) || (next.includeComments ?? true),
+    showRefreshing: (previous.showRefreshing ?? true) || (next.showRefreshing ?? true),
+  };
+};
+
 interface SyncNotice {
   label: string;
   detail?: string;
@@ -447,6 +462,7 @@ export const DiffApp = ({
   const currentFilesGenerationRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
   const queuedPollRef = useRef(false);
+  const queuedPollOptionsRef = useRef<PollFilesOptions | null>(null);
   const diffFetchInFlightRef = useRef(false);
   const queuedDiffFetchRef = useRef(false);
   const latestDiffRequestRef = useRef(0);
@@ -855,15 +871,18 @@ export const DiffApp = ({
 
         fetchingRef.current = false;
         if (queuedPollRef.current) {
+          const queuedPollOptions = queuedPollOptionsRef.current ?? undefined;
           queuedPollRef.current = false;
+          queuedPollOptionsRef.current = null;
           queueMicrotask(() => {
-            void pollFilesRef.current();
+            void pollFilesRef.current(queuedPollOptions);
           });
         }
       };
 
       if (fetchingRef.current) {
         queuedPollRef.current = true;
+        queuedPollOptionsRef.current = mergePollOptions(queuedPollOptionsRef.current, options);
         return false;
       }
 
