@@ -22,7 +22,7 @@ export const waitForElement = (
     return null;
   }
 
-  const container = document.querySelector("#diff-container") ?? document.body ?? document.documentElement;
+  const container = document.querySelector("#diff-container") ?? document.body;
 
   let done = false;
   let rafId = 0;
