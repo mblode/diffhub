@@ -157,6 +157,7 @@ const DIFF_REQUEST_TIMEOUT_MS = 15_000;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
 const CMUX_WATCH_POLL_MS = 2000;
+const FILE_SECTION_WAIT_MS = 5000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
 type WatchMode = "poll" | "stream";
@@ -1181,6 +1182,7 @@ export const DiffApp = ({
           pendingFileScrollCancelRef.current = null;
           performScroll(element);
         },
+        FILE_SECTION_WAIT_MS,
       );
     },
     [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
