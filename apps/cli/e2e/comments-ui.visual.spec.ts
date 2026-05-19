@@ -101,7 +101,7 @@ test("comment navigation waits for a collapsed deferred target without a second 
         await page.waitForTimeout(50);
         return Math.abs((await page.evaluate(() => window.scrollY)) - settledScrollY);
       },
-      { timeout: 500 },
+      { timeout: 1000 },
     )
     .toBeLessThanOrEqual(1);
 

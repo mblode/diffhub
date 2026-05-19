@@ -51,7 +51,7 @@ export const waitForElement = (
   });
 
   observer.observe(container, {
-    attributeFilter: ["class", "hidden", "style"],
+    attributeFilter: ["hidden"],
     attributes: true,
     childList: true,
     subtree: true,

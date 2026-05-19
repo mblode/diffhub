@@ -793,9 +793,12 @@ const SingleFileDiff = memo(function SingleFileDiff({
 
   useEffect(() => {
     setShowPrerenderFallback(false);
+    if (!requirePrerenderedHTML) {
+      return;
+    }
     const timeoutId = setTimeout(() => setShowPrerenderFallback(true), 3000);
     return () => clearTimeout(timeoutId);
-  }, [layout, requirePrerenderedHTML]);
+  }, [requirePrerenderedHTML]);
 
   const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
     const annotations: DiffLineAnnotation<AnnotationData>[] = [];

@@ -112,7 +112,7 @@ const mergePollOptions = (
     forceRefresh: (previous.forceRefresh ?? false) || (next.forceRefresh ?? false),
     includeComments: (previous.includeComments ?? true) || (next.includeComments ?? true),
     onFilesUpdate: mergePollUpdateCallbacks(previous.onFilesUpdate, next.onFilesUpdate),
-    showRefreshing: (previous.showRefreshing ?? true) || (next.showRefreshing ?? true),
+    showRefreshing: (previous.showRefreshing ?? false) || (next.showRefreshing ?? false),
   };
 };
 
@@ -160,7 +160,7 @@ interface PlaceholderProps {
 const DIFF_REQUEST_TIMEOUT_MS = 30_000;
 const DIFF_WATCHDOG_MS = 20_000;
 const DIFF_HINT_MS = 10_000;
-const CMUX_WATCH_POLL_MS = 2000;
+const CMUX_WATCH_POLL_MS = 10000;
 const FILE_SECTION_WAIT_MS = 5000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
