@@ -75,8 +75,26 @@ type SyncNoticeTone = "neutral" | "warning" | "destructive";
 interface PollFilesOptions {
   forceRefresh?: boolean;
   includeComments?: boolean;
+  onFilesUpdate?: () => void;
   showRefreshing?: boolean;
 }
+
+const mergePollUpdateCallbacks = (
+  previous: PollFilesOptions["onFilesUpdate"],
+  next: PollFilesOptions["onFilesUpdate"],
+): PollFilesOptions["onFilesUpdate"] => {
+  if (!previous) {
+    return next;
+  }
+  if (!next) {
+    return previous;
+  }
+
+  return () => {
+    previous();
+    next();
+  };
+};
 
 const mergePollOptions = (
   previous: PollFilesOptions | null,
@@ -89,6 +107,7 @@ const mergePollOptions = (
   return {
     forceRefresh: (previous.forceRefresh ?? false) || (next.forceRefresh ?? false),
     includeComments: (previous.includeComments ?? true) || (next.includeComments ?? true),
+    onFilesUpdate: mergePollUpdateCallbacks(previous.onFilesUpdate, next.onFilesUpdate),
     showRefreshing: (previous.showRefreshing ?? true) || (next.showRefreshing ?? true),
   };
 };
@@ -863,6 +882,7 @@ export const DiffApp = ({
     async (options: PollFilesOptions = {}): Promise<boolean> => {
       const forceRefresh = options.forceRefresh ?? false;
       const includeComments = options.includeComments ?? true;
+      const onFilesUpdate = options.onFilesUpdate;
       const showRefreshing = options.showRefreshing ?? true;
       const finishPoll = () => {
         if (showRefreshing) {
@@ -949,6 +969,9 @@ export const DiffApp = ({
         });
       }
       reconcileSelectedFile(nextFilesData);
+      if (shouldUpdateFiles) {
+        onFilesUpdate?.();
+      }
       finishPoll();
       return shouldUpdateFiles;
     },
@@ -963,33 +986,31 @@ export const DiffApp = ({
     if (watchMode === "poll") {
       let active = true;
       setWatchStatus("live");
+      const markUpdated = () => {
+        if (!active) {
+          return;
+        }
+        setWatchStatus("updated");
+        if (watchStatusTimerRef.current) {
+          clearTimeout(watchStatusTimerRef.current);
+        }
+        watchStatusTimerRef.current = setTimeout(() => {
+          if (active) {
+            setWatchStatus("live");
+          }
+        }, 2500);
+      };
       const interval = setInterval(() => {
         if (!active) {
           return;
         }
 
-        void (async () => {
-          const didUpdate = await pollFilesRef.current({
-            forceRefresh: true,
-            includeComments: false,
-            showRefreshing: false,
-          });
-          if (!active) {
-            return;
-          }
-          if (!didUpdate) {
-            return;
-          }
-          setWatchStatus("updated");
-          if (watchStatusTimerRef.current) {
-            clearTimeout(watchStatusTimerRef.current);
-          }
-          watchStatusTimerRef.current = setTimeout(() => {
-            if (active) {
-              setWatchStatus("live");
-            }
-          }, 2500);
-        })();
+        void pollFilesRef.current({
+          forceRefresh: true,
+          includeComments: false,
+          onFilesUpdate: markUpdated,
+          showRefreshing: false,
+        });
       }, watchPollMs);
 
       return () => {
@@ -1021,16 +1042,8 @@ export const DiffApp = ({
       setWatchStatus("live");
     };
     const handleChange = () => {
-      void (async () => {
-        const didUpdate = await pollFilesRef.current({
-          forceRefresh: true,
-          includeComments: false,
-          showRefreshing: false,
-        });
+      const markUpdated = () => {
         if (!active) {
-          return;
-        }
-        if (!didUpdate) {
           return;
         }
         clearWatchStatusTimer();
@@ -1040,7 +1053,13 @@ export const DiffApp = ({
             setWatchStatus("live");
           }
         }, 2500);
-      })();
+      };
+      void pollFilesRef.current({
+        forceRefresh: true,
+        includeComments: false,
+        onFilesUpdate: markUpdated,
+        showRefreshing: false,
+      });
     };
     const handleWatchError = (event: Event) => {
       console.error("[diffhub] file watch stream reported an error", { event });
