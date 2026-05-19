@@ -364,7 +364,7 @@ const splitPatchByFile = (patch: string): Map<string, string> => {
   return patches;
 };
 
-const getBaseBranch = (): Promise<string> => {
+export const getBaseBranch = (): Promise<string> => {
   const repoPath = getRepoPath();
   return cached(`baseBranch:${repoPath}`, 30_000, async () => {
     const remoteBranches = splitGitLines(
@@ -387,7 +387,7 @@ const getBaseBranch = (): Promise<string> => {
   });
 };
 
-const getMergeBase = (baseBranch: string): Promise<string> => {
+export const getMergeBase = (baseBranch: string): Promise<string> => {
   const repoPath = getRepoPath();
   return cached(`mergeBase:${repoPath}:${baseBranch}`, 30_000, async () => {
     const mb = await runGit(["merge-base", "HEAD", baseBranch]);

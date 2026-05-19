@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { watch } from "chokidar";
 import type { FSWatcher } from "chokidar";
+import { clearCommentCache } from "./comments";
 import { getGitDirectory } from "./git-paths";
 import { invalidateGitCache } from "./git";
 
@@ -132,6 +133,7 @@ const flushPendingChange = (entry: RepoWatchEntry): void => {
   }
 
   invalidateGitCache(entry.repoPath);
+  clearCommentCache();
   entry.eventId += 1;
   emitToSubscribers(entry, {
     createdAt: new Date().toISOString(),

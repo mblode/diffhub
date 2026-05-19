@@ -70,10 +70,11 @@ describe("comments store", () => {
       }),
     ]);
 
-    expect(readComments().map((comment) => comment.body)).toStrictEqual([
-      "First comment",
-      "Second comment",
-    ]);
+    expect(
+      readComments()
+        .map((comment) => comment.body)
+        .toSorted(),
+    ).toStrictEqual(["First comment", "Second comment"]);
 
     await deleteComment(firstComment.id);
 

@@ -22,7 +22,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useTheme } from "./theme-provider";
+import { useTheme } from "next-themes";
 
 export type DiffMode = "all" | "uncommitted";
 export type WatchStatus = "connecting" | "live" | "offline" | "updated";
@@ -52,6 +52,7 @@ interface StatusBarProps {
     tone: "neutral" | "warning" | "destructive";
   } | null;
   comments: Comment[];
+  allComments: Comment[];
   onClearComments: () => Promise<boolean>;
   totalCommentCount: number;
   activeCommentIndex: number;
@@ -278,6 +279,7 @@ export const StatusBar = ({
   watchStatus,
   syncNotice,
   comments,
+  allComments,
   onClearComments,
   totalCommentCount,
   activeCommentIndex,
@@ -317,7 +319,7 @@ export const StatusBar = ({
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
   const copyCommentsAsPrompt = async () => {
     try {
-      const text = exportCommentsAsPrompt(comments);
+      const text = exportCommentsAsPrompt(allComments);
       await navigator.clipboard.writeText(text);
       const cleared = await onClearComments();
       if (!cleared) {

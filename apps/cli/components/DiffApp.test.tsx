@@ -5,8 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffApp } from "./DiffApp";
 import type { Comment } from "@/lib/comment-types";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
-import type * as ThemeProviderModule from "./theme-provider";
-
 interface MockAnnotation {
   lineNumber: number;
   metadata?: unknown;
@@ -46,8 +44,8 @@ const { MockDynamicPatch } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock(import("./theme-provider"), async (importOriginal) => {
-  const actual = await importOriginal<typeof ThemeProviderModule>();
+vi.mock(import("next-themes"), async (importOriginal) => {
+  const actual = await importOriginal();
   return {
     ...actual,
     useTheme: () => ({
@@ -530,7 +528,7 @@ describe("DiffApp review flow", () => {
     await screen.findByText(/watched/);
     await screen.findByText("Updated just now");
     expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
-    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBeGreaterThanOrEqual(2);
     expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(2);
     expect(FakeEventSource.instances[0]?.url).toBe("/api/watch");
 
@@ -603,7 +601,7 @@ describe("DiffApp review flow", () => {
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),
     ).toBeTruthy();
-    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBeGreaterThanOrEqual(2);
 
     unmount();
   });

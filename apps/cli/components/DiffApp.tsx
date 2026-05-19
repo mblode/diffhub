@@ -14,7 +14,7 @@ import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
 import { DiffViewer, getCommentElementId, getDiffSectionId } from "./DiffViewer";
-import { useTheme } from "./theme-provider";
+import { useTheme } from "next-themes";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
@@ -874,7 +874,7 @@ export const DiffApp = ({
         void (async () => {
           const didUpdate = await pollFilesRef.current({
             forceRefresh: true,
-            includeComments: false,
+            includeComments: true,
           });
           if (!active) {
             return;
@@ -925,7 +925,7 @@ export const DiffApp = ({
     const handleChange = () => {
       clearWatchStatusTimer();
       void (async () => {
-        await pollFilesRef.current({ forceRefresh: true, includeComments: false });
+        await pollFilesRef.current({ forceRefresh: true, includeComments: true });
         if (!active) {
           return;
         }
@@ -1457,6 +1457,7 @@ export const DiffApp = ({
             onRefresh={handleManualRefresh}
             watchStatus={watchStatus}
             comments={orderedVisibleComments}
+            allComments={comments}
             onClearComments={handleClearComments}
             totalCommentCount={comments.length}
             activeCommentIndex={activeCommentIndex}
