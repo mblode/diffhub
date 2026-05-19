@@ -107,8 +107,7 @@ const hasRenderableBox = (element: HTMLElement): boolean => {
 
 /**
  * Returns a cancel handle only when an observer is pending. A null return
- * means either the element was handled synchronously or no diff container is
- * available to observe.
+ * means the element was handled synchronously.
  */
 export const waitForElement = (
   selector: string,
@@ -121,7 +120,7 @@ export const waitForElement = (
     return null;
   }
 
-  const container = document.querySelector("#diff-container");
+  const container = document.querySelector("#diff-container") ?? document.body;
   if (!container) {
     return null;
   }
