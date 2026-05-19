@@ -13,7 +13,7 @@ import {
 import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
-import { DiffViewer, getCommentElementId, getDiffSectionId } from "./DiffViewer";
+import { DiffViewer, getCommentElementId, getDiffSectionId, waitForElement } from "./DiffViewer";
 import { useTheme } from "./theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -550,6 +550,50 @@ export const DiffApp = ({
   // otherwise preserve the file section under the sticky toolbar.
   useScrollAnchor({ preferredSelector: activeCommentSelector, selector: "[data-file-section]" });
 
+  useEffect(() => {
+    if (!activeCommentSelector) {
+      return;
+    }
+
+    let rafId = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    const deadline = Date.now() + 2000;
+
+    const positionActiveComment = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const element = document.querySelector<HTMLElement>(activeCommentSelector);
+      const rect = element?.getBoundingClientRect();
+      if (element && rect && rect.width > 0 && rect.height > 0) {
+        const top = window.scrollY + rect.top - (window.innerHeight - rect.height) / 2;
+        window.dispatchEvent(new Event("diffhub:programmatic-scroll"));
+        window.scrollTo({ behavior: "auto", left: 0, top });
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        return;
+      }
+
+      rafId = requestAnimationFrame(positionActiveComment);
+    };
+
+    timeoutId = setTimeout(positionActiveComment, 350);
+
+    return () => {
+      cancelled = true;
+      if (rafId !== 0) {
+        cancelAnimationFrame(rafId);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [activeCommentSelector, collapsedFiles, forceRenderFiles]);
+
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (diffModeRef.current === "uncommitted") {
@@ -1048,28 +1092,13 @@ export const DiffApp = ({
         performScroll(section);
         return;
       }
-
-      const container = document.querySelector("#diff-container");
-      if (!container) {
-        return;
-      }
-
-      const observer = new MutationObserver(() => {
-        const delayedSection = document.querySelector<HTMLElement>(getFileSectionSelector(file));
-        if (delayedSection) {
-          observer.disconnect();
-          performScroll(delayedSection);
-        }
-      });
-
-      observer.observe(container, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+      waitForElement(getFileSectionSelector(file), performScroll);
     },
     [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
   );
 
   const scrollToComment = useCallback(
-    (commentId: string, behavior: ScrollBehavior = "smooth") => {
+    (commentId: string, behavior: ScrollBehavior = "auto") => {
       const comment = orderedVisibleComments.find((candidate) => candidate.id === commentId);
       if (!comment) {
         return;
@@ -1091,41 +1120,16 @@ export const DiffApp = ({
         return previous;
       });
 
-      const commentSelector = getCommentSelector(comment.id);
-      const performScroll = (element: HTMLElement): void => {
-        element.scrollIntoView({ behavior, block: "center" });
-      };
-
-      const commentElement = document.querySelector<HTMLElement>(commentSelector);
-      if (commentElement) {
-        performScroll(commentElement);
-        return;
-      }
-
-      scrollToFile(comment.file, behavior);
-
-      const container = document.querySelector("#diff-container");
-      if (!container) {
-        return;
-      }
-
-      const observer = new MutationObserver(() => {
-        const delayedCommentElement = document.querySelector<HTMLElement>(commentSelector);
-        if (delayedCommentElement) {
-          observer.disconnect();
-          performScroll(delayedCommentElement);
-        }
-      });
-
-      observer.observe(container, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+      // The final positioning is handled by the active-comment effect after
+      // React commits any collapsed/deferred file changes. Scrolling here can
+      // race the Safari scroll-anchor restoration and produce a visible double
+      // jump.
     },
     [
       addForceRenderFiles,
       filesData,
       lockActiveFile,
       orderedVisibleComments,
-      scrollToFile,
       updateCollapsedFiles,
     ],
   );

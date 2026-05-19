@@ -98,6 +98,80 @@ interface AnnotationData {
 export const getDiffSectionId = (file: string): string => `diff-${encodeURIComponent(file)}`;
 export const getCommentElementId = (id: string): string => `diff-comment-${encodeURIComponent(id)}`;
 
+export const COMMENT_SCROLL_TIMEOUT_MS = 2000;
+
+const hasRenderableBox = (element: HTMLElement): boolean => {
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 && element.getClientRects().length > 0;
+};
+
+export const waitForElement = (
+  selector: string,
+  onReady: (element: HTMLElement) => void,
+  timeoutMs = COMMENT_SCROLL_TIMEOUT_MS,
+): VoidFunction => {
+  const initial = document.querySelector<HTMLElement>(selector);
+  if (initial && hasRenderableBox(initial)) {
+    onReady(initial);
+    return () => null;
+  }
+
+  const container = document.querySelector("#diff-container");
+  if (!container) {
+    return () => null;
+  }
+
+  let done = false;
+  let rafId = 0;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const observer = new MutationObserver(() => {
+    if (rafId !== 0) {
+      return;
+    }
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element || !hasRenderableBox(element) || done) {
+        return;
+      }
+      done = true;
+      observer.disconnect();
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      onReady(element);
+    });
+  });
+
+  observer.observe(container, {
+    attributeFilter: ["class", "hidden", "style"],
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+
+  timeoutId = setTimeout(() => {
+    done = true;
+    observer.disconnect();
+    if (rafId !== 0) {
+      cancelAnimationFrame(rafId);
+    }
+  }, timeoutMs);
+
+  return () => {
+    done = true;
+    observer.disconnect();
+    if (rafId !== 0) {
+      cancelAnimationFrame(rafId);
+    }
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  };
+};
+
 const DiffSkeleton = () => (
   <div className="animate-pulse">
     {/* Simulated file header */}
@@ -302,6 +376,7 @@ const CommentDisplay = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(!comment.resolved);
+  const [isReplying, setIsReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [replyError, setReplyError] = useState<string | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -395,6 +470,7 @@ const CommentDisplay = ({
     const saved = await onReply(trimmed).catch(() => false);
     if (saved) {
       setReplyBody("");
+      setIsReplying(false);
       setIsExpanded(true);
     } else {
       setReplyError("Failed to save reply.");
@@ -406,6 +482,11 @@ const CommentDisplay = ({
     void handleReply();
   }, [handleReply]);
 
+  const handleStartReply = useCallback(() => {
+    setIsExpanded(true);
+    setIsReplying(true);
+  }, []);
+
   const borderAccent = comment.tag
     ? (TAG_META[comment.tag]?.border ?? "border-l-ring/40")
     : "border-l-ring/40";
@@ -416,26 +497,29 @@ const CommentDisplay = ({
     <div
       id={getCommentElementId(comment.id)}
       data-comment-id={comment.id}
+      data-testid="diffhub-comment-card"
+      data-comment-resolved={comment.resolved ? "true" : "false"}
+      data-comment-expanded={isExpanded ? "true" : "false"}
       className={cn(
-        "group my-1 mx-4 scroll-mt-24 rounded-md border border-border bg-card shadow-sm dark:shadow-none overflow-hidden border-l-2",
+        "group scroll-mt-24 overflow-hidden rounded-md border border-border bg-card shadow-sm dark:shadow-none border-l-2",
         borderAccent,
         active && "ring-1 ring-diff-purple/70",
       )}
     >
       {comment.staleness === "stale" && (
-        <div className="border-b border-border/40 bg-muted/40 px-3 py-1 text-[11px] text-muted-foreground">
+        <div className="border-b border-border/40 bg-muted/40 px-2.5 py-0.5 text-[10px] leading-4 text-muted-foreground">
           Stale — content changed
         </div>
       )}
       {comment.staleness === "moved" && comment.rebasedFromLine !== undefined && (
-        <div className="border-b border-border/40 bg-diff-purple/10 px-3 py-1 text-[11px] text-diff-purple">
+        <div className="border-b border-border/40 bg-diff-purple/10 px-2.5 py-0.5 text-[10px] leading-4 text-diff-purple">
           ↳ moved from line {comment.rebasedFromLine}
         </div>
       )}
       {comment.resolved && (
         <button
           type="button"
-          className="flex w-full items-center gap-3 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40"
+          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] leading-4 text-muted-foreground hover:bg-muted/40"
           onClick={handleExpandToggle}
         >
           <span className="min-w-0 flex-1 truncate">
@@ -450,28 +534,27 @@ const CommentDisplay = ({
       )}
       {/* Body row */}
       {isExpanded && (
-        <div className="flex items-start gap-2 px-3 py-2.5">
+        <div className="flex items-start gap-2 px-2.5 py-2">
           {comment.tag && (
             <span
               className={cn(
-                "shrink-0 mt-0.5 text-[11px]",
+                "shrink-0 mt-px text-[10px] leading-4",
                 TAG_META[comment.tag]?.text ?? "text-muted-foreground",
               )}
             >
               {comment.tag}
             </span>
           )}
-          <p className="flex-1 text-sm text-foreground leading-relaxed">{comment.body}</p>
-          {/* Action buttons — hover-revealed */}
+          <p className="flex-1 text-xs leading-5 text-foreground">{comment.body}</p>
           <TooltipProvider delay={400}>
-            <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <div className="flex shrink-0 items-center gap-0.5 opacity-75 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
               {canResolve && !comment.resolved && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   disabled={isUpdating}
-                  className="h-6 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] text-muted-foreground"
                   onClick={handleResolveClick}
                 >
                   Resolve
@@ -483,10 +566,21 @@ const CommentDisplay = ({
                   variant="ghost"
                   size="sm"
                   disabled={isUpdating}
-                  className="h-6 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] text-muted-foreground"
                   onClick={handleUnresolveClick}
                 >
                   Unresolve
+                </Button>
+              )}
+              {!isReplying && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[11px] text-muted-foreground"
+                  onClick={handleStartReply}
+                >
+                  Reply
                 </Button>
               )}
               <Tooltip>
@@ -530,8 +624,8 @@ const CommentDisplay = ({
         </div>
       )}
       {isExpanded && comment.replies.length > 0 && (
-        <div className="border-t border-border/40 px-3 py-2">
-          <div className="space-y-2 border-l border-border pl-3">
+        <div className="border-t border-border/40 px-2.5 py-1.5">
+          <div className="space-y-1.5 border-l border-border pl-2.5">
             {comment.replies.map((reply) => (
               <div key={`${reply.at}:${reply.body}`} className="text-xs">
                 <div className="text-muted-foreground">
@@ -543,8 +637,8 @@ const CommentDisplay = ({
           </div>
         </div>
       )}
-      {isExpanded && (
-        <div className="border-t border-border/40 px-3 py-2">
+      {isExpanded && isReplying && (
+        <div className="border-t border-border/40 px-2.5 py-1.5">
           <textarea
             value={replyBody}
             onChange={handleReplyChange}
@@ -566,16 +660,17 @@ const CommentDisplay = ({
           </div>
         </div>
       )}
-      {/* Footer strip */}
-      <div className="border-t border-border/40 px-3 py-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
-        <span>L{comment.lineNumber}</span>
-        {comment.createdAt && (
-          <>
-            <span>·</span>
-            <span>{formatRelativeTime(comment.createdAt)}</span>
-          </>
-        )}
-      </div>
+      {isExpanded && (
+        <div className="flex items-center gap-1.5 border-t border-border/40 px-2.5 py-0.5 text-[10px] leading-4 text-muted-foreground/60">
+          <span>L{comment.lineNumber}</span>
+          {comment.createdAt && (
+            <>
+              <span>·</span>
+              <span>{formatRelativeTime(comment.createdAt)}</span>
+            </>
+          )}
+        </div>
+      )}
       {deleteError && <p className="px-3 pb-2 text-xs text-destructive">{deleteError}</p>}
     </div>
   );
@@ -782,21 +877,28 @@ const SingleFileDiff = memo(function SingleFileDiff({
     }
 
     return (
-      <div className="border-t border-border/60 bg-muted/15 py-2">
-        <div className="px-4 pb-1 text-[11px] font-medium text-muted-foreground">Comments</div>
-        {fileComments.map((comment) => (
-          <CommentDisplay
-            key={comment.id}
-            comment={comment}
-            active={comment.id === activeCommentId}
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onDelete={() => onDeleteComment(comment.id)}
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onResolve={(resolved) => onResolveComment(comment.id, resolved)}
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onReply={(body) => onReplyToComment(comment.id, body)}
-          />
-        ))}
+      <div
+        className="border-t border-border/60 bg-muted/15 px-2 py-1.5"
+        data-testid="diffhub-file-comments"
+      >
+        <div className="pb-1 text-[10px] font-medium leading-4 text-muted-foreground">
+          Comments
+        </div>
+        <div className="flex flex-col gap-1">
+          {fileComments.map((comment) => (
+            <CommentDisplay
+              key={comment.id}
+              comment={comment}
+              active={comment.id === activeCommentId}
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onDelete={() => onDeleteComment(comment.id)}
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onResolve={(resolved) => onResolveComment(comment.id, resolved)}
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onReply={(body) => onReplyToComment(comment.id, body)}
+            />
+          ))}
+        </div>
       </div>
     );
   };

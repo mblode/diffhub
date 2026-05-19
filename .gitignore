@@ -5,6 +5,8 @@ dist
 
 coverage
 *.lcov
+test-results
+apps/*/test-results
 
 logs
 *.log

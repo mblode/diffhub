@@ -45,6 +45,7 @@ export const useScrollAnchor = ({
     let restoreRafId = 0;
     let captureRafId = 0;
     let suppressCaptureUntil = 0;
+    let suppressRestoreUntil = 0;
 
     const getRoot = (): HTMLElement => rootRef?.current ?? document.body;
 
@@ -109,6 +110,21 @@ export const useScrollAnchor = ({
       restoreRafId = requestAnimationFrame(() => {
         restoreRafId = 0;
 
+        if (Date.now() < suppressRestoreUntil) {
+          captureAnchor();
+          return;
+        }
+
+        const root = getRoot();
+        const preferred = preferredSelector ? root.querySelector(preferredSelector) : null;
+        if (preferred) {
+          anchor = {
+            element: preferred,
+            top: preferred.getBoundingClientRect().top,
+          };
+          return;
+        }
+
         if (!anchor || !anchor.element.isConnected) {
           captureAnchor();
           return;
@@ -126,6 +142,11 @@ export const useScrollAnchor = ({
           top: anchor.element.getBoundingClientRect().top,
         };
       });
+    };
+
+    const handleProgrammaticScroll = () => {
+      suppressRestoreUntil = Date.now() + 2000;
+      suppressCaptureUntil = Date.now() + 80;
     };
 
     const observer = new ResizeObserver(scheduleRestore);
@@ -150,6 +171,7 @@ export const useScrollAnchor = ({
     });
     const root = getRoot();
     mutation.observe(root, { childList: true, subtree: true });
+    window.addEventListener("diffhub:programmatic-scroll", handleProgrammaticScroll);
     window.addEventListener("scroll", scheduleCapture, { passive: true });
     window.addEventListener("resize", scheduleRestore);
 
@@ -162,6 +184,7 @@ export const useScrollAnchor = ({
       }
       observer.disconnect();
       mutation.disconnect();
+      window.removeEventListener("diffhub:programmatic-scroll", handleProgrammaticScroll);
       window.removeEventListener("scroll", scheduleCapture);
       window.removeEventListener("resize", scheduleRestore);
     };

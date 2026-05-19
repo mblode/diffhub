@@ -385,6 +385,8 @@ const CommentList = memo(function CommentList({
       type="button"
       key={comment.id}
       aria-current={activeCommentId === comment.id ? "true" : undefined}
+      data-testid="diffhub-sidebar-comment"
+      data-comment-id={comment.id}
       className={cn(
         "flex w-full flex-col gap-1 border-b border-sidebar-border/50 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring",
         activeCommentId === comment.id
