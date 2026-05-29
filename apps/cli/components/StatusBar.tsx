@@ -3,8 +3,12 @@
 import {
   CheckIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CopySimpleIcon,
   SplitIcon,
+  SunIcon,
+  MoonIcon,
   ArrowRightIcon,
   ArrowRotateClockwiseIcon,
   SettingsGear1Icon,
@@ -161,6 +165,144 @@ const THEME_MODE_OPTIONS: SegmentedOption<ThemeModeOption>[] = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
 ];
+
+const themeNameById = (id: string): string =>
+  DIFF_THEMES.find((theme) => theme.id === id)?.name ?? id;
+
+type ThemeView = "root" | "light" | "dark";
+
+// Theme picker with in-place drill-in navigation (root → light/dark theme
+// lists with a back button) inside a single Popover, matching the reference UX.
+const ThemePicker = ({
+  diffThemes,
+  onDiffThemesChange,
+  themeMode,
+  onModeChange,
+}: {
+  diffThemes: DiffThemeSelection;
+  onDiffThemesChange: (themes: DiffThemeSelection) => void;
+  themeMode: ThemeModeOption;
+  onModeChange: (mode: ThemeModeOption) => void;
+}) => {
+  const [view, setView] = useState<ThemeView>("root");
+  const isLight = view === "light";
+  const themes = isLight ? LIGHT_THEMES : DARK_THEMES;
+  const selectedId = isLight ? diffThemes.light : diffThemes.dark;
+
+  return (
+    <Popover
+      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+      onOpenChange={(open) => {
+        if (!open) {
+          setView("root");
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Theme"
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+          />
+        }
+      >
+        <ContrastIcon size={14} />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[260px]">
+        {view === "root" ? (
+          <>
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                Mode
+              </span>
+              <SegmentedControl
+                ariaLabel="Color mode"
+                value={themeMode}
+                options={THEME_MODE_OPTIONS}
+                onChange={onModeChange}
+              />
+            </div>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("light")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <SunIcon size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">
+                <span className="block text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                  Light theme
+                </span>
+                <span className="block text-sm text-foreground">
+                  {themeNameById(diffThemes.light)}
+                </span>
+              </span>
+              <ChevronRightIcon size={14} className="shrink-0 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("dark")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <MoonIcon size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">
+                <span className="block text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                  Dark theme
+                </span>
+                <span className="block text-sm text-foreground">
+                  {themeNameById(diffThemes.dark)}
+                </span>
+              </span>
+              <ChevronRightIcon size={14} className="shrink-0 text-muted-foreground" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("root")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <ChevronLeftIcon size={14} className="shrink-0 text-muted-foreground" />
+              {isLight ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+              <span>{isLight ? "Light theme" : "Dark theme"}</span>
+            </button>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <div className="max-h-[280px] overflow-y-auto">
+              {themes.map((entry) => (
+                <button
+                  type="button"
+                  key={entry.id}
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onClick={() =>
+                    onDiffThemesChange(
+                      isLight
+                        ? { ...diffThemes, light: entry.id }
+                        : { ...diffThemes, dark: entry.id },
+                    )
+                  }
+                >
+                  <span className={cn("text-foreground", selectedId === entry.id && "font-medium")}>
+                    {entry.name}
+                  </span>
+                  {selectedId === entry.id && (
+                    <CheckIcon size={14} className="shrink-0 text-diff-green" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const getSyncNoticeToneClass = (
   tone: NonNullable<StatusBarProps["syncNotice"]>["tone"] | undefined,
@@ -565,86 +707,12 @@ export const StatusBar = ({
 
           {/* Theme picker - only render after mount to avoid hydration mismatch */}
           {mounted && (
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Theme"
-                    className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  />
-                }
-              >
-                <ContrastIcon size={14} />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[260px]">
-                <div className="flex items-center justify-between px-2 py-1.5">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                    Mode
-                  </span>
-                  <SegmentedControl
-                    ariaLabel="Color mode"
-                    value={themeMode}
-                    options={THEME_MODE_OPTIONS}
-                    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                    onChange={(next) => setTheme(next)}
-                  />
-                </div>
-
-                <div className="max-h-[280px] overflow-y-auto">
-                  <div className="px-2 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                    Light theme
-                  </div>
-                  {LIGHT_THEMES.map((entry) => (
-                    <button
-                      type="button"
-                      key={entry.id}
-                      className="flex w-full items-center justify-between px-2 py-1.5 text-sm text-left rounded-md hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-                      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                      onClick={() => onDiffThemesChange({ ...diffThemes, light: entry.id })}
-                    >
-                      <span
-                        className={cn(
-                          "text-foreground",
-                          diffThemes.light === entry.id && "font-medium",
-                        )}
-                      >
-                        {entry.name}
-                      </span>
-                      {diffThemes.light === entry.id && (
-                        <CheckIcon size={14} className="text-diff-green shrink-0" />
-                      )}
-                    </button>
-                  ))}
-
-                  <div className="px-2 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                    Dark theme
-                  </div>
-                  {DARK_THEMES.map((entry) => (
-                    <button
-                      type="button"
-                      key={entry.id}
-                      className="flex w-full items-center justify-between px-2 py-1.5 text-sm text-left rounded-md hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-                      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                      onClick={() => onDiffThemesChange({ ...diffThemes, dark: entry.id })}
-                    >
-                      <span
-                        className={cn(
-                          "text-foreground",
-                          diffThemes.dark === entry.id && "font-medium",
-                        )}
-                      >
-                        {entry.name}
-                      </span>
-                      {diffThemes.dark === entry.id && (
-                        <CheckIcon size={14} className="text-diff-green shrink-0" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <ThemePicker
+              diffThemes={diffThemes}
+              onDiffThemesChange={onDiffThemesChange}
+              themeMode={themeMode}
+              onModeChange={setTheme}
+            />
           )}
         </div>
       </header>
