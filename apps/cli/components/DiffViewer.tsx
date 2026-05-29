@@ -28,6 +28,7 @@ import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
+import { DEFAULT_DIFF_THEMES } from "@/lib/diff-themes";
 import { FileDiffHeader } from "./FileDiffHeader";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
@@ -522,6 +523,10 @@ interface DiffViewerProps {
   wordWrap?: boolean;
   showBackgrounds?: boolean;
   diffIndicators?: "classic" | "bars" | "none";
+  // Syntax theme ids per color scheme (optional, github defaults). Theme ids
+  // resolve lazily on the main thread via @pierre/diffs, so changing them just
+  // re-renders CodeView with the new theme — no preload needed.
+  diffThemes?: { light: string; dark: string };
 }
 
 const EmptyState = () => (
@@ -558,6 +563,7 @@ const DiffViewerInner = (
     wordWrap = true,
     showBackgrounds = true,
     diffIndicators = "classic",
+    diffThemes = DEFAULT_DIFF_THEMES,
   }: DiffViewerProps,
   ref: React.Ref<DiffViewerHandle>,
 ) => {
@@ -596,7 +602,9 @@ const DiffViewerInner = (
 
   // Memoize parsing per (file, patch). The cache survives re-renders so theme,
   // layout, and comment changes never reparse an unchanged patch.
-  const parsedCacheRef = useRef(new Map<string, { patch: string; fileDiff: FileDiffMetadata | null }>());
+  const parsedCacheRef = useRef(
+    new Map<string, { patch: string; fileDiff: FileDiffMetadata | null }>(),
+  );
   const getParsedFileDiff = useCallback((file: string, patch: string): FileDiffMetadata | null => {
     const cache = parsedCacheRef.current;
     const cached = cache.get(file);
@@ -658,18 +666,34 @@ const DiffViewerInner = (
       disableFileHeader: true,
       disableLineNumbers: !showLineNumbers,
       enableGutterUtility: true,
-      expansionLineCount: 20,
+      // Lean on CodeView's virtualizer: render unchanged context regions in
+      // full instead of collapsing them into "N unmodified lines" banners.
+      // With expandUnchanged the context is always shown, so expansionLineCount
+      // (lines revealed per expand click) and collapsedContextThreshold (the
+      // gap size that triggers a collapse) are effectively unused; we still
+      // pass a large expansionLineCount for the rare manual-expand fallback.
+      expandUnchanged: true,
+      expansionLineCount: 100,
       hunkSeparators: "line-info",
       lineDiffType: "word-alt",
       lineHoverHighlight: "disabled",
       maxLineDiffLength: 500,
       overflow: wordWrap ? "wrap" : "scroll",
       stickyHeaders: true,
-      theme: { dark: "github-dark", light: "github-light" },
+      theme: { dark: diffThemes.dark, light: diffThemes.light },
       themeType,
       unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
     }),
-    [diffIndicators, layout, showBackgrounds, showLineNumbers, wordWrap, themeType],
+    [
+      diffIndicators,
+      layout,
+      showBackgrounds,
+      showLineNumbers,
+      wordWrap,
+      themeType,
+      diffThemes.dark,
+      diffThemes.light,
+    ],
   );
 
   // Imperative scroll-to-file for DiffApp (sidebar clicks, j/k navigation).
