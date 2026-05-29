@@ -15,6 +15,16 @@ import type { Comment, CommentTag } from "@/lib/comment-types";
 import { splitPatchByFile } from "@/lib/split-patch";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
+import type { DisplaySettings } from "@/lib/display-settings";
+import {
+  DEFAULT_DISPLAY_SETTINGS,
+  DISPLAY_SETTINGS_KEY,
+  normalizeDisplaySettings,
+} from "@/lib/display-settings";
+import type { DiffThemeSelection } from "@/lib/diff-themes";
+import { DEFAULT_DIFF_THEMES, normalizeDiffThemes } from "@/lib/diff-themes";
+
+const DIFF_THEME_KEY = "diffhub-diff-theme";
 
 interface FilesData {
   files: {
@@ -94,6 +104,8 @@ interface MainPanelProps {
   diffHintShown: boolean;
   onRetryDiff: () => void;
   diffViewerRef: React.Ref<DiffViewerHandle>;
+  displaySettings: DisplaySettings;
+  diffThemes: DiffThemeSelection;
 }
 
 interface PlaceholderProps {
@@ -276,6 +288,8 @@ const MainPanel = ({
   diffHintShown,
   onRetryDiff,
   diffViewerRef,
+  displaySettings,
+  diffThemes,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
@@ -336,6 +350,11 @@ const MainPanel = ({
         onToggleCollapse={onToggleCollapse}
         onActiveFileChange={onActiveFileChange}
         repoPath={repoPath}
+        showBackgrounds={displaySettings.showBackgrounds}
+        showLineNumbers={displaySettings.showLineNumbers}
+        wordWrap={displaySettings.wordWrap}
+        diffIndicators={displaySettings.diffIndicators}
+        diffThemes={diffThemes}
       />
     </>
   );
@@ -393,6 +412,12 @@ export const DiffApp = ({
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
+  // Display settings + diff theme selection. Start from defaults to avoid
+  // hydration mismatch, then restore the persisted JSON after mount.
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(
+    () => DEFAULT_DISPLAY_SETTINGS,
+  );
+  const [diffThemes, setDiffThemes] = useState<DiffThemeSelection>(() => DEFAULT_DIFF_THEMES);
   // Imperative handle into the DiffViewer's CodeView for scroll-to-file.
   const diffViewerRef = useRef<DiffViewerHandle | null>(null);
 
@@ -412,6 +437,30 @@ export const DiffApp = ({
   useEffect(() => {
     setCollapsedFiles(new Set(readStoredJson<string[]>(`diffhub-collapsed:${repoPath}`, [])));
   }, [repoPath]);
+
+  // Restore persisted display settings + diff theme selection after mount.
+  useEffect(() => {
+    setDisplaySettings(normalizeDisplaySettings(readStoredJson(DISPLAY_SETTINGS_KEY, null)));
+    setDiffThemes(normalizeDiffThemes(readStoredJson(DIFF_THEME_KEY, null)));
+  }, []);
+
+  const handleDisplaySettingsChange = useCallback((next: DisplaySettings) => {
+    setDisplaySettings(next);
+    try {
+      localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(next));
+    } catch {
+      // empty
+    }
+  }, []);
+
+  const handleDiffThemesChange = useCallback((next: DiffThemeSelection) => {
+    setDiffThemes(next);
+    try {
+      localStorage.setItem(DIFF_THEME_KEY, JSON.stringify(next));
+    } catch {
+      // empty
+    }
+  }, []);
 
   const updateCollapsedFiles = useCallback(
     (updater: (previous: Set<string>) => Set<string>) => {
@@ -1157,6 +1206,10 @@ export const DiffApp = ({
             layout={layout}
             onLayoutChange={setLayout}
             syncNotice={syncNotice}
+            displaySettings={displaySettings}
+            onDisplaySettingsChange={handleDisplaySettingsChange}
+            diffThemes={diffThemes}
+            onDiffThemesChange={handleDiffThemesChange}
           />
         </div>
 
@@ -1178,6 +1231,8 @@ export const DiffApp = ({
           diffHintShown={diffHintShown}
           onRetryDiff={handleRetryDiff}
           diffViewerRef={diffViewerRef}
+          displaySettings={displaySettings}
+          diffThemes={diffThemes}
         />
       </SidebarInset>
     </SidebarProvider>
