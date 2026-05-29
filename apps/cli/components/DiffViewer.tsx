@@ -1,15 +1,31 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Component, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ErrorInfo, ReactNode } from "react";
+import {
+  Component,
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { useTheme } from "next-themes";
-import type { DiffLineAnnotation, AnnotationSide } from "@pierre/diffs";
+import type {
+  AnnotationSide,
+  CodeViewDiffItem,
+  CodeViewOptions,
+  DiffLineAnnotation,
+  FileDiffMetadata,
+} from "@pierre/diffs";
+import { parsePatchFiles } from "@pierre/diffs";
+import type { CodeViewHandle } from "@pierre/diffs/react";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
-import { isLargeDiffFile } from "@/lib/diff-file-stat";
-import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
 import { FileDiffHeader } from "./FileDiffHeader";
@@ -35,41 +51,7 @@ const TAG_META: Partial<Record<CommentTag, { text: string; border: string }>> = 
   "[question]": { border: "border-l-diff-purple", text: "text-diff-purple" },
   "[suggestion]": { border: "border-l-diff-green", text: "text-diff-green" },
 };
-const LARGE_DIFF_FALLBACK_FILE_THRESHOLD = 24;
 const EMPTY_COMMENTS: readonly Comment[] = [];
-const RESERVED_HEIGHT_PER_CHANGE_PX = 22;
-const MIN_RESERVED_HEIGHT_PX = 128;
-const MAX_RESERVED_HEIGHT_PX = 960;
-
-const getReservedHeightPx = (fileStat: DiffFileStat | undefined): number => {
-  const changes = fileStat?.changes ?? 1;
-  const estimated = changes * RESERVED_HEIGHT_PER_CHANGE_PX;
-  return Math.min(MAX_RESERVED_HEIGHT_PX, Math.max(MIN_RESERVED_HEIGHT_PX, estimated));
-};
-
-// Collapse multiple IntersectionObserver callbacks across sections into one
-// `onVisible(file)` call per frame. Prevents `setSelectedFile` from re-entering
-// React while the browser is mid-scroll.
-let pendingVisibleFile: string | null = null;
-let pendingVisibleHandler: ((file: string) => void) | null = null;
-let pendingVisibleRafId = 0;
-const scheduleVisibleFlush = (file: string, handler: (file: string) => void): void => {
-  pendingVisibleFile = file;
-  pendingVisibleHandler = handler;
-  if (pendingVisibleRafId !== 0) {
-    return;
-  }
-  pendingVisibleRafId = requestAnimationFrame(() => {
-    pendingVisibleRafId = 0;
-    const f = pendingVisibleFile;
-    const h = pendingVisibleHandler;
-    pendingVisibleFile = null;
-    pendingVisibleHandler = null;
-    if (f && h) {
-      h(f);
-    }
-  });
-};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -123,37 +105,7 @@ const DiffSkeleton = () => (
   </div>
 );
 
-interface DeferredDiffPlaceholderProps {
-  onRender: () => void;
-  variant: "auto" | "large";
-  changes?: number;
-}
-
-const DeferredDiffPlaceholder = ({ onRender, variant, changes }: DeferredDiffPlaceholderProps) => {
-  const isLarge = variant === "large";
-  return (
-    <div
-      className="mx-4 my-4 flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 p-6"
-      data-testid="deferred-diff-placeholder"
-      data-variant={variant}
-    >
-      <Button size="sm" variant="default" onClick={onRender}>
-        Load diff
-      </Button>
-      <p className="text-sm text-muted-foreground">
-        {isLarge
-          ? "Large diffs are not rendered by default."
-          : "Diff rendering is deferred. Load this file to render its diff."}
-      </p>
-      {isLarge && changes !== undefined ? (
-        <p className="text-xs text-muted-foreground/70">{changes.toLocaleString()} changed lines</p>
-      ) : null}
-    </div>
-  );
-};
-
 interface DiffErrorBoundaryProps {
-  file: string;
   children: ReactNode;
 }
 
@@ -172,10 +124,11 @@ class DiffErrorBoundary extends Component<DiffErrorBoundaryProps, DiffErrorBound
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[diffhub] PatchDiff threw", {
+    // Surface the boundary's own state so future renders can correlate logs.
+    console.error("[diffhub] CodeView threw", {
       componentStack: info.componentStack,
       error: error.message,
-      file: this.props.file,
+      previousError: this.state.error?.message,
     });
   }
 
@@ -183,7 +136,7 @@ class DiffErrorBoundary extends Component<DiffErrorBoundaryProps, DiffErrorBound
     if (this.state.error) {
       return (
         <div className="px-4 py-6 text-sm text-destructive">
-          Failed to render diff for this file: {this.state.error.message}
+          Failed to render diffs: {this.state.error.message}
         </div>
       );
     }
@@ -192,12 +145,12 @@ class DiffErrorBoundary extends Component<DiffErrorBoundaryProps, DiffErrorBound
 }
 
 /* oxlint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
-const PatchDiff = dynamic(
+const CodeView = dynamic(
   () =>
     import("@pierre/diffs/react")
-      .then((m) => ({ default: m.PatchDiff }))
+      .then((m) => ({ default: m.CodeView }))
       .catch((error) => {
-        console.error("[diffhub] Failed to load PatchDiff", error);
+        console.error("[diffhub] Failed to load CodeView", error);
         return {
           default: () => (
             <div className="p-4 text-destructive text-sm">
@@ -207,7 +160,26 @@ const PatchDiff = dynamic(
         };
       }),
   { loading: () => <DiffSkeleton />, ssr: false },
-);
+  // The dynamic() generic erases CodeView's own generic, so we re-assert the
+  // controlled-prop shape we actually use here.
+) as unknown as (props: {
+  ref?: React.Ref<CodeViewHandle<AnnotationData>>;
+  items: readonly CodeViewDiffItem<AnnotationData>[];
+  options?: CodeViewOptions<AnnotationData>;
+  className?: string;
+  style?: React.CSSProperties;
+  disableWorkerPool?: boolean;
+  onScroll?: (scrollTop: number, viewer: unknown) => void;
+  renderCustomHeader?: (item: CodeViewDiffItem<AnnotationData>) => ReactNode;
+  renderAnnotation?: (
+    annotation: DiffLineAnnotation<AnnotationData>,
+    item: CodeViewDiffItem<AnnotationData>,
+  ) => ReactNode;
+  renderGutterUtility?: (
+    getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined,
+    item: CodeViewDiffItem<AnnotationData>,
+  ) => ReactNode;
+}) => React.JSX.Element;
 /* oxlint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
 
 interface InlineCommentInputProps {
@@ -470,52 +442,28 @@ const sortFilesAsTree = (files: string[]): string[] => {
 };
 
 interface CommentTarget {
+  file: string;
   lineNumber: number;
   side: AnnotationSide;
 }
 
-interface SingleFileDiffProps {
-  file: string;
-  filePatch: string;
-  layout: "split" | "stacked";
-  prerenderedHTML?: { dark?: string; light?: string };
-  shouldRenderPatch: boolean;
-  comments: Comment[];
-  fileStat: DiffFileStat | undefined;
-  isLargeFile: boolean;
-  collapsed: boolean;
-  active?: boolean;
-  sectionId: string;
-  onToggleCollapse: () => void;
-  repoPath: string;
-  commentTarget: CommentTarget | null;
-  onCommentTargetChange: (target: CommentTarget | null) => void;
-  onRenderPatch: () => void;
-  onAddComment: (
-    file: string,
-    lineNumber: number,
-    side: AnnotationSide,
-    body: string,
-    tag: CommentTag,
-  ) => Promise<boolean>;
-  onDeleteComment: (id: string) => Promise<boolean>;
-}
-
 interface GutterButtonProps {
   getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined;
+  file: string;
   onCommentTargetChange: (target: CommentTarget | null) => void;
 }
 
 const GutterButton = memo(function GutterButton({
   getHoveredLine,
+  file,
   onCommentTargetChange,
 }: GutterButtonProps) {
   const handleClick = useCallback(() => {
     const line = getHoveredLine();
     if (line) {
-      onCommentTargetChange({ lineNumber: line.lineNumber, side: line.side });
+      onCommentTargetChange({ file, lineNumber: line.lineNumber, side: line.side });
     }
-  }, [getHoveredLine, onCommentTargetChange]);
+  }, [getHoveredLine, file, onCommentTargetChange]);
 
   return (
     <button
@@ -529,178 +477,30 @@ const GutterButton = memo(function GutterButton({
   );
 });
 
-const SingleFileDiff = memo(function SingleFileDiff({
-  file,
-  filePatch,
-  layout,
-  prerenderedHTML,
-  shouldRenderPatch,
-  comments,
-  fileStat,
-  isLargeFile,
-  collapsed,
-  active = false,
-  sectionId,
-  onToggleCollapse,
-  repoPath,
-  commentTarget,
-  onCommentTargetChange,
-  onRenderPatch,
-  onAddComment,
-  onDeleteComment,
-}: SingleFileDiffProps) {
-  const { resolvedTheme } = useTheme();
-  // `comments` is already scoped to this file by DiffViewer's commentsByFile split.
-  const fileComments = comments;
-  const headerId = `${sectionId}-header`;
-  const panelId = `${sectionId}-panel`;
-
-  const lineAnnotations = useMemo((): DiffLineAnnotation<AnnotationData>[] => {
-    const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
-      lineNumber: c.lineNumber,
-      metadata: { comment: c, type: "comment" as const },
-      side: toAnnotationSide(c.side),
-    }));
-
-    if (commentTarget) {
-      annotations.push({
-        lineNumber: commentTarget.lineNumber,
-        metadata: { file, type: "input" as const },
-        side: commentTarget.side,
-      });
-    }
-
-    return annotations;
-  }, [fileComments, commentTarget, file]);
-
-  const renderAnnotation = useCallback(
-    (annotation: DiffLineAnnotation<AnnotationData>) => {
-      const d = annotation.metadata;
-      if (!d) {
-        return null;
-      }
-
-      if (d.type === "input") {
-        return (
-          <InlineCommentInput
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onSubmit={async (body, tag) => {
-              const saved = await onAddComment(
-                file,
-                annotation.lineNumber,
-                annotation.side,
-                body,
-                tag,
-              );
-              if (saved) {
-                onCommentTargetChange(null);
-              }
-              return saved;
-            }}
-            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-            onCancel={() => onCommentTargetChange(null)}
-          />
-        );
-      }
-
-      if (d.type === "comment") {
-        return (
-          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          <CommentDisplay comment={d.comment} onDelete={() => onDeleteComment(d.comment.id)} />
-        );
-      }
-
-      return null;
-    },
-    [file, onAddComment, onCommentTargetChange, onDeleteComment],
-  );
-
-  const renderGutterUtility = useCallback(
-    (getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined) => (
-      <GutterButton getHoveredLine={getHoveredLine} onCommentTargetChange={onCommentTargetChange} />
-    ),
-    [onCommentTargetChange],
-  );
-
-  const handleRenderPatch = useCallback(() => {
-    onRenderPatch();
-  }, [onRenderPatch]);
-
-  const hidePanel = collapsed && commentTarget === null;
-  let panelContent: React.ReactNode = null;
-
-  if (!hidePanel) {
-    if (!filePatch) {
-      panelContent = (
-        <div className="px-4 py-6 text-sm text-muted-foreground">
-          No textual patch available for this file.
-        </div>
-      );
-    } else if (shouldRenderPatch) {
-      panelContent = (
-        <DiffErrorBoundary file={file}>
-          <PatchDiff
-            key={file}
-            patch={filePatch}
-            prerenderedHTML={prerenderedHTML?.[resolvedTheme === "light" ? "light" : "dark"]}
-            disableWorkerPool
-            style={{ colorScheme: resolvedTheme === "light" ? "light" : "dark" }}
-            options={{
-              diffStyle: layout === "split" ? "split" : "unified",
-              disableFileHeader: true,
-              disableLineNumbers: false,
-              enableGutterUtility: true,
-              expansionLineCount: 20,
-              hunkSeparators: "line-info",
-              lineDiffType: "word-alt",
-              lineHoverHighlight: "disabled",
-              maxLineDiffLength: 500,
-              overflow: "wrap",
-              theme: { dark: "github-dark", light: "github-light" },
-              themeType: resolvedTheme === "light" ? "light" : "dark",
-              unsafeCSS: getDiffUnsafeCSS((resolvedTheme ?? "dark") as DiffTheme),
-            }}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={renderAnnotation}
-            renderGutterUtility={renderGutterUtility}
-          />
-        </DiffErrorBoundary>
-      );
-    } else {
-      panelContent = (
-        <DeferredDiffPlaceholder
-          onRender={handleRenderPatch}
-          variant={isLargeFile ? "large" : "auto"}
-          changes={fileStat?.changes}
-        />
-      );
-    }
+// Parse a single-file patch into FileDiffMetadata, memoized per (file, patch).
+// CodeView re-renders for theme/layout/comment changes must not reparse every
+// file, so we cache by patch identity.
+const parseFileDiff = (file: string, patch: string): FileDiffMetadata | null => {
+  if (!patch) {
+    return null;
   }
+  try {
+    const parsed = parsePatchFiles(patch);
+    const [first] = parsed;
+    const [fileDiff] = first?.files ?? [];
+    return fileDiff ?? null;
+  } catch (error) {
+    console.error("[diffhub] Failed to parse patch", { error, file });
+    return null;
+  }
+};
 
-  return (
-    <div data-filename={file} className="font-sans">
-      <FileDiffHeader
-        file={file}
-        insertions={fileStat?.insertions ?? 0}
-        deletions={fileStat?.deletions ?? 0}
-        commentCount={fileComments.length}
-        repoPath={repoPath}
-        collapsed={collapsed}
-        active={active}
-        onToggleCollapse={onToggleCollapse}
-        headingId={headerId}
-        panelId={panelId}
-      />
-      <div id={panelId} role="region" aria-labelledby={headerId} hidden={hidePanel}>
-        {panelContent}
-      </div>
-    </div>
-  );
-});
+export interface DiffViewerHandle {
+  scrollToFile: (file: string) => void;
+}
 
 interface DiffViewerProps {
   patchesByFile: Record<string, string>;
-  prerenderedHTMLByFile?: Record<string, PrerenderedDiffHtml>;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -716,207 +516,57 @@ interface DiffViewerProps {
   collapsedFiles: Set<string>;
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
-  forceRenderFiles?: ReadonlySet<string>;
   repoPath: string;
+  // Display toggles (optional, sensible GitHub-style defaults).
+  showLineNumbers?: boolean;
+  wordWrap?: boolean;
+  showBackgrounds?: boolean;
+  diffIndicators?: "classic" | "bars" | "none";
 }
 
-interface CollapsibleFileDiffProps {
-  file: string;
-  filePatch: string;
-  layout: "split" | "stacked";
-  prerenderedHTML?: PrerenderedDiffHtml;
-  deferPatchRendering: boolean;
-  isLargeFile: boolean;
-  forceRender: boolean;
-  comments: Comment[];
-  fileStat: DiffFileStat | undefined;
-  collapsed: boolean;
-  active: boolean;
-  onToggleCollapse: () => void;
-  onVisible: (file: string) => void;
-  repoPath: string;
-  onAddComment: (
-    file: string,
-    lineNumber: number,
-    side: AnnotationSide,
-    body: string,
-    tag: CommentTag,
-  ) => Promise<boolean>;
-  onDeleteComment: (id: string) => Promise<boolean>;
-}
+const EmptyState = () => (
+  <Empty className="h-full">
+    <EmptyHeader>
+      <EmptyMedia variant="icon">
+        <BranchIcon />
+      </EmptyMedia>
+      <EmptyTitle>No changes</EmptyTitle>
+      <EmptyDescription>The working tree is clean relative to the base branch</EmptyDescription>
+    </EmptyHeader>
+    <EmptyContent>
+      <p className="text-xs text-muted-foreground/60">
+        Press <Kbd>r</Kbd> to force refresh
+      </p>
+    </EmptyContent>
+  </Empty>
+);
 
-const CollapsibleFileDiff = memo(function CollapsibleFileDiff({
-  file,
-  filePatch,
-  layout,
-  prerenderedHTML,
-  deferPatchRendering,
-  isLargeFile,
-  forceRender,
-  comments,
-  fileStat,
-  collapsed,
-  active,
-  onToggleCollapse,
-  onVisible,
-  repoPath,
-  onAddComment,
-  onDeleteComment,
-}: CollapsibleFileDiffProps) {
-  const sectionRef = useRef<HTMLElement>(null);
+const DiffViewerInner = (
+  {
+    patchesByFile,
+    layout,
+    comments,
+    onAddComment,
+    onDeleteComment,
+    activeFileId,
+    fileStats,
+    collapsedFiles,
+    onToggleCollapse,
+    onActiveFileChange,
+    repoPath,
+    showLineNumbers = true,
+    wordWrap = true,
+    showBackgrounds = true,
+    diffIndicators = "classic",
+  }: DiffViewerProps,
+  ref: React.Ref<DiffViewerHandle>,
+) => {
+  const { resolvedTheme } = useTheme();
+  const themeType = resolvedTheme === "light" ? "light" : "dark";
+
+  const codeViewRef = useRef<CodeViewHandle<AnnotationData> | null>(null);
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
-  const isDeferred = deferPatchRendering || isLargeFile;
-  // Latch once true: passive visibility may change `active` while the user is
-  // scrolling, but it must not inflate placeholder sections into full diffs.
-  const [hasRenderedPatch, setHasRenderedPatch] = useState(() => !isDeferred || forceRender);
-  if (!hasRenderedPatch && (forceRender || commentTarget !== null)) {
-    setHasRenderedPatch(true);
-  }
-  const handleRenderPatch = useCallback(() => {
-    setHasRenderedPatch(true);
-  }, []);
 
-  const shouldRenderPatch =
-    hasRenderedPatch || forceRender || commentTarget !== null || !isDeferred;
-
-  const onVisibleRef = useRef(onVisible);
-  useEffect(() => {
-    onVisibleRef.current = onVisible;
-  }, [onVisible]);
-
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || typeof IntersectionObserver === "undefined") {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (!entry) {
-          return;
-        }
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
-          scheduleVisibleFlush(file, onVisibleRef.current);
-        }
-      },
-      {
-        // Observe against viewport — we use window scroll, not a container.
-        // Top inset accounts for sticky StatusBar (52px).
-        rootMargin: "-52px 0px -55% 0px",
-        threshold: [0.35, 0.6],
-      },
-    );
-
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, [file]);
-
-  const sectionId = getDiffSectionId(file);
-  const sectionStyle = useMemo<CSSProperties>(() => {
-    if (collapsed || shouldRenderPatch) {
-      return {};
-    }
-
-    return {
-      minHeight: getReservedHeightPx(fileStat),
-    };
-  }, [collapsed, fileStat, shouldRenderPatch]);
-
-  // Pin the section's height once @pierre/diffs has finished its post-mount
-  // resize cascades (Shiki tokenize, ResizeManager beats, font swap). After
-  // ~200ms of resize-idle, write the measured height to `min-height` so any
-  // later library-driven resize is absorbed inside the section instead of
-  // moving siblings. Reset the pin when collapse / comment / layout state
-  // changes, since those are user-initiated and legitimately want growth.
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    if (collapsed || commentTarget !== null || !shouldRenderPatch) {
-      return;
-    }
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastHeight = section.getBoundingClientRect().height;
-
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) {
-        return;
-      }
-      const next = entry.contentRect.height;
-      if (next === lastHeight) {
-        return;
-      }
-      lastHeight = next;
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        section.style.minHeight = `${section.getBoundingClientRect().height}px`;
-        observer.disconnect();
-      }, 200);
-    });
-
-    observer.observe(section);
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      observer.disconnect();
-      section.style.minHeight = "";
-    };
-  }, [collapsed, commentTarget, layout, shouldRenderPatch]);
-
-  return (
-    <section
-      ref={sectionRef}
-      id={sectionId}
-      data-file-section={file}
-      className="scroll-mt-[52px]"
-      style={sectionStyle}
-    >
-      <SingleFileDiff
-        file={file}
-        filePatch={filePatch}
-        layout={layout}
-        prerenderedHTML={prerenderedHTML?.[layout]}
-        shouldRenderPatch={shouldRenderPatch}
-        comments={comments}
-        fileStat={fileStat}
-        isLargeFile={isLargeFile}
-        collapsed={collapsed}
-        active={active}
-        sectionId={sectionId}
-        onToggleCollapse={onToggleCollapse}
-        repoPath={repoPath}
-        commentTarget={commentTarget}
-        onCommentTargetChange={setCommentTarget}
-        onRenderPatch={handleRenderPatch}
-        onAddComment={onAddComment}
-        onDeleteComment={onDeleteComment}
-      />
-    </section>
-  );
-});
-
-export const DiffViewer = ({
-  patchesByFile,
-  prerenderedHTMLByFile,
-  layout,
-  comments,
-  onAddComment,
-  onDeleteComment,
-  activeFileId,
-  fileStats,
-  collapsedFiles,
-  onToggleCollapse,
-  onActiveFileChange,
-  forceRenderFiles,
-  repoPath,
-}: DiffViewerProps) => {
   const fileStatMap = useMemo(() => {
     const map = new Map<string, DiffFileStat>();
     for (const s of fileStats) {
@@ -943,66 +593,248 @@ export const DiffViewer = ({
     }
     return map;
   }, [comments]);
-  const deferPatchRendering =
-    orderedFiles.length >= LARGE_DIFF_FALLBACK_FILE_THRESHOLD &&
-    Object.keys(prerenderedHTMLByFile ?? {}).length === 0;
 
-  const toggleHandlers = useMemo(() => {
-    const handlers = new Map<string, () => void>();
-    for (const file of orderedFiles) {
-      handlers.set(file, () => onToggleCollapse(file));
+  // Memoize parsing per (file, patch). The cache survives re-renders so theme,
+  // layout, and comment changes never reparse an unchanged patch.
+  const parsedCacheRef = useRef(new Map<string, { patch: string; fileDiff: FileDiffMetadata | null }>());
+  const getParsedFileDiff = useCallback((file: string, patch: string): FileDiffMetadata | null => {
+    const cache = parsedCacheRef.current;
+    const cached = cache.get(file);
+    if (cached && cached.patch === patch) {
+      return cached.fileDiff;
     }
-    return handlers;
-  }, [orderedFiles, onToggleCollapse]);
+    const fileDiff = parseFileDiff(file, patch);
+    cache.set(file, { fileDiff, patch });
+    return fileDiff;
+  }, []);
+
+  const items = useMemo((): CodeViewDiffItem<AnnotationData>[] => {
+    const result: CodeViewDiffItem<AnnotationData>[] = [];
+    for (const file of orderedFiles) {
+      const patch = patchesByFile[file] ?? "";
+      const fileDiff = getParsedFileDiff(file, patch);
+      if (!fileDiff) {
+        continue;
+      }
+
+      const fileComments = commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[]);
+      const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
+        lineNumber: c.lineNumber,
+        metadata: { comment: c, type: "comment" as const },
+        side: toAnnotationSide(c.side),
+      }));
+
+      if (commentTarget && commentTarget.file === file) {
+        annotations.push({
+          lineNumber: commentTarget.lineNumber,
+          metadata: { file, type: "input" as const },
+          side: commentTarget.side,
+        });
+      }
+
+      result.push({
+        annotations,
+        collapsed: collapsedFiles.has(file),
+        fileDiff,
+        id: file,
+        type: "diff",
+      });
+    }
+    return result;
+  }, [
+    orderedFiles,
+    patchesByFile,
+    getParsedFileDiff,
+    commentsByFile,
+    commentTarget,
+    collapsedFiles,
+  ]);
+
+  const options = useMemo<CodeViewOptions<AnnotationData>>(
+    () => ({
+      diffIndicators,
+      diffStyle: layout === "split" ? "split" : "unified",
+      disableBackground: !showBackgrounds,
+      disableFileHeader: true,
+      disableLineNumbers: !showLineNumbers,
+      enableGutterUtility: true,
+      expansionLineCount: 20,
+      hunkSeparators: "line-info",
+      lineDiffType: "word-alt",
+      lineHoverHighlight: "disabled",
+      maxLineDiffLength: 500,
+      overflow: wordWrap ? "wrap" : "scroll",
+      stickyHeaders: true,
+      theme: { dark: "github-dark", light: "github-light" },
+      themeType,
+      unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
+    }),
+    [diffIndicators, layout, showBackgrounds, showLineNumbers, wordWrap, themeType],
+  );
+
+  // Imperative scroll-to-file for DiffApp (sidebar clicks, j/k navigation).
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToFile: (file: string) => {
+        codeViewRef.current?.scrollTo({ align: "start", id: file, type: "item" });
+      },
+    }),
+    [],
+  );
+
+  // Active-file tracking: on scroll, read the topmost rendered item from the
+  // CodeView instance and report it up (rAF-debounced).
+  const activeFileRafRef = useRef(0);
+  const pendingActiveFileRef = useRef<string | null>(null);
+  const onActiveFileChangeRef = useRef(onActiveFileChange);
+  useEffect(() => {
+    onActiveFileChangeRef.current = onActiveFileChange;
+  }, [onActiveFileChange]);
+
+  useEffect(
+    () => () => {
+      if (activeFileRafRef.current !== 0) {
+        cancelAnimationFrame(activeFileRafRef.current);
+        activeFileRafRef.current = 0;
+      }
+    },
+    [],
+  );
+
+  const handleScroll = useCallback((_scrollTop: number, viewer: unknown) => {
+    const instance = viewer as
+      | { getRenderedItems?: () => { id: string; top?: number }[] }
+      | undefined;
+    const rendered = instance?.getRenderedItems?.();
+    if (!rendered || rendered.length === 0) {
+      return;
+    }
+
+    // Topmost rendered item is the active file.
+    const [firstItem] = rendered;
+    let topItem = firstItem;
+    for (const item of rendered) {
+      if ((item.top ?? 0) < (topItem.top ?? 0)) {
+        topItem = item;
+      }
+    }
+    pendingActiveFileRef.current = topItem.id;
+
+    if (activeFileRafRef.current !== 0) {
+      return;
+    }
+    activeFileRafRef.current = requestAnimationFrame(() => {
+      activeFileRafRef.current = 0;
+      const file = pendingActiveFileRef.current;
+      pendingActiveFileRef.current = null;
+      if (file) {
+        onActiveFileChangeRef.current(file);
+      }
+    });
+  }, []);
+
+  const renderCustomHeader = useCallback(
+    (item: CodeViewDiffItem<AnnotationData>) => {
+      const file = item.id;
+      const fileStat = fileStatMap.get(file);
+      const fileComments = commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[]);
+      const sectionId = getDiffSectionId(file);
+      return (
+        <FileDiffHeader
+          file={file}
+          insertions={fileStat?.insertions ?? 0}
+          deletions={fileStat?.deletions ?? 0}
+          commentCount={fileComments.length}
+          repoPath={repoPath}
+          collapsed={item.collapsed ?? false}
+          active={activeFileId === file}
+          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+          onToggleCollapse={() => onToggleCollapse(file)}
+          headingId={`${sectionId}-header`}
+          panelId={`${sectionId}-panel`}
+        />
+      );
+    },
+    [fileStatMap, commentsByFile, repoPath, activeFileId, onToggleCollapse],
+  );
+
+  const renderAnnotation = useCallback(
+    (annotation: DiffLineAnnotation<AnnotationData>) => {
+      const d = annotation.metadata;
+      if (!d) {
+        return null;
+      }
+
+      if (d.type === "input") {
+        return (
+          <InlineCommentInput
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onSubmit={async (body, tag) => {
+              const saved = await onAddComment(
+                d.file,
+                annotation.lineNumber,
+                annotation.side,
+                body,
+                tag,
+              );
+              if (saved) {
+                setCommentTarget(null);
+              }
+              return saved;
+            }}
+            // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+            onCancel={() => setCommentTarget(null)}
+          />
+        );
+      }
+
+      if (d.type === "comment") {
+        return (
+          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+          <CommentDisplay comment={d.comment} onDelete={() => onDeleteComment(d.comment.id)} />
+        );
+      }
+
+      return null;
+    },
+    [onAddComment, onDeleteComment],
+  );
+
+  const renderGutterUtility = useCallback(
+    (
+      getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined,
+      item: CodeViewDiffItem<AnnotationData>,
+    ) => (
+      <GutterButton
+        getHoveredLine={getHoveredLine}
+        file={item.id}
+        onCommentTargetChange={setCommentTarget}
+      />
+    ),
+    [],
+  );
 
   if (orderedFiles.length === 0) {
-    return (
-      <Empty className="h-full">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <BranchIcon />
-          </EmptyMedia>
-          <EmptyTitle>No changes</EmptyTitle>
-          <EmptyDescription>The working tree is clean relative to the base branch</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <p className="text-xs text-muted-foreground/60">
-            Press <Kbd>r</Kbd> to force refresh
-          </p>
-        </EmptyContent>
-      </Empty>
-    );
+    return <EmptyState />;
   }
 
   return (
     <div id="diff-container">
-      {orderedFiles.map((file) => {
-        const fileStat = fileStatMap.get(file);
-        const patch = patchesByFile[file] ?? "";
-        const isLargeFile = fileStat !== undefined && isLargeDiffFile(fileStat, patch.length);
-        return (
-          <CollapsibleFileDiff
-            key={file}
-            file={file}
-            filePatch={patch}
-            layout={layout}
-            prerenderedHTML={prerenderedHTMLByFile?.[file]}
-            deferPatchRendering={deferPatchRendering}
-            isLargeFile={isLargeFile}
-            forceRender={forceRenderFiles?.has(file) ?? false}
-            comments={commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[])}
-            fileStat={fileStat}
-            collapsed={collapsedFiles.has(file)}
-            active={activeFileId === file}
-            // oxlint-disable-next-line typescript-eslint/no-non-null-assertion -- file always exists in toggleHandlers since both use orderedFiles
-            onToggleCollapse={toggleHandlers.get(file)!}
-            onVisible={onActiveFileChange}
-            repoPath={repoPath}
-            onAddComment={onAddComment}
-            onDeleteComment={onDeleteComment}
-          />
-        );
-      })}
+      <DiffErrorBoundary>
+        <CodeView
+          ref={codeViewRef}
+          items={items}
+          options={options}
+          disableWorkerPool
+          onScroll={handleScroll}
+          renderCustomHeader={renderCustomHeader}
+          renderAnnotation={renderAnnotation}
+          renderGutterUtility={renderGutterUtility}
+        />
+      </DiffErrorBoundary>
     </div>
   );
 };
+
+export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(DiffViewerInner);

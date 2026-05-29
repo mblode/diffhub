@@ -27,8 +27,11 @@ cp -r .next/static .next/standalone/apps/cli/.next/static
 
 ## Gotchas
 
-**`PatchDiff` only accepts single-file patches.**
-`PatchDiff` calls `getSingularPatch()` internally and throws `"FileDiff: Provided patch must contain exactly 1 file diff"` if the patch has >1 file. `DiffApp` currently fetches one file patch at a time, and `DiffViewer` renders a single `SingleFileDiff`. If you ever reintroduce a repo-wide patch path, split it before handing patches to `PatchDiff`.
+**The diff view renders one `<CodeView>` for the whole change set.**
+`DiffViewer` (`components/DiffViewer.tsx`) builds a controlled `items: CodeViewDiffItem<AnnotationData>[]` from the route's `patchesByFile`, one item per file (`id` = file path), ordered by `sortFilesAsTree`. Each item's `fileDiff` comes from `parsePatchFiles(singleFilePatch)[0].files[0]` (each route value is already a single-file patch), memoized per `(file, patch)` so theme/layout/comment re-renders never reparse unchanged patches. CodeView owns virtualization, scroll anchoring, element pooling, DOM-height management, the worker pool, and the shared `options` object — there is no per-file `PatchDiff`, `SingleFileDiff`, or `CollapsibleFileDiff` anymore. CodeView is loaded via `next/dynamic({ ssr: false })` because it is client-only.
+
+**Comments and the file header ride on CodeView callbacks, not per-file wrappers.**
+Comments and the inline comment input are per-item annotations (`DiffLineAnnotation<AnnotationData>` with `{ side, lineNumber, metadata }`) rendered through `renderAnnotation`; the gutter "+" button comes from `renderGutterUtility(getHoveredLine, item)` and sets a single lifted `commentTarget` (`{ file, lineNumber, side }`). The custom `FileDiffHeader` is supplied via `renderCustomHeader(item)` with `disableFileHeader: true` to suppress the built-in header; collapse is driven by `item.collapsed` and toggling calls back to `DiffApp`'s `onToggleCollapse(file)`. `options` (shared across all items) uses `diffStyle: 'split' | 'unified'` (mapped from the `layout` prop), `themeType`, `theme`, `unsafeCSS`, plus the display toggles `disableLineNumbers` / `overflow` / `disableBackground` / `diffIndicators`. Scroll-to-file is imperative: `DiffApp` holds a `DiffViewerHandle` ref whose `scrollToFile(file)` calls the `CodeViewHandle.scrollTo({ type: 'item', id, align: 'start' })`. Active-file tracking is driven by `onScroll`, reading the topmost rendered item via `getRenderedItems()`.
 
 **@pierre/diffs annotations use `metadata`, not `data`.**
 `DiffLineAnnotation<T>` has a `metadata` field. Using `data` compiles silently but the annotation never renders.
@@ -61,13 +64,8 @@ Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server di
 **Standalone server path mirrors the monorepo workspace.**
 Because `outputFileTracingRoot` is the repo root, the standalone server lives at `.next/standalone/apps/cli/server.js`, and static files must be at `.next/standalone/apps/cli/.next/static/`. The CLI handles this automatically.
 
-**Above-viewport DOM heights must not change unaccounted-for.**
-The diff view targets Safari, which has no native `overflow-anchor` ([WebKit #171099](https://bugs.webkit.org/show_bug.cgi?id=171099)). Two defences keep the viewport from drifting during scroll:
-
-1. `CollapsibleFileDiff` pins each section's `min-height` after a 200 ms resize-idle window via `ResizeObserver`. Once pinned, internal `@pierre/diffs` resizes (Shiki tokenize, font swap, ResizeManager beats) are absorbed inside the section instead of moving siblings. The pin invalidates when `collapsed` / `commentTarget` / `layout` / `shouldRenderPatch` flip — those are user-initiated and legitimately want growth.
-2. `useScrollAnchor` (`lib/use-scroll-anchor.ts`) observes every `[data-file-section]` and adjusts `window.scrollY` by the size delta when a section above the viewport resizes, batching per animation frame.
-
-If you add a new growable element above or inside the diff list, route it through one of these — never mutate above-viewport heights without compensation. IntersectionObserver callbacks in `DiffViewer` must not trigger state changes that affect section height; `active` is now CSS-only.
+**CodeView owns scroll anchoring — don't reintroduce the old height machinery.**
+The diff view targets Safari, which has no native `overflow-anchor` ([WebKit #171099](https://bugs.webkit.org/show_bug.cgi?id=171099)). The single `<CodeView>` virtualizer handles this internally: it manages each item's reserved DOM height, anchors the scroll position across post-mount resize cascades (Shiki tokenize, font swap, its own ResizeManager beats), and pools rendered elements. The previous hand-rolled defences are gone and must not return: the per-section `min-height` `ResizeObserver` pin, the `useScrollAnchor`/`[data-file-section]` window-scroll compensation hook, the IntersectionObserver active-file tracking, and the deferred/`forceRender` placeholder system (`DeferredDiffPlaceholder`, `getReservedHeightPx`, `scheduleVisibleFlush`). Do not add growable elements outside CodeView's item model; let CodeView render and measure them. Active-file state is derived from CodeView's `onScroll` + `getRenderedItems()` and the file-header active highlight is CSS-driven.
 
 ## Conventions
 
@@ -81,4 +79,4 @@ If you add a new growable element above or inside the diff list, route it throug
 
 Additional context is available in the files below. Consult the relevant file when working in a related area — see each description for scope.
 
-- `.claude/knowledge/diff-intraline-highlighting.md` — why `lineDiffType: "word-alt"` is used (server prerender and client `<PatchDiff>` must stay in sync), the single-char-neutral absorption quirk, and why diff colors must track Primer exactly. Consult before changing `lib/diff-prerender.ts`, `lib/diff-colors.ts`, or the `<PatchDiff>` options in `components/DiffViewer.tsx`.
+- `.claude/knowledge/diff-intraline-highlighting.md` — why `lineDiffType: "word-alt"` is used (server prerender and client `<CodeView>` must stay in sync), the single-char-neutral absorption quirk, and why diff colors must track Primer exactly. Consult before changing `lib/diff-prerender.ts`, `lib/diff-colors.ts`, or the `<CodeView>` options in `components/DiffViewer.tsx`.
