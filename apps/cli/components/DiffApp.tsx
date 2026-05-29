@@ -6,15 +6,14 @@ import { useCallback, useEffect, useRef, useState, useTransition, startTransitio
 import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
-import { DiffViewer, getDiffSectionId } from "./DiffViewer";
+import { DiffViewer } from "./DiffViewer";
+import type { DiffViewerHandle } from "./DiffViewer";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
-import type { PrerenderedDiffHtml } from "@/lib/diff-prerender";
 import { splitPatchByFile } from "@/lib/split-patch";
 import { useLocalStorage } from "@/lib/use-local-storage";
-import { useScrollAnchor } from "@/lib/use-scroll-anchor";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 
 interface FilesData {
@@ -36,7 +35,6 @@ interface FilesData {
 interface MultiFileDiffResponse {
   patch?: string;
   patchesByFile?: Record<string, string>;
-  prerenderedHTMLByFile?: Record<string, PrerenderedDiffHtml>;
   reviewKeysByFile?: Record<string, string>;
   baseBranch: string;
   mergeBase: string;
@@ -47,7 +45,6 @@ interface MultiFileDiffResponse {
 
 interface MultiFileDiffData {
   patchesByFile: Record<string, string>;
-  prerenderedHTMLByFile?: Record<string, PrerenderedDiffHtml>;
   reviewKeysByFile: Record<string, string>;
   baseBranch: string;
   mergeBase: string;
@@ -90,13 +87,13 @@ interface MainPanelProps {
   onDeleteComment: (id: string) => Promise<boolean>;
   selectedFile: string | null;
   collapsedFiles: Set<string>;
-  forceRenderFiles: ReadonlySet<string>;
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
   diffWatchdogTripped: boolean;
   diffHintShown: boolean;
   onRetryDiff: () => void;
+  diffViewerRef: React.Ref<DiffViewerHandle>;
 }
 
 interface PlaceholderProps {
@@ -206,7 +203,6 @@ const normalizeDiffResponse = (
     generation: response.generation,
     mergeBase: response.mergeBase,
     patchesByFile,
-    prerenderedHTMLByFile: response.prerenderedHTMLByFile,
     reviewKeysByFile:
       response.reviewKeysByFile ?? createReviewKeysByFile(patchesByFile, response.generation),
     sourceFingerprint,
@@ -218,17 +214,6 @@ const Placeholder = ({ text, pulse = false }: PlaceholderProps): React.JSX.Eleme
     <div className={`text-muted-foreground text-sm${pulse ? " animate-pulse" : ""}`}>{text}</div>
   </div>
 );
-
-const getFileSectionSelector = (file: string): string => {
-  const sectionId = getDiffSectionId(file);
-  if (typeof window !== "undefined" && window.CSS?.escape) {
-    return `#${window.CSS.escape(sectionId)}`;
-  }
-
-  // Full CSS identifier escaping fallback for browsers without CSS.escape
-  const escaped = sectionId.replaceAll(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, "\\$&");
-  return `#${escaped}`;
-};
 
 const SyncBanner = ({ notice }: { notice: SyncNotice }): React.JSX.Element => {
   let toneClass = "border-border bg-muted/40 text-muted-foreground";
@@ -284,13 +269,13 @@ const MainPanel = ({
   onDeleteComment,
   selectedFile,
   collapsedFiles,
-  forceRenderFiles,
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
   diffWatchdogTripped,
   diffHintShown,
   onRetryDiff,
+  diffViewerRef,
 }: MainPanelProps): React.JSX.Element => {
   if (filesData === null) {
     return <Placeholder text="Loading diff…" pulse />;
@@ -339,8 +324,8 @@ const MainPanel = ({
     <>
       {syncNotice && <SyncBanner notice={syncNotice} />}
       <DiffViewer
+        ref={diffViewerRef}
         patchesByFile={deferredDiffData.patchesByFile}
-        prerenderedHTMLByFile={deferredDiffData.prerenderedHTMLByFile}
         layout={layout}
         comments={comments}
         onAddComment={onAddComment}
@@ -348,7 +333,6 @@ const MainPanel = ({
         activeFileId={selectedFile}
         fileStats={filesData.files}
         collapsedFiles={collapsedFiles}
-        forceRenderFiles={forceRenderFiles}
         onToggleCollapse={onToggleCollapse}
         onActiveFileChange={onActiveFileChange}
         repoPath={repoPath}
@@ -409,7 +393,8 @@ export const DiffApp = ({
   const [, startDiffTransition] = useTransition();
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
-  const [forceRenderFiles, setForceRenderFiles] = useState<ReadonlySet<string>>(() => new Set());
+  // Imperative handle into the DiffViewer's CodeView for scroll-to-file.
+  const diffViewerRef = useRef<DiffViewerHandle | null>(null);
 
   useEffect(() => {
     diffModeRef.current = diffMode;
@@ -462,12 +447,9 @@ export const DiffApp = ({
     diffErrorRef.current = diffError;
   }, [diffError]);
 
-  // Safari-safe scroll anchor: when any file section above the viewport
-  // changes height, compensate window.scrollY so the user's view doesn't
-  // shift. Replaces the previous diff-data-only captureViewportAnchor +
-  // useLayoutEffect pair, which fired too rarely to catch @pierre/diffs
-  // post-mount resize cascades.
-  useScrollAnchor({ selector: "[data-file-section]" });
+  // CodeView owns virtualization, scroll anchoring, and DOM-height
+  // management internally, so DiffApp no longer needs a Safari-safe scroll
+  // anchor or section-height observers.
 
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
@@ -620,20 +602,6 @@ export const DiffApp = ({
     void fetchAllDiff();
   }, [layout, diffVariant, fetchAllDiff]);
 
-  const addForceRenderFiles = useCallback((files: readonly (string | null | undefined)[]) => {
-    setForceRenderFiles((previous) => {
-      let next: Set<string> | null = null;
-      for (const file of files) {
-        if (!file || previous.has(file)) {
-          continue;
-        }
-        next ??= new Set(previous);
-        next.add(file);
-      }
-      return next ?? previous;
-    });
-  }, []);
-
   const reconcileSelectedFile = useCallback(
     (nextFiles: FilesData) => {
       currentFilesFingerprintRef.current = nextFiles.fingerprint;
@@ -657,7 +625,6 @@ export const DiffApp = ({
         selectedFileRef.current = nextSelection;
         startTransition(() => setSelectedFile(nextSelection));
       }
-      addForceRenderFiles([nextSelection]);
 
       const didChangeFingerprint = nextFiles.fingerprint !== lastDiffFingerprintRef.current;
       const diffMatchesGeneration = diffDataRef.current?.generation === nextFiles.generation;
@@ -673,7 +640,7 @@ export const DiffApp = ({
 
       void fetchAllDiff();
     },
-    [addForceRenderFiles, fetchAllDiff],
+    [fetchAllDiff],
   );
 
   const invalidateDiffState = useCallback(() => {
@@ -939,13 +906,10 @@ export const DiffApp = ({
   }, []);
 
   const scrollToFile = useCallback(
-    (file: string, behavior: ScrollBehavior = "smooth") => {
+    (file: string) => {
       lockActiveFile(file);
 
-      const files = filesData?.files.map((stat) => stat.file) ?? [];
-      const index = files.indexOf(file);
-      addForceRenderFiles([file, files[index - 1], files[index + 1]]);
-
+      // Expand-on-navigate: uncollapse the target so its diff is visible.
       updateCollapsedFiles((previous) => {
         if (previous.has(file)) {
           const next = new Set(previous);
@@ -955,36 +919,11 @@ export const DiffApp = ({
         return previous;
       });
 
-      const performScroll = (section: HTMLElement): void => {
-        // No focus() call: WebKit ≤ 16.3 ignores preventScroll, and focusing
-        // during a smooth-scroll can compound scroll jitter. The sidebar
-        // button remains the focus target for keyboard users.
-        section.scrollIntoView({ behavior, block: "start" });
-      };
-
-      const section = document.querySelector<HTMLElement>(getFileSectionSelector(file));
-      if (section) {
-        performScroll(section);
-        return;
-      }
-
-      const container = document.querySelector("#diff-container");
-      if (!container) {
-        return;
-      }
-
-      const observer = new MutationObserver(() => {
-        const delayedSection = document.querySelector<HTMLElement>(getFileSectionSelector(file));
-        if (delayedSection) {
-          observer.disconnect();
-          performScroll(delayedSection);
-        }
-      });
-
-      observer.observe(container, { childList: true, subtree: true });
-      setTimeout(() => observer.disconnect(), 5000);
+      // CodeView owns virtualization, so the item always exists in its model
+      // even when its DOM is not currently rendered; scrollTo materializes it.
+      diffViewerRef.current?.scrollToFile(file);
     },
-    [addForceRenderFiles, filesData, lockActiveFile, updateCollapsedFiles],
+    [lockActiveFile, updateCollapsedFiles],
   );
 
   const handleActiveFileChange = useCallback((file: string) => {
@@ -1232,13 +1171,13 @@ export const DiffApp = ({
           onDeleteComment={handleDeleteComment}
           selectedFile={selectedFile}
           collapsedFiles={collapsedFiles}
-          forceRenderFiles={forceRenderFiles}
           onToggleCollapse={toggleCollapse}
           onActiveFileChange={handleActiveFileChange}
           repoPath={repoPath}
           diffWatchdogTripped={diffWatchdogTripped}
           diffHintShown={diffHintShown}
           onRetryDiff={handleRetryDiff}
+          diffViewerRef={diffViewerRef}
         />
       </SidebarInset>
     </SidebarProvider>

@@ -1,10 +1,66 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./DiffViewer";
 
-const { MockPatchDiff } = vi.hoisted(() => ({
-  MockPatchDiff: ({ patch }: { patch: string }) => <div data-testid="patch-viewer">{patch}</div>,
+interface MockAnnotation {
+  lineNumber: number;
+  metadata?: unknown;
+  side: "deletions" | "additions";
+}
+
+interface MockItem {
+  id: string;
+  type: "diff";
+  collapsed?: boolean;
+  annotations?: MockAnnotation[];
+  fileDiff: unknown;
+}
+
+interface MockCodeViewProps {
+  items: MockItem[];
+  renderCustomHeader?: (item: MockItem) => React.ReactNode;
+  renderAnnotation?: (annotation: MockAnnotation, item: MockItem) => React.ReactNode;
+  renderGutterUtility?: (
+    getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined,
+    item: MockItem,
+  ) => React.ReactNode;
+}
+
+// Mock CodeView reproduces the per-item DOM surface the suite asserts against:
+// a `[data-filename]` wrapper, the custom header, a hideable region panel, the
+// gutter utility, and annotation slots. CodeView itself owns virtualization;
+// here we render every item eagerly so assertions are deterministic.
+const { MockCodeView } = vi.hoisted(() => ({
+  MockCodeView: ({
+    items,
+    renderCustomHeader,
+    renderAnnotation,
+    renderGutterUtility,
+  }: MockCodeViewProps) => (
+    <div data-testid="code-view">
+      {items.map((item) => (
+        <div data-filename={item.id} key={item.id}>
+          {renderCustomHeader?.(item)}
+          <div role="region" hidden={item.collapsed ?? false}>
+            <div data-testid="patch-viewer">{item.id}</div>
+            {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
+            {item.annotations?.map((annotation) => {
+              const metadataKey =
+                typeof annotation.metadata === "object" && annotation.metadata !== null
+                  ? JSON.stringify(annotation.metadata)
+                  : String(annotation.metadata ?? "");
+              return (
+                <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
+                  {renderAnnotation?.(annotation, item)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock(import("next-themes"), async (importOriginal) => {
@@ -28,7 +84,7 @@ vi.mock(import("next/dynamic"), async (importOriginal) => {
     loader: () => Promise<{ default: React.ComponentType<Record<string, unknown>> }>,
   ) => {
     void loader;
-    return MockPatchDiff;
+    return MockCodeView;
   }) as typeof actual.default;
 
   return {
@@ -51,7 +107,6 @@ const makeProps = (fileCount: number) => {
       file,
       insertions: 1,
     })),
-    forceRenderFiles: new Set([files[0]]),
     layout: "stacked" as const,
     onActiveFileChange: vi.fn<(file: string) => void>(),
     onAddComment: vi
@@ -73,7 +128,6 @@ const makeProps = (fileCount: number) => {
         `diff --git a/${file} b/${file}\n@@ -1 +1 @@\n-old ${index}\n+new ${index}\n`,
       ]),
     ),
-    prerenderedHTMLByFile: undefined,
     repoPath: "/tmp/repo",
   };
 };
@@ -83,90 +137,70 @@ describe("diff viewer rendering", () => {
     cleanup();
   });
 
-  it("keeps passive active-file changes from rendering deferred patches", () => {
-    const props = makeProps(25);
-    const { rerender } = render(<DiffViewer {...props} />);
-
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(1);
-    expect(screen.getAllByTestId("deferred-diff-placeholder").length).toBeGreaterThan(0);
-
-    rerender(<DiffViewer {...props} activeFileId="src/file-1.ts" />);
-
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(1);
-  });
-
-  it("renders deferred patches when explicit navigation forces them", () => {
-    const props = makeProps(25);
-    const { rerender } = render(<DiffViewer {...props} />);
-
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(1);
-
-    rerender(
-      <DiffViewer
-        {...props}
-        activeFileId="src/file-1.ts"
-        forceRenderFiles={new Set(["src/file-0.ts", "src/file-1.ts"])}
-      />,
-    );
-
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
-  });
-
-  it("renders all patches immediately below the large-diff fallback threshold", () => {
+  it("renders one CodeView item per file", () => {
     render(<DiffViewer {...makeProps(5)} />);
 
     expect(screen.getAllByTestId("patch-viewer")).toHaveLength(5);
-    expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
+    expect(screen.getByTestId("code-view")).toBeTruthy();
   });
 
-  it("defers a single large file behind a Load diff button in a small PR", () => {
-    const props = makeProps(3);
-    const largeFile = "src/file-1.ts";
-    props.fileStats = props.fileStats.map((stat) =>
-      stat.file === largeFile
-        ? { binary: false, changes: 800, deletions: 300, file: stat.file, insertions: 500 }
-        : stat,
-    );
-    props.activeFileId = "src/file-0.ts";
+  it("keeps rendering every file regardless of the active file", () => {
+    const props = makeProps(25);
+    const { rerender } = render(<DiffViewer {...props} />);
 
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(25);
+
+    rerender(<DiffViewer {...props} activeFileId="src/file-1.ts" />);
+
+    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(25);
+  });
+
+  it("marks collapsed files' panels as hidden via item.collapsed", () => {
+    const props = makeProps(3);
+    render(<DiffViewer {...props} collapsedFiles={new Set(["src/file-1.ts"])} />);
+
+    const section = document.querySelector<HTMLElement>('[data-filename="src/file-1.ts"]');
+    expect(section).not.toBeNull();
+    if (!section) {
+      throw new Error("Missing collapsed section");
+    }
+    const panel = within(section).getByRole("region", { hidden: true });
+    expect(panel.hidden).toBeTruthy();
+  });
+
+  it("forwards gutter clicks into the inline comment input", () => {
+    const props = makeProps(2);
     render(<DiffViewer {...props} />);
 
-    const placeholders = screen.getAllByTestId("deferred-diff-placeholder");
-    expect(placeholders).toHaveLength(1);
-    const placeholder = placeholders[0] as HTMLElement;
-    expect(placeholder.dataset.variant).toBe("large");
-    expect(placeholder.textContent).toContain("Large diffs are not rendered by default");
-    expect(placeholder.textContent).toContain("800 changed lines");
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
+    const section = document.querySelector<HTMLElement>('[data-filename="src/file-1.ts"]');
+    expect(section).not.toBeNull();
+    if (!section) {
+      throw new Error("Missing section");
+    }
 
-    fireEvent.click(screen.getByRole("button", { name: /load diff/i }));
-
-    expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
-    const rendered = screen
-      .getAllByTestId("patch-viewer")
-      .some((el) => el.textContent?.includes(largeFile));
-    expect(rendered).toBeTruthy();
+    fireEvent.click(within(section).getByTitle("Add comment for AI"));
+    expect(within(section).getByPlaceholderText("Add a comment for the AI")).toBeTruthy();
   });
 
-  it("renders a large file when navigation forces it", () => {
-    const props = makeProps(3);
-    const largeFile = "src/file-1.ts";
-    props.fileStats = props.fileStats.map((stat) =>
-      stat.file === largeFile
-        ? { binary: false, changes: 800, deletions: 300, file: stat.file, insertions: 500 }
-        : stat,
+  it("renders existing comments as annotations", () => {
+    const props = makeProps(2);
+    render(
+      <DiffViewer
+        {...props}
+        comments={[
+          {
+            body: "Look here",
+            createdAt: "2026-04-15T00:00:00.000Z",
+            file: "src/file-0.ts",
+            id: "comment-1",
+            lineNumber: 1,
+            side: "right",
+            tag: "",
+          },
+        ]}
+      />,
     );
-    props.activeFileId = "src/file-0.ts";
 
-    const { rerender } = render(<DiffViewer {...props} />);
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(2);
-
-    rerender(
-      <DiffViewer {...props} activeFileId={largeFile} forceRenderFiles={new Set([largeFile])} />,
-    );
-
-    expect(screen.queryByTestId("deferred-diff-placeholder")).toBeNull();
-    expect(screen.getAllByTestId("patch-viewer")).toHaveLength(3);
+    expect(screen.getByText("Look here")).toBeTruthy();
   });
 });
