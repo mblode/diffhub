@@ -315,8 +315,7 @@ export const StatusBar = ({
     onDisplaySettingsChange({ ...displaySettings, [key]: value });
   };
 
-  const themeMode: ThemeModeOption =
-    theme === "light" || theme === "dark" ? theme : "system";
+  const themeMode: ThemeModeOption = theme === "light" || theme === "dark" ? theme : "system";
 
   return (
     <TooltipProvider delay={400}>
