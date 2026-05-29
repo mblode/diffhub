@@ -3,21 +3,36 @@
 import {
   CheckIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CopySimpleIcon,
+  SplitIcon,
   SunIcon,
   MoonIcon,
-  SplitIcon,
   ArrowRightIcon,
   ArrowRotateClockwiseIcon,
+  SettingsGear1Icon,
+  ContrastIcon,
 } from "blode-icons-react";
 import { useTheme } from "next-themes";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { Comment } from "@/lib/comment-types";
+import type { DisplaySettings, DiffIndicatorStyle } from "@/lib/display-settings";
+import type { DiffThemeSelection } from "@/lib/diff-themes";
+import { DIFF_THEMES } from "@/lib/diff-themes";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export type DiffMode = "all" | "uncommitted";
@@ -53,7 +68,241 @@ interface StatusBarProps {
   onDiffModeChange: (mode: DiffMode) => void;
   layout: "split" | "stacked";
   onLayoutChange: (l: "split" | "stacked") => void;
+  displaySettings: DisplaySettings;
+  onDisplaySettingsChange: (settings: DisplaySettings) => void;
+  diffThemes: DiffThemeSelection;
+  onDiffThemesChange: (themes: DiffThemeSelection) => void;
 }
+
+const INDICATOR_OPTIONS: { value: DiffIndicatorStyle; label: string }[] = [
+  { label: "Classic", value: "classic" },
+  { label: "Bars", value: "bars" },
+  { label: "None", value: "none" },
+];
+
+const LIGHT_THEMES = DIFF_THEMES.filter((theme) => theme.type === "light");
+const DARK_THEMES = DIFF_THEMES.filter((theme) => theme.type === "dark");
+
+// ── Inline primitives (no Switch/ToggleGroup in components/ui) ───────────────
+
+const Switch = ({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+}) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+    onClick={() => onChange(!checked)}
+    className={cn(
+      "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+      checked ? "bg-primary" : "bg-secondary",
+    )}
+  >
+    <span
+      className={cn(
+        "inline-block h-3.5 w-3.5 rounded-full bg-background shadow-sm transition-transform",
+        checked ? "translate-x-[18px]" : "translate-x-[3px]",
+      )}
+    />
+  </button>
+);
+
+interface SegmentedOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+const SegmentedControl = <T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: T;
+  options: SegmentedOption<T>[];
+  onChange: (next: T) => void;
+  ariaLabel: string;
+}) => (
+  <div
+    role="group"
+    aria-label={ariaLabel}
+    className="inline-flex items-center gap-0.5 rounded-md border border-border bg-secondary p-0.5"
+  >
+    {options.map((option) => {
+      const active = option.value === value;
+      return (
+        <button
+          type="button"
+          key={option.value}
+          aria-pressed={active}
+          // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "rounded px-2 py-0.5 text-[11px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+            active
+              ? "bg-card text-foreground shadow-sm dark:shadow-none"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option.label}
+        </button>
+      );
+    })}
+  </div>
+);
+
+type ThemeModeOption = "system" | "light" | "dark";
+const THEME_MODE_OPTIONS: SegmentedOption<ThemeModeOption>[] = [
+  { label: "Auto", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+];
+
+const themeNameById = (id: string): string =>
+  DIFF_THEMES.find((theme) => theme.id === id)?.name ?? id;
+
+type ThemeView = "root" | "light" | "dark";
+
+// Theme picker with in-place drill-in navigation (root → light/dark theme
+// lists with a back button) inside a single Popover, matching the reference UX.
+const ThemePicker = ({
+  diffThemes,
+  onDiffThemesChange,
+  themeMode,
+  onModeChange,
+}: {
+  diffThemes: DiffThemeSelection;
+  onDiffThemesChange: (themes: DiffThemeSelection) => void;
+  themeMode: ThemeModeOption;
+  onModeChange: (mode: ThemeModeOption) => void;
+}) => {
+  const [view, setView] = useState<ThemeView>("root");
+  const isLight = view === "light";
+  const themes = isLight ? LIGHT_THEMES : DARK_THEMES;
+  const selectedId = isLight ? diffThemes.light : diffThemes.dark;
+
+  return (
+    <Popover
+      // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+      onOpenChange={(open) => {
+        if (!open) {
+          setView("root");
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Theme"
+            className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+          />
+        }
+      >
+        <ContrastIcon size={14} />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[260px]">
+        {view === "root" ? (
+          <>
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                Mode
+              </span>
+              <SegmentedControl
+                ariaLabel="Color mode"
+                value={themeMode}
+                options={THEME_MODE_OPTIONS}
+                onChange={onModeChange}
+              />
+            </div>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("light")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <SunIcon size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">
+                <span className="block text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                  Light theme
+                </span>
+                <span className="block text-sm text-foreground">
+                  {themeNameById(diffThemes.light)}
+                </span>
+              </span>
+              <ChevronRightIcon size={14} className="shrink-0 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("dark")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <MoonIcon size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">
+                <span className="block text-[11px] uppercase tracking-wide text-muted-foreground/70">
+                  Dark theme
+                </span>
+                <span className="block text-sm text-foreground">
+                  {themeNameById(diffThemes.dark)}
+                </span>
+              </span>
+              <ChevronRightIcon size={14} className="shrink-0 text-muted-foreground" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+              onClick={() => setView("root")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-foreground hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+            >
+              <ChevronLeftIcon size={14} className="shrink-0 text-muted-foreground" />
+              {isLight ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+              <span>{isLight ? "Light theme" : "Dark theme"}</span>
+            </button>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <div className="max-h-[280px] overflow-y-auto">
+              {themes.map((entry) => (
+                <button
+                  type="button"
+                  key={entry.id}
+                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onClick={() =>
+                    onDiffThemesChange(
+                      isLight
+                        ? { ...diffThemes, light: entry.id }
+                        : { ...diffThemes, dark: entry.id },
+                    )
+                  }
+                >
+                  <span className={cn("text-foreground", selectedId === entry.id && "font-medium")}>
+                    {entry.name}
+                  </span>
+                  {selectedId === entry.id && (
+                    <CheckIcon size={14} className="shrink-0 text-diff-green" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const getSyncNoticeToneClass = (
   tone: NonNullable<StatusBarProps["syncNotice"]>["tone"] | undefined,
@@ -140,27 +389,7 @@ const useHasMounted = () =>
     () => false,
   );
 
-const useDismissableMenu = (
-  open: boolean,
-  menuRef: React.RefObject<HTMLDivElement | null>,
-  onClose: () => void,
-) => {
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [menuRef, onClose, open]);
-};
-
+// oxlint-disable-next-line complexity
 export const StatusBar = ({
   branch,
   baseBranch,
@@ -174,13 +403,15 @@ export const StatusBar = ({
   onDiffModeChange,
   layout,
   onLayoutChange,
+  displaySettings,
+  onDisplaySettingsChange,
+  diffThemes,
+  onDiffThemesChange,
 }: StatusBarProps) => {
   const [copied, setCopied] = useState(false);
   const [copiedBranch, setCopiedBranch] = useState<"branch" | "base" | null>(null);
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const mounted = useHasMounted();
-  const modeMenuRef = useRef<HTMLDivElement>(null);
-  const { resolvedTheme, setTheme } = useTheme();
+  const { setTheme, theme } = useTheme();
 
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const branchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -218,7 +449,15 @@ export const StatusBar = ({
     }
   };
 
-  useDismissableMenu(modeMenuOpen, modeMenuRef, () => setModeMenuOpen(false));
+  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+  const updateSetting = <K extends keyof DisplaySettings>(
+    key: K,
+    value: DisplaySettings[K],
+  ): void => {
+    onDisplaySettingsChange({ ...displaySettings, [key]: value });
+  };
+
+  const themeMode: ThemeModeOption = theme === "light" || theme === "dark" ? theme : "system";
 
   return (
     <TooltipProvider delay={400}>
@@ -329,45 +568,36 @@ export const StatusBar = ({
           </Tooltip>
 
           {/* Diff mode dropdown */}
-          <div className="relative" ref={modeMenuRef}>
-            <Button
-              variant="ghost"
-              size="xs"
-              // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-              onClick={() => setModeMenuOpen((o) => !o)}
-              className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1"
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1 group"
+                />
+              }
             >
               {diffMode === "uncommitted" ? "Uncommitted" : "All"}
               <ChevronDownIcon
                 size={10}
-                className={cn("transition-transform duration-150", modeMenuOpen && "rotate-180")}
+                className="transition-transform duration-150 group-data-[popup-open]:rotate-180"
               />
-            </Button>
-
-            {modeMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-card shadow-lg dark:shadow-none py-1 overflow-hidden">
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[200px]">
+              <DropdownMenuRadioGroup
+                value={diffMode}
+                // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                onValueChange={(value) => onDiffModeChange(value as DiffMode)}
+              >
                 {DIFF_MODES.map(({ value, label }) => (
-                  <button
-                    type="button"
-                    key={value}
-                    className="flex w-full items-center justify-between px-3 py-2 text-sm text-left hover:bg-secondary/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-                    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                    onClick={() => {
-                      onDiffModeChange(value);
-                      setModeMenuOpen(false);
-                    }}
-                  >
-                    <span className={cn("text-foreground", diffMode === value && "font-medium")}>
-                      {label}
-                    </span>
-                    {diffMode === value && (
-                      <CheckIcon size={14} className="text-diff-green shrink-0" />
-                    )}
-                  </button>
+                  <DropdownMenuRadioItem key={value} value={value}>
+                    {label}
+                  </DropdownMenuRadioItem>
                 ))}
-              </div>
-            )}
-          </div>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Comments export */}
           {comments.length > 0 && (
@@ -417,26 +647,72 @@ export const StatusBar = ({
             </TooltipContent>
           </Tooltip>
 
-          {/* Theme toggle - only render after mount to avoid hydration mismatch */}
+          {/* Settings panel */}
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Display settings"
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                />
+              }
+            >
+              <SettingsGear1Icon size={14} />
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[260px]">
+              <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                Display
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 text-sm">
+                <span className="text-foreground">Backgrounds</span>
+                <Switch
+                  label="Toggle diff backgrounds"
+                  checked={displaySettings.showBackgrounds}
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onChange={(next) => updateSetting("showBackgrounds", next)}
+                />
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 text-sm">
+                <span className="text-foreground">Line numbers</span>
+                <Switch
+                  label="Toggle line numbers"
+                  checked={displaySettings.showLineNumbers}
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onChange={(next) => updateSetting("showLineNumbers", next)}
+                />
+              </div>
+              <div className="flex items-center justify-between px-2 py-1.5 text-sm">
+                <span className="text-foreground">Word wrap</span>
+                <Switch
+                  label="Toggle word wrap"
+                  checked={displaySettings.wordWrap}
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onChange={(next) => updateSetting("wordWrap", next)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
+                <span className="text-foreground">Indicators</span>
+                <SegmentedControl
+                  ariaLabel="Diff indicator style"
+                  value={displaySettings.diffIndicators}
+                  options={INDICATOR_OPTIONS}
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onChange={(next) => updateSetting("diffIndicators", next)}
+                />
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Theme picker - only render after mount to avoid hydration mismatch */}
           {mounted && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                    onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                    className="text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  />
-                }
-              >
-                {resolvedTheme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                {resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              </TooltipContent>
-            </Tooltip>
+            <ThemePicker
+              diffThemes={diffThemes}
+              onDiffThemesChange={onDiffThemesChange}
+              themeMode={themeMode}
+              onModeChange={setTheme}
+            />
           )}
         </div>
       </header>

@@ -12,35 +12,62 @@ interface MockAnnotation {
   side: "deletions" | "additions";
 }
 
+interface MockItem {
+  id: string;
+  type: "diff";
+  collapsed?: boolean;
+  annotations?: MockAnnotation[];
+  fileDiff: unknown;
+}
+
+interface MockCodeViewProps {
+  items: MockItem[];
+  renderCustomHeader?: (item: MockItem) => React.ReactNode;
+  renderAnnotation?: (annotation: MockAnnotation, item: MockItem) => React.ReactNode;
+  renderGutterUtility?: (
+    getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined,
+    item: MockItem,
+  ) => React.ReactNode;
+}
+
+// CodeView mock: reproduces the per-item DOM the suite queries — a
+// `[data-filename]` wrapper, the custom file header (collapse button lives
+// there), a hideable region panel, the gutter utility, and annotation slots.
+// The real CodeView virtualizes; the mock renders every item eagerly.
 const { MockDynamicPatch } = vi.hoisted(() => ({
   MockDynamicPatch: ({
-    patch,
-    lineAnnotations,
+    items,
+    renderCustomHeader,
     renderAnnotation,
     renderGutterUtility,
-  }: {
-    patch: string;
-    lineAnnotations?: MockAnnotation[];
-    renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
-    renderGutterUtility?: (
-      getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined,
-    ) => React.ReactNode;
-  }) => (
-    <div data-testid={`patch:${patch.slice(0, 12)}`}>
-      <div>{patch}</div>
-      {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }))}
-      {lineAnnotations?.map((annotation) => {
-        const metadataKey =
-          typeof annotation.metadata === "object" && annotation.metadata !== null
-            ? JSON.stringify(annotation.metadata)
-            : String(annotation.metadata ?? "");
+  }: MockCodeViewProps) => (
+    <div data-testid="code-view">
+      {items.map((item) => (
+        <div data-filename={item.id} key={item.id}>
+          {renderCustomHeader?.(item)}
+          <div role="region" hidden={item.collapsed ?? false}>
+            <div data-testid={`patch:${item.id}`}>
+              {item.id}
+              {(item.fileDiff as { additionLines?: string[] } | undefined)?.additionLines?.join(
+                "\n",
+              )}
+            </div>
+            {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
+            {item.annotations?.map((annotation) => {
+              const metadataKey =
+                typeof annotation.metadata === "object" && annotation.metadata !== null
+                  ? JSON.stringify(annotation.metadata)
+                  : String(annotation.metadata ?? "");
 
-        return (
-          <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
-            {renderAnnotation?.(annotation)}
+              return (
+                <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
+                  {renderAnnotation?.(annotation, item)}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   ),
 }));
@@ -571,8 +598,10 @@ describe("DiffApp review flow", () => {
     );
 
     await screen.findByText("feature/diff-review");
+    // Poll mode force-refreshes every 25ms; the initial diff may be fetched
+    // more than once before the first version settles. Assert at least one.
     await waitFor(() => {
-      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(1);
     });
     await screen.findByText("Live");
 
