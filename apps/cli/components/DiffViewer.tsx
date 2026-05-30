@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,18 +18,21 @@ import { useTheme } from "next-themes";
 import type {
   AnnotationSide,
   CodeViewDiffItem,
+  CodeViewItem,
   CodeViewOptions,
   DiffLineAnnotation,
-  FileDiffMetadata,
 } from "@pierre/diffs";
-import { parsePatchFiles } from "@pierre/diffs";
 import type { CodeViewHandle } from "@pierre/diffs/react";
+import { useWorkerPool } from "@pierre/diffs/react";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
 import type { DiffTheme } from "@/lib/diff-colors";
 import { getDiffUnsafeCSS } from "@/lib/diff-colors";
 import { DEFAULT_DIFF_THEMES } from "@/lib/diff-themes";
+import { CODE_VIEW_LAYOUT } from "@/lib/diff-stream/constants";
+import { usePatchLoader } from "./use-patch-loader";
+import { useIsWorkerPoolReady } from "./use-worker-pool-ready";
 import { FileDiffHeader } from "./FileDiffHeader";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
@@ -53,6 +57,13 @@ const TAG_META: Partial<Record<CommentTag, { text: string; border: string }>> = 
   "[suggestion]": { border: "border-l-diff-green", text: "text-diff-green" },
 };
 const EMPTY_COMMENTS: readonly Comment[] = [];
+
+// Lines longer than this skip syntax tokenization (rendered as plain text) so a
+// single minified/generated line can't block the highlighter. Kept in sync with
+// the worker-pool init in DiffsWorkerProvider.
+const LONG_LINE_TOKENIZE_LIMIT = 5000;
+
+type DiffMode = "all" | "uncommitted";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,23 +173,24 @@ const CodeView = dynamic(
       }),
   { loading: () => <DiffSkeleton />, ssr: false },
   // The dynamic() generic erases CodeView's own generic, so we re-assert the
-  // controlled-prop shape we actually use here.
+  // uncontrolled-prop shape we actually use here.
 ) as unknown as (props: {
+  key?: React.Key;
   ref?: React.Ref<CodeViewHandle<AnnotationData>>;
-  items: readonly CodeViewDiffItem<AnnotationData>[];
+  initialItems?: readonly CodeViewItem<AnnotationData>[];
   options?: CodeViewOptions<AnnotationData>;
   className?: string;
   style?: React.CSSProperties;
-  disableWorkerPool?: boolean;
+  containerRef?: React.Ref<HTMLDivElement>;
   onScroll?: (scrollTop: number, viewer: unknown) => void;
-  renderCustomHeader?: (item: CodeViewDiffItem<AnnotationData>) => ReactNode;
+  renderCustomHeader?: (item: CodeViewItem<AnnotationData>) => ReactNode;
   renderAnnotation?: (
     annotation: DiffLineAnnotation<AnnotationData>,
-    item: CodeViewDiffItem<AnnotationData>,
+    item: CodeViewItem<AnnotationData>,
   ) => ReactNode;
   renderGutterUtility?: (
     getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined,
-    item: CodeViewDiffItem<AnnotationData>,
+    item: CodeViewItem<AnnotationData>,
   ) => ReactNode;
 }) => React.JSX.Element;
 /* oxlint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks */
@@ -390,58 +402,6 @@ const CommentDisplay = ({
 
 export const getDiffSectionId = (file: string): string => `diff-${encodeURIComponent(file)}`;
 
-/**
- * Sort files in tree display order to match the sidebar:
- * at each directory level, subdirectories (and their contents)
- * come before files, with both groups sorted alphabetically.
- */
-const sortFilesAsTree = (files: string[]): string[] => {
-  interface TreeNode {
-    files: string[];
-    folders: Map<string, TreeNode>;
-  }
-
-  const root: TreeNode = { files: [], folders: new Map() };
-
-  // Build tree structure
-  for (const file of files) {
-    const parts = file.split("/");
-    let current = root;
-    for (let i = 0; i < parts.length - 1; i += 1) {
-      const part = parts[i];
-      if (!current.folders.has(part)) {
-        current.folders.set(part, { files: [], folders: new Map() });
-      }
-      const next = current.folders.get(part);
-      if (next) {
-        current = next;
-      }
-    }
-    current.files.push(file);
-  }
-
-  // Flatten in tree order (depth-first: folders before files, both sorted alphabetically)
-  const result: string[] = [];
-
-  const flatten = (node: TreeNode): void => {
-    // Folders first, sorted alphabetically by folder name
-    const sortedFolders = [...node.folders.entries()].toSorted((a, b) => a[0].localeCompare(b[0]));
-    for (const [, child] of sortedFolders) {
-      flatten(child);
-    }
-    // Then files, sorted alphabetically by filename
-    const sortedFiles = [...node.files].toSorted((a, b) => {
-      const nameA = a.split("/").at(-1) ?? a;
-      const nameB = b.split("/").at(-1) ?? b;
-      return nameA.localeCompare(nameB);
-    });
-    result.push(...sortedFiles);
-  };
-
-  flatten(root);
-  return result;
-};
-
 interface CommentTarget {
   file: string;
   lineNumber: number;
@@ -478,30 +438,14 @@ const GutterButton = memo(function GutterButton({
   );
 });
 
-// Parse a single-file patch into FileDiffMetadata, memoized per (file, patch).
-// CodeView re-renders for theme/layout/comment changes must not reparse every
-// file, so we cache by patch identity.
-const parseFileDiff = (file: string, patch: string): FileDiffMetadata | null => {
-  if (!patch) {
-    return null;
-  }
-  try {
-    const parsed = parsePatchFiles(patch);
-    const [first] = parsed;
-    const [fileDiff] = first?.files ?? [];
-    return fileDiff ?? null;
-  } catch (error) {
-    console.error("[diffhub] Failed to parse patch", { error, file });
-    return null;
-  }
-};
-
 export interface DiffViewerHandle {
   scrollToFile: (file: string) => void;
 }
 
 interface DiffViewerProps {
-  patchesByFile: Record<string, string>;
+  // Streaming load inputs.
+  reloadKey: string;
+  diffMode: DiffMode;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -523,9 +467,8 @@ interface DiffViewerProps {
   wordWrap?: boolean;
   showBackgrounds?: boolean;
   diffIndicators?: "classic" | "bars" | "none";
-  // Syntax theme ids per color scheme (optional, github defaults). Theme ids
-  // resolve lazily on the main thread via @pierre/diffs, so changing them just
-  // re-renders CodeView with the new theme — no preload needed.
+  // Syntax theme ids per color scheme. Pushed into the worker pool via
+  // setRenderOptions so background tokenizers reload the active themes.
   diffThemes?: { light: string; dark: string };
 }
 
@@ -548,7 +491,8 @@ const EmptyState = () => (
 
 const DiffViewerInner = (
   {
-    patchesByFile,
+    reloadKey,
+    diffMode,
     layout,
     comments,
     onAddComment,
@@ -560,7 +504,7 @@ const DiffViewerInner = (
     onActiveFileChange,
     repoPath,
     showLineNumbers = true,
-    wordWrap = true,
+    wordWrap = false,
     showBackgrounds = true,
     diffIndicators = "classic",
     diffThemes = DEFAULT_DIFF_THEMES,
@@ -568,139 +512,208 @@ const DiffViewerInner = (
   ref: React.Ref<DiffViewerHandle>,
 ) => {
   const { resolvedTheme } = useTheme();
-  const themeType = resolvedTheme === "light" ? "light" : "dark";
+  const themeType: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
+  const workerPool = useWorkerPool();
+  const isWorkerReady = useIsWorkerPoolReady();
+  // useWorkerPool can return a fresh reference across renders; read it through a
+  // ref so the imperative handle stays stable (constant-size deps).
+  const workerPoolRef = useRef(workerPool);
+  workerPoolRef.current = workerPool;
 
   const codeViewRef = useRef<CodeViewHandle<AnnotationData> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Single active inline-comment input target (gutter "+").
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
 
-  const fileStatMap = useMemo(() => {
-    const map = new Map<string, DiffFileStat>();
-    for (const s of fileStats) {
-      map.set(s.file, s);
-    }
-    return map;
-  }, [fileStats]);
-
-  const orderedFiles = useMemo(() => {
-    const files = fileStats.map((fileStat) => fileStat.file);
-    const extras = Object.keys(patchesByFile).filter((file) => !fileStatMap.has(file));
-    return sortFilesAsTree([...files, ...extras]);
-  }, [fileStatMap, fileStats, patchesByFile]);
-
+  // ── Live refs for the streaming/imperative paths ───────────────────────────
   const commentsByFile = useMemo(() => {
     const map = new Map<string, Comment[]>();
     for (const comment of comments) {
-      const bucket = map.get(comment.file);
-      if (bucket) {
-        bucket.push(comment);
+      const list = map.get(comment.file);
+      if (list) {
+        list.push(comment);
       } else {
         map.set(comment.file, [comment]);
       }
     }
     return map;
   }, [comments]);
+  const commentsByFileRef = useRef(commentsByFile);
+  commentsByFileRef.current = commentsByFile;
+  const commentTargetRef = useRef(commentTarget);
+  commentTargetRef.current = commentTarget;
+  const collapsedFilesRef = useRef(collapsedFiles);
+  collapsedFilesRef.current = collapsedFiles;
 
-  // Memoize parsing per (file, patch). The cache survives re-renders so theme,
-  // layout, and comment changes never reparse an unchanged patch.
-  const parsedCacheRef = useRef(
-    new Map<string, { patch: string; fileDiff: FileDiffMetadata | null }>(),
-  );
-  const getParsedFileDiff = useCallback((file: string, patch: string): FileDiffMetadata | null => {
-    const cache = parsedCacheRef.current;
-    const cached = cache.get(file);
-    if (cached && cached.patch === patch) {
-      return cached.fileDiff;
+  // Item ids handed to the viewer (for collapse + annotation reconciliation),
+  // and the subset that currently carries a saved-comment annotation.
+  const loadedItemIdsRef = useRef<Set<string>>(new Set());
+  const annotatedItemIdsRef = useRef<Set<string>>(new Set());
+  const prevTargetFileRef = useRef<string | null>(null);
+
+  const fileStatMap = useMemo(() => {
+    const map = new Map<string, DiffFileStat>();
+    for (const stat of fileStats) {
+      map.set(stat.file, stat);
     }
-    const fileDiff = parseFileDiff(file, patch);
-    cache.set(file, { fileDiff, patch });
-    return fileDiff;
-  }, []);
+    return map;
+  }, [fileStats]);
 
-  const items = useMemo((): CodeViewDiffItem<AnnotationData>[] => {
-    const result: CodeViewDiffItem<AnnotationData>[] = [];
-    for (const file of orderedFiles) {
-      const patch = patchesByFile[file] ?? "";
-      const fileDiff = getParsedFileDiff(file, patch);
-      if (!fileDiff) {
-        continue;
-      }
-
-      const fileComments = commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[]);
-      const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((c) => ({
-        lineNumber: c.lineNumber,
-        metadata: { comment: c, type: "comment" as const },
-        side: toAnnotationSide(c.side),
+  // Build the annotation list for a single item from the current comments +
+  // active input target. Shared by the streaming stamp and the reconcilers.
+  const buildAnnotationsForItem = useCallback(
+    (itemId: string): DiffLineAnnotation<AnnotationData>[] => {
+      const fileComments = commentsByFileRef.current.get(itemId) ?? (EMPTY_COMMENTS as Comment[]);
+      const annotations: DiffLineAnnotation<AnnotationData>[] = fileComments.map((comment) => ({
+        lineNumber: comment.lineNumber,
+        metadata: { comment, type: "comment" as const },
+        side: toAnnotationSide(comment.side),
       }));
-
-      if (commentTarget && commentTarget.file === file) {
+      const target = commentTargetRef.current;
+      if (target && target.file === itemId) {
         annotations.push({
-          lineNumber: commentTarget.lineNumber,
-          metadata: { file, type: "input" as const },
-          side: commentTarget.side,
+          lineNumber: target.lineNumber,
+          metadata: { file: itemId, type: "input" as const },
+          side: target.side,
         });
       }
-
-      result.push({
-        annotations,
-        collapsed: collapsedFiles.has(file),
-        fileDiff,
-        id: file,
-        type: "diff",
-      });
-    }
-    return result;
-  }, [
-    orderedFiles,
-    patchesByFile,
-    getParsedFileDiff,
-    commentsByFile,
-    commentTarget,
-    collapsedFiles,
-  ]);
-
-  const options = useMemo<CodeViewOptions<AnnotationData>>(
-    () => ({
-      diffIndicators,
-      diffStyle: layout === "split" ? "split" : "unified",
-      disableBackground: !showBackgrounds,
-      disableFileHeader: true,
-      disableLineNumbers: !showLineNumbers,
-      enableGutterUtility: true,
-      // Lean on CodeView's virtualizer: render unchanged context regions in
-      // full instead of collapsing them into "N unmodified lines" banners.
-      // With expandUnchanged the context is always shown, so expansionLineCount
-      // (lines revealed per expand click) and collapsedContextThreshold (the
-      // gap size that triggers a collapse) are effectively unused; we still
-      // pass a large expansionLineCount for the rare manual-expand fallback.
-      expandUnchanged: true,
-      expansionLineCount: 100,
-      hunkSeparators: "line-info",
-      lineDiffType: "word-alt",
-      lineHoverHighlight: "disabled",
-      maxLineDiffLength: 500,
-      overflow: wordWrap ? "wrap" : "scroll",
-      stickyHeaders: true,
-      theme: { dark: diffThemes.dark, light: diffThemes.light },
-      themeType,
-      unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
-    }),
-    [
-      diffIndicators,
-      layout,
-      showBackgrounds,
-      showLineNumbers,
-      wordWrap,
-      themeType,
-      diffThemes.dark,
-      diffThemes.light,
-    ],
+      return annotations;
+    },
+    [],
   );
+
+  // Stamp freshly built items (initial batch + streamed batches) with their
+  // current collapse state and annotations before they reach the viewer.
+  const prepareItems = useCallback(
+    (items: CodeViewDiffItem<AnnotationData>[]): void => {
+      const collapsed = collapsedFilesRef.current;
+      for (const item of items) {
+        loadedItemIdsRef.current.add(item.id);
+        item.collapsed = collapsed.has(item.id);
+        const annotations = buildAnnotationsForItem(item.id);
+        item.annotations = annotations;
+        if (annotations.some((annotation) => annotation.metadata?.type === "comment")) {
+          annotatedItemIdsRef.current.add(item.id);
+        }
+      }
+    },
+    [buildAnnotationsForItem],
+  );
+
+  const handleReset = useCallback(() => {
+    loadedItemIdsRef.current = new Set();
+    annotatedItemIdsRef.current = new Set();
+    prevTargetFileRef.current = null;
+    setCommentTarget(null);
+  }, []);
+
+  const diffQuery = useMemo(
+    () => (diffMode === "uncommitted" ? "?mode=uncommitted" : ""),
+    [diffMode],
+  );
+
+  const { initialItems, loadState, errorMessage, viewerKey, retry } =
+    usePatchLoader<AnnotationData>({
+      diffQuery,
+      onReset: handleReset,
+      prepareItems,
+      reloadKey,
+      viewerRef: codeViewRef,
+    });
+
+  // ── Push theme changes into the worker pool ────────────────────────────────
+  // Background tokenizers keep the pair they were initialized with unless we
+  // tell them otherwise, so re-resolve on every theme/themeType change.
+  useLayoutEffect(() => {
+    if (workerPool === undefined) {
+      return;
+    }
+    void workerPool.setRenderOptions({ theme: { dark: diffThemes.dark, light: diffThemes.light } });
+  }, [workerPool, diffThemes.dark, diffThemes.light]);
+
+  // ── Reconcile saved comments + active input annotation imperatively ────────
+  useEffect(() => {
+    const viewer = codeViewRef.current;
+    if (!viewer) {
+      return;
+    }
+
+    const touched = new Set<string>();
+    for (const id of annotatedItemIdsRef.current) {
+      touched.add(id);
+    }
+    for (const id of commentsByFile.keys()) {
+      touched.add(id);
+    }
+    if (commentTarget) {
+      touched.add(commentTarget.file);
+    }
+    if (prevTargetFileRef.current) {
+      touched.add(prevTargetFileRef.current);
+    }
+    prevTargetFileRef.current = commentTarget?.file ?? null;
+
+    const nextAnnotated = new Set<string>();
+    for (const id of touched) {
+      const item = viewer.getItem(id);
+      if (!item || item.type !== "diff") {
+        continue;
+      }
+      const annotations = buildAnnotationsForItem(id);
+      item.annotations = annotations;
+      item.version = (item.version ?? 0) + 1;
+      viewer.updateItem(item);
+      if (annotations.some((annotation) => annotation.metadata?.type === "comment")) {
+        nextAnnotated.add(id);
+      }
+    }
+    annotatedItemIdsRef.current = nextAnnotated;
+  }, [comments, commentTarget, commentsByFile, buildAnnotationsForItem]);
+
+  // ── Reconcile collapse state imperatively (sidebar/keyboard driven) ────────
+  useEffect(() => {
+    const viewer = codeViewRef.current;
+    if (!viewer) {
+      return;
+    }
+    const instance = viewer.getInstance();
+
+    for (const id of loadedItemIdsRef.current) {
+      const item = viewer.getItem(id);
+      if (!item || item.type !== "diff") {
+        continue;
+      }
+      const shouldCollapse = collapsedFiles.has(id);
+      if ((item.collapsed ?? false) === shouldCollapse) {
+        continue;
+      }
+      // If the item starts above the viewport, anchor it after collapsing so
+      // the change does not yank the scroll position (matches the reference).
+      const top = instance?.getTopForItem(id);
+      item.collapsed = shouldCollapse;
+      item.version = (item.version ?? 0) + 1;
+      viewer.updateItem(item);
+      if (shouldCollapse && instance && top !== undefined && top < instance.getScrollTop()) {
+        viewer.scrollTo({ align: "start", id, type: "item" });
+      }
+    }
+  }, [collapsedFiles]);
 
   // Imperative scroll-to-file for DiffApp (sidebar clicks, j/k navigation).
   useImperativeHandle(
     ref,
     () => ({
       scrollToFile: (file: string) => {
+        // Prime the worker highlight cache for the navigation target before we
+        // scroll to it, so a virtualized-away file is already (or nearly)
+        // highlighted by the time scrollTo materializes it — avoiding a
+        // plain-text flash on sidebar clicks and j/k jumps.
+        const item = codeViewRef.current?.getItem(file);
+        const pool = workerPoolRef.current;
+        if (pool && item?.type === "diff") {
+          pool.primeDiffHighlightCache(item.fileDiff);
+        }
         codeViewRef.current?.scrollTo({ align: "start", id: file, type: "item" });
       },
     }),
@@ -758,8 +771,50 @@ const DiffViewerInner = (
     });
   }, []);
 
+  const options = useMemo<CodeViewOptions<AnnotationData>>(
+    () => ({
+      diffIndicators,
+      diffStyle: layout === "split" ? "split" : "unified",
+      disableBackground: !showBackgrounds,
+      disableFileHeader: true,
+      disableLineNumbers: !showLineNumbers,
+      enableGutterUtility: true,
+      // Lean on CodeView's virtualizer: render unchanged context regions in
+      // full instead of collapsing them into "N unmodified lines" banners.
+      expandUnchanged: true,
+      expansionLineCount: 100,
+      hunkSeparators: "line-info",
+      layout: CODE_VIEW_LAYOUT,
+      lineDiffType: "word-alt",
+      lineHoverHighlight: "disabled",
+      maxLineDiffLength: 500,
+      overflow: wordWrap ? "wrap" : "scroll",
+      stickyHeaders: true,
+      theme: { dark: diffThemes.dark, light: diffThemes.light },
+      themeType,
+      // Long-line safeguard: skip syntax tokenization on pathological lines
+      // (minified JS/CSS, giant base64) so one huge line can't stall a worker.
+      // The line still renders as plain text.
+      tokenizeMaxLineLength: LONG_LINE_TOKENIZE_LIMIT,
+      unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
+    }),
+    [
+      diffIndicators,
+      layout,
+      showBackgrounds,
+      showLineNumbers,
+      wordWrap,
+      themeType,
+      diffThemes.dark,
+      diffThemes.light,
+    ],
+  );
+
   const renderCustomHeader = useCallback(
-    (item: CodeViewDiffItem<AnnotationData>) => {
+    (item: CodeViewItem<AnnotationData>) => {
+      if (item.type !== "diff") {
+        return null;
+      }
       const file = item.id;
       const fileStat = fileStatMap.get(file);
       const fileComments = commentsByFile.get(file) ?? (EMPTY_COMMENTS as Comment[]);
@@ -828,7 +883,7 @@ const DiffViewerInner = (
   const renderGutterUtility = useCallback(
     (
       getHoveredLine: () => { lineNumber: number; side: AnnotationSide } | undefined,
-      item: CodeViewDiffItem<AnnotationData>,
+      item: CodeViewItem<AnnotationData>,
     ) => (
       <GutterButton
         getHoveredLine={getHoveredLine}
@@ -839,18 +894,42 @@ const DiffViewerInner = (
     [],
   );
 
-  if (orderedFiles.length === 0) {
+  if (loadState === "error") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <div className="text-sm text-destructive">{errorMessage ?? "Failed to load the diff."}</div>
+        <Button size="sm" variant="default" onClick={retry}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  // Withhold the viewer until the worker pool has initialized so the first
+  // batch tokenizes against the real highlighter, and until we have something
+  // to render.
+  const hasContent = loadState === "ready" || initialItems.length > 0;
+  if (!isWorkerReady || !hasContent) {
+    if (loadState === "ready" && initialItems.length === 0) {
+      return <EmptyState />;
+    }
+    return <DiffSkeleton />;
+  }
+
+  if (loadState === "ready" && initialItems.length === 0) {
     return <EmptyState />;
   }
 
   return (
-    <div id="diff-container">
+    <div id="diff-container" className="flex min-h-0 flex-1 flex-col">
       <DiffErrorBoundary>
         <CodeView
+          key={viewerKey}
           ref={codeViewRef}
-          items={items}
+          containerRef={containerRef}
+          initialItems={initialItems}
           options={options}
-          disableWorkerPool
+          className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none]"
           onScroll={handleScroll}
           renderCustomHeader={renderCustomHeader}
           renderAnnotation={renderAnnotation}

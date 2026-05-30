@@ -16,8 +16,8 @@ export interface DiffThemeInfo {
   type: "light" | "dark";
 }
 
-export const DEFAULT_LIGHT_THEME = "github-light";
-export const DEFAULT_DARK_THEME = "github-dark";
+export const DEFAULT_LIGHT_THEME = "pierre-light-soft";
+export const DEFAULT_DARK_THEME = "pierre-dark-soft";
 
 export const DIFF_THEMES: readonly DiffThemeInfo[] = [
   // Pierre themes (provided by @pierre/diffs, not Shiki's bundle).

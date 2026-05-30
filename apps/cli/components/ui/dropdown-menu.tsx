@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "blode-icons-react";
+import { CheckIcon, ChevronRightIcon } from "blode-icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -99,14 +99,14 @@ const DropdownMenuRadioItem = ({
   <MenuPrimitive.RadioItem
     data-slot="dropdown-menu-radio-item"
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-sm outline-none transition-colors data-highlighted:bg-secondary data-disabled:pointer-events-none data-disabled:opacity-50",
+      "relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-sm outline-none transition-colors data-highlighted:bg-secondary data-disabled:pointer-events-none data-disabled:opacity-50 data-checked:font-medium",
       className,
     )}
     {...props}
   >
     <span className="absolute left-2 flex size-4 items-center justify-center">
       <MenuPrimitive.RadioItemIndicator>
-        <CircleIcon className="size-2 fill-current" />
+        <CheckIcon className="size-4" />
       </MenuPrimitive.RadioItemIndicator>
     </span>
     {children}
