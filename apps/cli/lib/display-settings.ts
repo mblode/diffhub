@@ -13,7 +13,9 @@ export interface DisplaySettings {
 export const DISPLAY_SETTINGS_KEY = "diffhub-display-settings";
 
 export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
-  diffIndicators: "classic",
+  // Match diffshub.com's default: a colored bar in the gutter, not the
+  // classic +/- glyph.
+  diffIndicators: "bars",
   showBackgrounds: true,
   showLineNumbers: true,
   wordWrap: true,

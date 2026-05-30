@@ -15,9 +15,9 @@ import { cn, truncateFilePath } from "@/lib/utils";
 // `DiffFileStat` carries no git change-type, so derive a coarse one from the
 // line counts to colour the header icon (new = green, removed = red, else muted).
 const CHANGE_ICONS = {
+  modified: { Icon: CircleDotsCenter1Icon, className: "text-muted-foreground" },
   new: { Icon: CirclePlusIcon, className: "text-diff-green" },
   removed: { Icon: CircleMinusIcon, className: "text-destructive" },
-  modified: { Icon: CircleDotsCenter1Icon, className: "text-muted-foreground" },
 } as const;
 
 const resolveChangeType = (insertions: number, deletions: number): keyof typeof CHANGE_ICONS => {
@@ -81,7 +81,7 @@ export const FileDiffHeader = ({
       <div
         data-active={active ? "true" : undefined}
         data-state={collapsed ? "collapsed" : "expanded"}
-        className="flex items-center gap-2 px-3 h-11 border-b border-border bg-card sticky top-[52px] z-10"
+        className="flex items-center gap-2 px-3 h-11 border-b border-border bg-card"
       >
         <h3
           id={headingId}

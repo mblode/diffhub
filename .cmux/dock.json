@@ -1,0 +1,7 @@
+{
+  "controls": [
+    { "id": "git", "title": "Git", "command": "git status -sb && echo && git -c color.ui=always log --oneline --graph --decorate -20; exec ${SHELL:-/bin/zsh} -l", "cwd": ".", "height": 340 },
+    { "id": "checks", "title": "Checks", "command": "npm run check; exec ${SHELL:-/bin/zsh} -l", "cwd": ".", "height": 240 },
+    { "id": "feed", "title": "Feed", "command": "cmux feed tui --opentui", "height": 240 }
+  ]
+}

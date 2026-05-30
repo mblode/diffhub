@@ -247,6 +247,11 @@ const MainPanel = ({
   );
 };
 
+const areAllFilesCollapsed = (data: FilesData | null, collapsedSize: number): boolean => {
+  const count = data?.files?.length ?? 0;
+  return count > 0 && collapsedSize >= count;
+};
+
 export const DiffApp = ({
   repoPath,
   defaultSidebarOpen = true,
@@ -269,7 +274,7 @@ export const DiffApp = ({
   const [sidebarWidth, setSidebarWidth] = useState(256);
   const [statsPanel, setStatsPanel] = useLocalStorage<PanelState>(
     "diffhub-panel-stats",
-    "open",
+    "closed",
     PANEL_OPTIONS,
   );
   const handleStatsOpenChange = useCallback(
@@ -676,6 +681,8 @@ export const DiffApp = ({
     updateCollapsedFiles(() => new Set());
   }, [updateCollapsedFiles]);
 
+  const allFilesCollapsed = areAllFilesCollapsed(filesData, collapsedFiles.size);
+
   useEffect(() => {
     // oxlint-disable-next-line complexity
     const handleKey = (event: KeyboardEvent) => {
@@ -870,6 +877,9 @@ export const DiffApp = ({
             onDiffModeChange={handleDiffModeChange}
             layout={layout}
             onLayoutChange={setLayout}
+            allCollapsed={allFilesCollapsed}
+            onCollapseAll={collapseAll}
+            onExpandAll={expandAll}
             syncNotice={syncNotice}
             displaySettings={displaySettings}
             onDisplaySettingsChange={handleDisplaySettingsChange}

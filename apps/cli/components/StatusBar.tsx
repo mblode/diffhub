@@ -4,12 +4,14 @@ import {
   BarsThree2Icon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronGrabberVerticalIcon,
   CircleBanSignIcon,
   CircleHalfFillIcon,
   CodeLinesIcon,
   ColumnWideAddIcon,
   ColumnWideHalfIcon,
   CopySimpleIcon,
+  SquizedIcon,
   SunIcon,
   MoonIcon,
   ArrowRightIcon,
@@ -77,6 +79,9 @@ interface StatusBarProps {
   onDiffModeChange: (mode: DiffMode) => void;
   layout: "split" | "stacked";
   onLayoutChange: (l: "split" | "stacked") => void;
+  allCollapsed: boolean;
+  onCollapseAll: () => void;
+  onExpandAll: () => void;
   displaySettings: DisplaySettings;
   onDisplaySettingsChange: (settings: DisplaySettings) => void;
   diffThemes: DiffThemeSelection;
@@ -351,6 +356,9 @@ export const StatusBar = ({
   onDiffModeChange,
   layout,
   onLayoutChange,
+  allCollapsed,
+  onCollapseAll,
+  onExpandAll,
   displaySettings,
   onDisplaySettingsChange,
   diffThemes,
@@ -575,6 +583,32 @@ export const StatusBar = ({
             </Tooltip>
           )}
 
+          {/* Collapse / expand all files */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={allCollapsed ? "Expand all files" : "Collapse all files"}
+                  aria-pressed={allCollapsed}
+                  onClick={allCollapsed ? onExpandAll : onCollapseAll}
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                />
+              }
+            >
+              {allCollapsed ? (
+                <ChevronGrabberVerticalIcon size={14} />
+              ) : (
+                <SquizedIcon size={14} className="rotate-90" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="flex items-center gap-2">
+              <span>{allCollapsed ? "Expand all files" : "Collapse all files"}</span>
+              <Kbd>{allCollapsed ? "⇧E" : "⇧C"}</Kbd>
+            </TooltipContent>
+          </Tooltip>
+
           {/* Layout toggle — unified / split */}
           <Tooltip>
             <TooltipTrigger
@@ -582,41 +616,22 @@ export const StatusBar = ({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label="Switch to unified view"
-                  aria-pressed={layout === "stacked"}
+                  aria-label={layout === "split" ? "Switch to unified view" : "Switch to split view"}
                   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                  onClick={() => onLayoutChange("stacked")}
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground hover:bg-secondary",
-                    layout === "stacked" && "border border-border bg-secondary text-foreground",
-                  )}
+                  onClick={() => onLayoutChange(layout === "split" ? "stacked" : "split")}
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
                 />
               }
             >
-              <ColumnWideAddIcon size={14} />
+              {layout === "split" ? (
+                <ColumnWideAddIcon size={14} />
+              ) : (
+                <ColumnWideHalfIcon size={14} />
+              )}
             </TooltipTrigger>
-            <TooltipContent side="bottom">Switch to unified view (S)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Switch to split view"
-                  aria-pressed={layout === "split"}
-                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                  onClick={() => onLayoutChange("split")}
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground hover:bg-secondary",
-                    layout === "split" && "border border-border bg-secondary text-foreground",
-                  )}
-                />
-              }
-            >
-              <ColumnWideHalfIcon size={14} />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Switch to split view (S)</TooltipContent>
+            <TooltipContent side="bottom">
+              {layout === "split" ? "Switch to unified view (S)" : "Switch to split view (S)"}
+            </TooltipContent>
           </Tooltip>
 
           {/* Display settings panel */}
