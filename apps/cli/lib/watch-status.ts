@@ -9,9 +9,10 @@ export interface WatchStatusMeta {
 }
 
 /**
- * Shared mapping from watch state → display metadata, used by both the
- * StatusBar pill and the sidebar's System Monitor panel. `updating` (a manual
- * or change-triggered refresh in flight) takes precedence over the base state.
+ * Shared mapping from watch state → display metadata. The StatusBar renders
+ * `dotClassName` as a status dot and surfaces `label` via the refresh button's
+ * tooltip/aria-label. `updating` (a manual or change-triggered refresh in
+ * flight) takes precedence over the base state.
  */
 export const getWatchStatusMeta = (status: WatchStatus, updating: boolean): WatchStatusMeta => {
   if (updating) {
