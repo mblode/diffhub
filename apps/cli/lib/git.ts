@@ -647,6 +647,132 @@ const getDiffSnapshot = (
   });
 };
 
+interface StreamDiffPatchOptions {
+  base?: string;
+  mode?: "uncommitted";
+  whitespace?: WhitespaceMode;
+  signal?: AbortSignal;
+}
+
+/**
+ * Stream the raw unified git patch as a web ReadableStream without buffering the
+ * whole output in memory. This is the streaming counterpart to
+ * {@link getDiffSnapshot}'s `runGit(["diff", ...diffArgs])` call and produces
+ * byte-identical output, just incrementally.
+ *
+ * Unlike the buffered helpers, this path intentionally skips the
+ * MAX_GIT_OUTPUT_BYTES cap — the entire point is to handle arbitrarily large
+ * diffs by streaming git's stdout straight to the client.
+ */
+export const streamDiffPatch = async (
+  options: StreamDiffPatchOptions = {},
+): Promise<ReadableStream<Uint8Array>> => {
+  const { base, mode, whitespace, signal } = options;
+
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+
+  const repoPath = getRepoPath();
+  const baseBranch =
+    mode === "uncommitted" ? "HEAD" : (base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch()));
+  const mergeBase = mode === "uncommitted" ? "HEAD" : await getMergeBase(baseBranch);
+  const diffArgs = addWhitespaceArgs([mergeBase], whitespace);
+  const args = ["diff", "-M", ...diffArgs];
+
+  if (isDebugLogging) {
+    console.info("[diffhub] git stream start", { args });
+  }
+
+  let child: ReturnType<typeof spawn> | null = null;
+  let settled = false;
+  let onAbort: (() => void) | null = null;
+
+  const cleanup = () => {
+    if (onAbort) {
+      signal?.removeEventListener("abort", onAbort);
+      onAbort = null;
+    }
+  };
+
+  return new ReadableStream<Uint8Array>({
+    cancel() {
+      settled = true;
+      cleanup();
+      child?.kill("SIGKILL");
+    },
+    pull() {
+      // The consumer drained the queue and wants more — resume the source we
+      // paused for backpressure. Safe to call when already flowing or ended.
+      child?.stdout?.resume();
+    },
+    start(controller) {
+      child = spawn("git", args, {
+        cwd: repoPath,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const activeChild = child;
+      const stderrChunks: Buffer[] = [];
+
+      onAbort = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        activeChild.kill("SIGKILL");
+        cleanup();
+        controller.error(new DOMException("Aborted", "AbortError"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      activeChild.stdout?.on("data", (chunk: Buffer) => {
+        if (settled) {
+          return;
+        }
+        controller.enqueue(new Uint8Array(chunk));
+        // Apply backpressure: once the consumer is behind, stop pulling bytes
+        // off git's stdout until `pull()` resumes the stream. Without this the
+        // whole patch could accumulate in the queue for a slow consumer.
+        if (controller.desiredSize !== null && controller.desiredSize <= 0) {
+          activeChild.stdout?.pause();
+        }
+      });
+
+      activeChild.stderr?.on("data", (chunk: Buffer) => {
+        stderrChunks.push(chunk);
+      });
+
+      activeChild.on("error", (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        controller.error(error);
+      });
+
+      activeChild.on("close", (code) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        if (code === 0) {
+          controller.close();
+          return;
+        }
+        const stderrText = Buffer.concat(stderrChunks).toString("utf-8").trim();
+        controller.error(
+          new Error(
+            stderrText || `git ${args.join(" ")} failed with exit code ${code ?? "unknown"}`,
+          ),
+        );
+      });
+    },
+  });
+};
+
 export const getDiffForFile = async (
   file: string,
   base?: string,

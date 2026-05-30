@@ -50,6 +50,21 @@ const loadGitModule = async () => {
   return await import("./git");
 };
 
+const readStream = async (stream: ReadableStream<Uint8Array>): Promise<string> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let out = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    out += decoder.decode(value, { stream: true });
+  }
+  out += decoder.decode();
+  return out;
+};
+
 describe("git snapshot logging", () => {
   beforeEach(() => {
     delete process.env.DIFFHUB_DEBUG;
@@ -119,5 +134,65 @@ describe("git snapshot logging", () => {
         (payload as { source?: string } | undefined)?.source === "recomputed",
     );
     expect(missCalls).toHaveLength(1);
+  });
+});
+
+describe("streamDiffPatch", () => {
+  beforeEach(() => {
+    delete process.env.DIFFHUB_DEBUG;
+    delete process.env.DIFFHUB_REPO;
+    delete process.env.DIFFHUB_BASE;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.env.DIFFHUB_DEBUG = originalEnv.DIFFHUB_DEBUG;
+    process.env.DIFFHUB_REPO = originalEnv.DIFFHUB_REPO;
+
+    for (const tempPath of tempPaths.splice(0)) {
+      rmSync(tempPath, { force: true, recursive: true });
+    }
+  });
+
+  it("streams the raw uncommitted git patch", async () => {
+    const repoPath = createRepo();
+    process.env.DIFFHUB_REPO = repoPath;
+    const { streamDiffPatch } = await loadGitModule();
+
+    const patch = await readStream(await streamDiffPatch({ mode: "uncommitted" }));
+
+    expect(patch).toContain("diff --git a/notes.txt b/notes.txt");
+    expect(patch).toContain("+after");
+  });
+
+  it("drops whitespace-only changes when whitespace is 'ignore'", async () => {
+    const repoPath = createRepo();
+    process.env.DIFFHUB_REPO = repoPath;
+    // Commit the current change, then make a whitespace-only working-tree edit.
+    runGit(repoPath, ["add", "notes.txt"]);
+    runGit(repoPath, ["commit", "-m", "second"]);
+    writeFileSync(join(repoPath, "notes.txt"), "before \nafter\n", "utf-8");
+    const { streamDiffPatch } = await loadGitModule();
+
+    const withWhitespace = await readStream(await streamDiffPatch({ mode: "uncommitted" }));
+    expect(withWhitespace).toContain("diff --git a/notes.txt b/notes.txt");
+
+    const ignored = await readStream(
+      await streamDiffPatch({ mode: "uncommitted", whitespace: "ignore" }),
+    );
+    expect(ignored).not.toContain("diff --git");
+  });
+
+  it("rejects with AbortError when the signal is already aborted", async () => {
+    const repoPath = createRepo();
+    process.env.DIFFHUB_REPO = repoPath;
+    const { streamDiffPatch } = await loadGitModule();
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      streamDiffPatch({ mode: "uncommitted", signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

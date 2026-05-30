@@ -1,8 +1,7 @@
 "use client";
 
 import type { AnnotationSide } from "@pierre/diffs";
-import { useTheme } from "next-themes";
-import { useCallback, useEffect, useRef, useState, useTransition, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { StatusBar } from "./StatusBar";
 import type { DiffMode, WatchStatus } from "./StatusBar";
 import { FileList } from "./FileList";
@@ -12,7 +11,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
-import { splitPatchByFile } from "@/lib/split-patch";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 import type { DisplaySettings } from "@/lib/display-settings";
@@ -42,27 +40,6 @@ interface FilesData {
   generation: string;
 }
 
-interface MultiFileDiffResponse {
-  patch?: string;
-  patchesByFile?: Record<string, string>;
-  reviewKeysByFile?: Record<string, string>;
-  baseBranch: string;
-  mergeBase: string;
-  branch: string;
-  generation: string;
-  fingerprint?: string;
-}
-
-interface MultiFileDiffData {
-  patchesByFile: Record<string, string>;
-  reviewKeysByFile: Record<string, string>;
-  baseBranch: string;
-  mergeBase: string;
-  branch: string;
-  generation: string;
-  sourceFingerprint: string;
-}
-
 interface DiffErrorResponse {
   error?: string;
 }
@@ -82,9 +59,9 @@ interface SyncNotice {
 
 interface MainPanelProps {
   filesData: FilesData | null;
-  deferredDiffData: MultiFileDiffData | null;
-  diffError: string | null;
   syncNotice: SyncNotice | null;
+  reloadKey: string;
+  diffMode: DiffMode;
   layout: "split" | "stacked";
   comments: Comment[];
   onAddComment: (
@@ -100,9 +77,6 @@ interface MainPanelProps {
   onToggleCollapse: (file: string) => void;
   onActiveFileChange: (file: string) => void;
   repoPath: string;
-  diffWatchdogTripped: boolean;
-  diffHintShown: boolean;
-  onRetryDiff: () => void;
   diffViewerRef: React.Ref<DiffViewerHandle>;
   displaySettings: DisplaySettings;
   diffThemes: DiffThemeSelection;
@@ -113,12 +87,11 @@ interface PlaceholderProps {
   pulse?: boolean;
 }
 
-const DIFF_REQUEST_TIMEOUT_MS = 15_000;
-const DIFF_WATCHDOG_MS = 20_000;
-const DIFF_HINT_MS = 10_000;
 const CMUX_WATCH_POLL_MS = 2000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
 const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
+const PANEL_OPTIONS = ["open", "closed"] as const;
+type PanelState = (typeof PANEL_OPTIONS)[number];
 type WatchMode = "poll" | "stream";
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
@@ -132,15 +105,6 @@ const readStoredJson = <T,>(key: string, fallback: T): T => {
   } catch {
     return fallback;
   }
-};
-
-const hashString = (value: string): string => {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = Math.trunc(Math.imul(31, hash) + (value.codePointAt(index) ?? 0));
-  }
-
-  return Math.abs(hash).toString(36);
 };
 
 const areFilesDataEqual = (previous: FilesData | null, next: FilesData): boolean => {
@@ -192,37 +156,8 @@ const areCommentsEqual = (previous: readonly Comment[], next: readonly Comment[]
   });
 };
 
-const createReviewKeysByFile = (
-  patchesByFile: Record<string, string>,
-  generation: string,
-): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(patchesByFile).map(([file, patch]) => [
-      file,
-      `${generation}:${hashString(`${file}:${patch}`)}`,
-    ]),
-  );
-
-const normalizeDiffResponse = (
-  response: MultiFileDiffResponse,
-  sourceFingerprint: string,
-): MultiFileDiffData => {
-  const patchesByFile =
-    response.patchesByFile ?? Object.fromEntries(splitPatchByFile(response.patch ?? ""));
-  return {
-    baseBranch: response.baseBranch,
-    branch: response.branch,
-    generation: response.generation,
-    mergeBase: response.mergeBase,
-    patchesByFile,
-    reviewKeysByFile:
-      response.reviewKeysByFile ?? createReviewKeysByFile(patchesByFile, response.generation),
-    sourceFingerprint,
-  };
-};
-
 const Placeholder = ({ text, pulse = false }: PlaceholderProps): React.JSX.Element => (
-  <div className="flex h-full items-center justify-center">
+  <div className="flex min-h-0 flex-1 items-center justify-center">
     <div className={`text-muted-foreground text-sm${pulse ? " animate-pulse" : ""}`}>{text}</div>
   </div>
 );
@@ -248,8 +183,6 @@ const SyncBanner = ({ notice }: { notice: SyncNotice }): React.JSX.Element => {
 const getSyncNotice = (
   loadError: string | null,
   filesData: FilesData | null,
-  deferredDiffData: MultiFileDiffData | null,
-  diffError: string | null,
 ): SyncNotice | null => {
   if (loadError && filesData !== null) {
     return {
@@ -259,22 +192,14 @@ const getSyncNotice = (
     };
   }
 
-  if (diffError && deferredDiffData) {
-    return {
-      detail: diffError,
-      label: "Diff refresh failed",
-      tone: "destructive",
-    };
-  }
-
   return null;
 };
 
 const MainPanel = ({
   filesData,
-  deferredDiffData,
-  diffError,
   syncNotice,
+  reloadKey,
+  diffMode,
   layout,
   comments,
   onAddComment,
@@ -284,9 +209,6 @@ const MainPanel = ({
   onToggleCollapse,
   onActiveFileChange,
   repoPath,
-  diffWatchdogTripped,
-  diffHintShown,
-  onRetryDiff,
   diffViewerRef,
   displaySettings,
   diffThemes,
@@ -297,49 +219,14 @@ const MainPanel = ({
   if (filesData.files.length === 0) {
     return <Placeholder text="No changes" />;
   }
-  if (!deferredDiffData) {
-    if (diffError) {
-      return <Placeholder text={diffError} />;
-    }
-    if (diffWatchdogTripped) {
-      return (
-        <div className="flex h-full flex-col items-center justify-center gap-3">
-          <div className="text-muted-foreground text-sm">Still loading the diff…</div>
-          <div className="text-muted-foreground text-xs opacity-80">
-            Large diffs take longer on first load.
-          </div>
-          <Button size="sm" variant="default" onClick={onRetryDiff}>
-            Retry
-          </Button>
-        </div>
-      );
-    }
-    if (diffHintShown) {
-      return (
-        <div className="flex h-full flex-col items-center justify-center gap-2">
-          <div className="text-muted-foreground animate-pulse text-sm">
-            {`Loading diff${filesData ? ` (${filesData.files.length} files)…` : "…"}`}
-          </div>
-          <div className="text-muted-foreground text-xs opacity-80">
-            Large diffs take longer on first load.
-          </div>
-        </div>
-      );
-    }
-    return (
-      <Placeholder
-        text={`Loading diff${filesData ? ` (${filesData.files.length} files)…` : "…"}`}
-        pulse
-      />
-    );
-  }
 
   return (
     <>
       {syncNotice && <SyncBanner notice={syncNotice} />}
       <DiffViewer
         ref={diffViewerRef}
-        patchesByFile={deferredDiffData.patchesByFile}
+        reloadKey={reloadKey}
+        diffMode={diffMode}
         layout={layout}
         comments={comments}
         onAddComment={onAddComment}
@@ -360,7 +247,6 @@ const MainPanel = ({
   );
 };
 
-// oxlint-disable-next-line complexity
 export const DiffApp = ({
   repoPath,
   defaultSidebarOpen = true,
@@ -378,20 +264,22 @@ export const DiffApp = ({
   const commentsRef = useRef<Comment[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const selectedFileRef = useRef<string | null>(null);
-  const [diffData, setDiffData] = useState<MultiFileDiffData | null>(null);
   const [layout, setLayout] = useLocalStorage("diffhub-layout", "stacked", LAYOUT_OPTIONS);
-  const { resolvedTheme } = useTheme();
-  const diffVariant: "light" | "dark" = resolvedTheme === "light" ? "light" : "dark";
-  const layoutRef = useRef<"split" | "stacked">(layout);
-  const themeRef = useRef<"light" | "dark">(diffVariant);
   const [filterQuery, setFilterQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [statsPanel, setStatsPanel] = useLocalStorage<PanelState>(
+    "diffhub-panel-stats",
+    "open",
+    PANEL_OPTIONS,
+  );
+  const handleStatsOpenChange = useCallback(
+    (open: boolean) => setStatsPanel(open ? "open" : "closed"),
+    [setStatsPanel],
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [watchStatus, setWatchStatus] = useState<WatchStatus>("connecting");
   const watchStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [diffError, setDiffError] = useState<string | null>(null);
-  const [diffRequestPending, setDiffRequestPending] = useState(false);
   const [diffMode, setDiffMode] = useLocalStorage<DiffMode>(
     "diffhub-diffMode",
     "all",
@@ -399,17 +287,11 @@ export const DiffApp = ({
   );
   const diffModeRef = useRef<DiffMode>(diffMode);
   const activeFileLockRef = useRef<{ file: string; until: number } | null>(null);
-  const lastDiffFingerprintRef = useRef<string | null>(null);
-  const currentFilesFingerprintRef = useRef<string | null>(null);
-  const currentFilesGenerationRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
   const queuedPollRef = useRef(false);
-  const diffFetchInFlightRef = useRef(false);
-  const queuedDiffFetchRef = useRef(false);
-  const latestDiffRequestRef = useRef(0);
-  const [diffWatchdogTripped, setDiffWatchdogTripped] = useState(false);
-  const [diffHintShown, setDiffHintShown] = useState(false);
-  const [, startDiffTransition] = useTransition();
+  // Bumped on manual refresh / retry so the diff re-streams even when the file
+  // fingerprint is unchanged.
+  const [reloadNonce, setReloadNonce] = useState(0);
   // Start with empty Set to avoid hydration mismatch, then sync from localStorage
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => new Set());
   // Display settings + diff theme selection. Start from defaults to avoid
@@ -420,6 +302,13 @@ export const DiffApp = ({
   const [diffThemes, setDiffThemes] = useState<DiffThemeSelection>(() => DEFAULT_DIFF_THEMES);
   // Imperative handle into the DiffViewer's CodeView for scroll-to-file.
   const diffViewerRef = useRef<DiffViewerHandle | null>(null);
+
+  // The diff stream re-runs whenever this key changes: a new working-tree
+  // fingerprint (watcher), a diff-mode switch, or a manual refresh nonce.
+  const reloadKey = useMemo(
+    () => `${filesData?.fingerprint ?? ""}:${diffMode}:${reloadNonce}`,
+    [filesData?.fingerprint, diffMode, reloadNonce],
+  );
 
   useEffect(() => {
     diffModeRef.current = diffMode;
@@ -481,25 +370,6 @@ export const DiffApp = ({
     [repoPath],
   );
 
-  // Previously wrapped in useDeferredValue — removed because it forced a
-  // second render pass that could land mid-scroll, shifting layout. The diff
-  // data updates are already inside startDiffTransition.
-  const deferredDiffData = diffData;
-
-  // Refs so refresh callbacks can stay stable without closing over stale data.
-  const diffDataRef = useRef(diffData);
-  const diffErrorRef = useRef(diffError);
-  useEffect(() => {
-    diffDataRef.current = diffData;
-  }, [diffData]);
-  useEffect(() => {
-    diffErrorRef.current = diffError;
-  }, [diffError]);
-
-  // CodeView owns virtualization, scroll anchoring, and DOM-height
-  // management internally, so DiffApp no longer needs a Safari-safe scroll
-  // anchor or section-height observers.
-
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
     if (diffModeRef.current === "uncommitted") {
@@ -512,193 +382,19 @@ export const DiffApp = ({
     return query ? `?${query}` : "";
   }, []);
 
-  const buildDiffQuery = useCallback(() => {
-    const params = new URLSearchParams();
-    if (currentFilesGenerationRef.current) {
-      params.set("generation", currentFilesGenerationRef.current);
-    }
-    if (diffModeRef.current === "uncommitted") {
-      params.set("mode", "uncommitted");
-    }
-    params.set("layout", layoutRef.current);
-    params.set("theme", themeRef.current);
-    const query = params.toString();
-    return query ? `?${query}` : "";
-  }, []);
-
-  const performDiffFetch = useCallback(
-    async (requestId: number) => {
-      const requestGeneration = currentFilesGenerationRef.current;
-      const requestFingerprint = currentFilesFingerprintRef.current;
-      setDiffWatchdogTripped(false);
-      setDiffError(null);
-
-      console.info("[diffhub] fetchDiff start", {
-        fingerprint: requestFingerprint,
-        generation: requestGeneration,
-        mode: diffModeRef.current,
-        requestId,
-      });
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort(new Error("Diff request timed out"));
-      }, DIFF_REQUEST_TIMEOUT_MS);
-
-      try {
-        const response = await fetch(`/api/diff${buildDiffQuery()}`, { signal: controller.signal });
-        if (!response.ok) {
-          const errorBody = (await response
-            .json()
-            .catch(() => ({ error: "Failed to load diff" }))) as DiffErrorResponse;
-          const errorMessage = errorBody.error ?? `Failed to load diff (${response.status})`;
-
-          console.error("[diffhub] fetchDiff non-ok response", {
-            fingerprint: requestFingerprint,
-            generation: requestGeneration,
-            mode: diffModeRef.current,
-            requestId,
-            responseStatus: response.status,
-            responseStatusText: response.statusText,
-            serverError: errorMessage,
-          });
-
-          if (requestId === latestDiffRequestRef.current) {
-            setDiffError(errorMessage);
-          }
-          return;
-        }
-
-        const payload = (await response.json()) as MultiFileDiffResponse;
-        const nextDiffData = normalizeDiffResponse(payload, requestFingerprint ?? "unknown");
-
-        if (
-          requestId !== latestDiffRequestRef.current ||
-          requestFingerprint !== currentFilesFingerprintRef.current ||
-          requestGeneration !== currentFilesGenerationRef.current
-        ) {
-          console.info("[diffhub] fetchDiff response stale", {
-            fingerprint: requestFingerprint,
-            generation: requestGeneration,
-            latestRequestId: latestDiffRequestRef.current,
-            requestId,
-          });
-          // Re-queue a fresh fetch so we don't sit on "Loading diff…" forever
-          // when the only in-flight response got superseded.
-          if (currentFilesGenerationRef.current !== null) {
-            queuedDiffFetchRef.current = true;
-          }
-          return;
-        }
-
-        console.info("[diffhub] fetchDiff success", {
-          fileCount: Object.keys(nextDiffData.patchesByFile).length,
-          fingerprint: requestFingerprint,
-          generation: nextDiffData.generation,
-          requestId,
-        });
-
-        startDiffTransition(() => setDiffData(nextDiffData));
-      } catch (error) {
-        console.error("[diffhub] fetchDiff threw", {
-          error,
-          fingerprint: requestFingerprint,
-          generation: requestGeneration,
-          mode: diffModeRef.current,
-          requestId,
-        });
-
-        if (requestId === latestDiffRequestRef.current) {
-          setDiffError(error instanceof Error ? error.message : String(error));
-        }
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    },
-    [buildDiffQuery, startDiffTransition],
-  );
-
-  const fetchAllDiff = useCallback(async () => {
-    queuedDiffFetchRef.current = true;
-    if (diffFetchInFlightRef.current) {
+  const reconcileSelectedFile = useCallback((nextFiles: FilesData) => {
+    if (nextFiles.files.length === 0) {
+      selectedFileRef.current = null;
+      startTransition(() => setSelectedFile(null));
       return;
     }
 
-    diffFetchInFlightRef.current = true;
-    setDiffRequestPending(true);
-
-    while (queuedDiffFetchRef.current) {
-      queuedDiffFetchRef.current = false;
-      latestDiffRequestRef.current += 1;
-      await performDiffFetch(latestDiffRequestRef.current);
+    let nextSelection = selectedFileRef.current;
+    if (!nextSelection || !nextFiles.files.some((file) => file.file === nextSelection)) {
+      nextSelection = nextFiles.files[0]?.file ?? null;
+      selectedFileRef.current = nextSelection;
+      startTransition(() => setSelectedFile(nextSelection));
     }
-
-    diffFetchInFlightRef.current = false;
-    setDiffRequestPending(false);
-  }, [performDiffFetch]);
-
-  // Re-fetch whenever the user toggles layout or theme: /api/diff now ships
-  // only the active (layout × theme) variant, cached per-combination server-side.
-  useEffect(() => {
-    if (layoutRef.current === layout && themeRef.current === diffVariant) {
-      return;
-    }
-    layoutRef.current = layout;
-    themeRef.current = diffVariant;
-    latestDiffRequestRef.current += 1;
-    lastDiffFingerprintRef.current = null;
-    setDiffError(null);
-    void fetchAllDiff();
-  }, [layout, diffVariant, fetchAllDiff]);
-
-  const reconcileSelectedFile = useCallback(
-    (nextFiles: FilesData) => {
-      currentFilesFingerprintRef.current = nextFiles.fingerprint;
-      currentFilesGenerationRef.current = nextFiles.generation;
-
-      if (nextFiles.files.length === 0) {
-        selectedFileRef.current = null;
-        latestDiffRequestRef.current += 1;
-        startTransition(() => {
-          setSelectedFile(null);
-          setDiffData(null);
-        });
-        setDiffError(null);
-        lastDiffFingerprintRef.current = nextFiles.fingerprint;
-        return;
-      }
-
-      let nextSelection = selectedFileRef.current;
-      if (!nextSelection || !nextFiles.files.some((file) => file.file === nextSelection)) {
-        nextSelection = nextFiles.files[0]?.file ?? null;
-        selectedFileRef.current = nextSelection;
-        startTransition(() => setSelectedFile(nextSelection));
-      }
-
-      const didChangeFingerprint = nextFiles.fingerprint !== lastDiffFingerprintRef.current;
-      const diffMatchesGeneration = diffDataRef.current?.generation === nextFiles.generation;
-
-      if (!didChangeFingerprint && diffMatchesGeneration && diffErrorRef.current === null) {
-        return;
-      }
-
-      lastDiffFingerprintRef.current = nextFiles.fingerprint;
-      if (didChangeFingerprint) {
-        latestDiffRequestRef.current += 1;
-      }
-
-      void fetchAllDiff();
-    },
-    [fetchAllDiff],
-  );
-
-  const invalidateDiffState = useCallback(() => {
-    latestDiffRequestRef.current += 1;
-    lastDiffFingerprintRef.current = null;
-    currentFilesFingerprintRef.current = null;
-    currentFilesGenerationRef.current = null;
-    setDiffData(null);
-    setDiffError(null);
   }, []);
 
   const pollFilesRef = useRef<(options?: PollFilesOptions) => Promise<boolean>>(() =>
@@ -898,55 +594,18 @@ export const DiffApp = ({
     };
   }, [repoPath, watchMode, watchPollMs]);
 
-  const forceDiffRefetch = useCallback(() => {
-    setDiffWatchdogTripped(false);
-    setDiffHintShown(false);
-    setDiffError(null);
-    latestDiffRequestRef.current += 1;
-    lastDiffFingerprintRef.current = null;
-  }, []);
-
   const handleRetry = useCallback(() => {
     void pollFiles({ forceRefresh: true });
   }, [pollFiles]);
 
   const handleManualRefresh = useCallback(() => {
-    forceDiffRefetch();
+    setReloadNonce((nonce) => nonce + 1);
     void pollFiles({ forceRefresh: true });
-  }, [forceDiffRefetch, pollFiles]);
-
-  const handleRetryDiff = useCallback(() => {
-    forceDiffRefetch();
-    if (diffDataRef.current === null) {
-      setDiffData(null);
-    }
-    void fetchAllDiff();
-  }, [fetchAllDiff, forceDiffRefetch]);
+  }, [pollFiles]);
 
   useEffect(() => {
     void pollFiles();
   }, [pollFiles]);
-
-  // Watchdog: if files are loaded but the diff is still absent after a few
-  // seconds without an explicit error, surface a retry affordance instead of
-  // the infinite "Loading diff…" pulse.
-  useEffect(() => {
-    if (!filesData || filesData.files.length === 0 || diffData || diffError) {
-      setDiffWatchdogTripped(false);
-      return;
-    }
-    const timer = setTimeout(() => setDiffWatchdogTripped(true), DIFF_WATCHDOG_MS);
-    return () => clearTimeout(timer);
-  }, [filesData, diffData, diffError]);
-
-  useEffect(() => {
-    if (!filesData || filesData.files.length === 0 || diffData || diffError) {
-      setDiffHintShown(false);
-      return;
-    }
-    const timer = setTimeout(() => setDiffHintShown(true), DIFF_HINT_MS);
-    return () => clearTimeout(timer);
-  }, [filesData, diffData, diffError]);
 
   const lockActiveFile = useCallback((file: string, durationMs = 800) => {
     activeFileLockRef.current = { file, until: Date.now() + durationMs };
@@ -1048,6 +707,10 @@ export const DiffApp = ({
       if (event.key === "r" && !event.metaKey && !event.ctrlKey) {
         handleManualRefresh();
       }
+      if (event.key === "F2") {
+        event.preventDefault();
+        setStatsPanel((value) => (value === "open" ? "closed" : "open"));
+      }
       if (event.key === "j" || event.key === "k") {
         const files = filesData?.files ?? [];
         if (files.length === 0) {
@@ -1072,6 +735,7 @@ export const DiffApp = ({
     scrollToFile,
     selectedFile,
     setLayout,
+    setStatsPanel,
     toggleCollapse,
   ]);
 
@@ -1079,10 +743,9 @@ export const DiffApp = ({
     (mode: DiffMode) => {
       diffModeRef.current = mode;
       setDiffMode(mode);
-      invalidateDiffState();
       void pollFiles({ forceRefresh: true });
     },
-    [invalidateDiffState, pollFiles, setDiffMode],
+    [pollFiles, setDiffMode],
   );
 
   const handleAddComment = useCallback(
@@ -1153,7 +816,7 @@ export const DiffApp = ({
     return true;
   }, []);
 
-  const syncNotice = getSyncNotice(loadError, filesData, deferredDiffData, diffError);
+  const syncNotice = getSyncNotice(loadError, filesData);
 
   if (loadError && filesData === null) {
     return (
@@ -1189,14 +852,16 @@ export const DiffApp = ({
         deletions={filesData?.deletions ?? 0}
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
+        statsOpen={statsPanel === "open"}
+        onStatsOpenChange={handleStatsOpenChange}
       />
 
-      <SidebarInset className="flex flex-col min-h-svh">
+      <SidebarInset className="flex h-svh flex-col overflow-hidden">
         <div className="sticky top-0 z-20">
           <StatusBar
             branch={filesData?.branch ?? "…"}
             baseBranch={filesData?.baseBranch ?? "main"}
-            refreshing={refreshing || diffRequestPending}
+            refreshing={refreshing}
             onRefresh={handleManualRefresh}
             watchStatus={watchStatus}
             comments={comments}
@@ -1215,9 +880,9 @@ export const DiffApp = ({
 
         <MainPanel
           filesData={filesData}
-          deferredDiffData={deferredDiffData}
-          diffError={diffError}
           syncNotice={syncNotice}
+          reloadKey={reloadKey}
+          diffMode={diffMode}
           layout={layout}
           comments={comments}
           onAddComment={handleAddComment}
@@ -1227,9 +892,6 @@ export const DiffApp = ({
           onToggleCollapse={toggleCollapse}
           onActiveFileChange={handleActiveFileChange}
           repoPath={repoPath}
-          diffWatchdogTripped={diffWatchdogTripped}
-          diffHintShown={diffHintShown}
-          onRetryDiff={handleRetryDiff}
           diffViewerRef={diffViewerRef}
           displaySettings={displaySettings}
           diffThemes={diffThemes}

@@ -1,5 +1,6 @@
 import { Agentation } from "agentation";
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { DiffsWorkerProvider } from "@/components/DiffsWorkerProvider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -15,15 +16,10 @@ const glide = localFont({
   weight: "400 900",
 });
 
-const operatorMono = localFont({
+const jetbrainsMono = JetBrains_Mono({
   display: "swap",
-  src: [
-    { path: "../public/operator-mono-book.woff2", style: "normal", weight: "400" },
-    { path: "../public/operator-mono-book-italic.woff2", style: "italic", weight: "400" },
-    { path: "../public/operator-mono-medium.woff2", style: "normal", weight: "500" },
-    { path: "../public/operator-mono-medium-italic.woff2", style: "italic", weight: "500" },
-  ],
-  variable: "--font-operator-mono",
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
@@ -39,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${glide.variable} ${operatorMono.variable}`}
+      className={`${glide.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <body className="bg-background antialiased">

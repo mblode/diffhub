@@ -16,12 +16,26 @@ interface MockItem {
   id: string;
   type: "diff";
   collapsed?: boolean;
+  version?: number;
   annotations?: MockAnnotation[];
   fileDiff: unknown;
 }
 
+interface MockHandle {
+  getItem(id: string): MockItem | undefined;
+  updateItem(item: MockItem): boolean;
+  addItems(items: MockItem[]): void;
+  addItem(item: MockItem): void;
+  updateItemId(): boolean;
+  scrollTo(): void;
+  setSelectedLines(): void;
+  getSelectedLines(): null;
+  clearSelectedLines(): void;
+  getInstance(): unknown;
+}
+
 interface MockCodeViewProps {
-  items: MockItem[];
+  initialItems?: MockItem[];
   renderCustomHeader?: (item: MockItem) => React.ReactNode;
   renderAnnotation?: (annotation: MockAnnotation, item: MockItem) => React.ReactNode;
   renderGutterUtility?: (
@@ -29,48 +43,6 @@ interface MockCodeViewProps {
     item: MockItem,
   ) => React.ReactNode;
 }
-
-// CodeView mock: reproduces the per-item DOM the suite queries — a
-// `[data-filename]` wrapper, the custom file header (collapse button lives
-// there), a hideable region panel, the gutter utility, and annotation slots.
-// The real CodeView virtualizes; the mock renders every item eagerly.
-const { MockDynamicPatch } = vi.hoisted(() => ({
-  MockDynamicPatch: ({
-    items,
-    renderCustomHeader,
-    renderAnnotation,
-    renderGutterUtility,
-  }: MockCodeViewProps) => (
-    <div data-testid="code-view">
-      {items.map((item) => (
-        <div data-filename={item.id} key={item.id}>
-          {renderCustomHeader?.(item)}
-          <div role="region" hidden={item.collapsed ?? false}>
-            <div data-testid={`patch:${item.id}`}>
-              {item.id}
-              {(item.fileDiff as { additionLines?: string[] } | undefined)?.additionLines?.join(
-                "\n",
-              )}
-            </div>
-            {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
-            {item.annotations?.map((annotation) => {
-              const metadataKey =
-                typeof annotation.metadata === "object" && annotation.metadata !== null
-                  ? JSON.stringify(annotation.metadata)
-                  : String(annotation.metadata ?? "");
-
-              return (
-                <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
-                  {renderAnnotation?.(annotation, item)}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  ),
-}));
 
 vi.mock(import("next-themes"), async (importOriginal) => {
   const actual = await importOriginal();
@@ -87,14 +59,109 @@ vi.mock(import("next-themes"), async (importOriginal) => {
   };
 });
 
+// No worker pool provider in the test tree — the hook returns undefined, which
+// DiffViewer + the readiness hook treat as "ready".
+vi.mock(import("@pierre/diffs/react"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    // oxlint-disable-next-line unicorn/no-useless-undefined -- hook returns the pool or undefined
+    useWorkerPool: () => undefined,
+  };
+});
+
+// The blanket next/dynamic mock catches every dynamically-loaded component.
+// CodeView passes `initialItems`; everything else (e.g. the sidebar's
+// FileTreeBody) renders a lightweight stub. The CodeView surface keeps its
+// streamed items in local state and exposes the imperative handle DiffViewer
+// drives (updateItem/addItems) so comment + collapse mutations re-render.
 vi.mock(import("next/dynamic"), async (importOriginal) => {
   const actual = await importOriginal();
-  const dynamicMock = ((
-    loader: () => Promise<{ default: React.ComponentType<Record<string, unknown>> }>,
-  ) => {
-    void loader;
-    return MockDynamicPatch;
-  }) as typeof actual.default;
+
+  const MockDynamic = React.forwardRef<MockHandle, MockCodeViewProps>(function MockDynamicImpl(
+    { initialItems, renderCustomHeader, renderAnnotation, renderGutterUtility },
+    ref,
+  ) {
+    const itemsRef = React.useRef<MockItem[]>(initialItems ?? []);
+    const [, force] = React.useReducer((value: number) => value + 1, 0);
+
+    React.useEffect(() => {
+      if (initialItems !== undefined) {
+        itemsRef.current = [...initialItems];
+        force();
+      }
+    }, [initialItems]);
+
+    React.useImperativeHandle(ref, () => ({
+      addItem(item: MockItem) {
+        itemsRef.current.push(item);
+        force();
+      },
+      addItems(items: MockItem[]) {
+        itemsRef.current.push(...items);
+        force();
+      },
+      clearSelectedLines() {},
+      getInstance() {},
+      getItem(id: string) {
+        return itemsRef.current.find((item) => item.id === id);
+      },
+      getSelectedLines() {
+        return null;
+      },
+      scrollTo() {},
+      setSelectedLines() {},
+      updateItem(item: MockItem) {
+        const index = itemsRef.current.findIndex((candidate) => candidate.id === item.id);
+        if (index !== -1) {
+          itemsRef.current[index] = item;
+        }
+        force();
+        return index !== -1;
+      },
+      updateItemId() {
+        return true;
+      },
+    }));
+
+    // Non-CodeView dynamic children (no items) render a harmless stub.
+    if (initialItems === undefined) {
+      return <div data-testid="file-tree-body" />;
+    }
+
+    return (
+      <div data-testid="code-view">
+        {itemsRef.current.map((item) => (
+          <div data-filename={item.id} key={item.id}>
+            {renderCustomHeader?.(item)}
+            <div role="region" hidden={item.collapsed ?? false}>
+              <div data-testid={`patch:${item.id}`}>
+                {item.id}
+                {(item.fileDiff as { additionLines?: string[] } | undefined)?.additionLines?.join(
+                  "\n",
+                )}
+              </div>
+              {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
+              {item.annotations?.map((annotation) => {
+                const metadataKey =
+                  typeof annotation.metadata === "object" && annotation.metadata !== null
+                    ? JSON.stringify(annotation.metadata)
+                    : String(annotation.metadata ?? "");
+
+                return (
+                  <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
+                    {renderAnnotation?.(annotation, item)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  });
+
+  const dynamicMock = (() => MockDynamic) as typeof actual.default;
 
   return {
     ...actual,
@@ -128,20 +195,18 @@ const filesPayload = {
   insertions: 2,
 };
 
-const diffPayload = {
-  baseBranch: "origin/main",
-  branch: "feature/diff-review",
-  generation: "generation-1",
-  mergeBase: "abc123",
-  patchesByFile: {
-    "src/a.ts": "diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-old\n+new\n",
-    "src/b.ts": "diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+newer\n",
-  },
-  reviewKeysByFile: {
-    "src/a.ts": "review:a",
-    "src/b.ts": "review:b",
-  },
-};
+// /api/diff now streams a raw unified patch; the loader parses it client-side.
+const diffPatchText = (bVariant = "newer"): string =>
+  `diff --git a/src/a.ts b/src/a.ts\n@@ -1 +1 @@\n-old\n+new\n` +
+  `diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+${bVariant}\n`;
+
+// A real Response exposes a readable body stream, so the loader exercises its
+// actual streamGitPatchFiles path in the test.
+const diffResponse = (bVariant?: string): Response =>
+  new Response(diffPatchText(bVariant), {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+    status: 200,
+  });
 
 const jsonResponse = (value: unknown, init?: ResponseInit): Response => Response.json(value, init);
 const countFetchCalls = (
@@ -224,7 +289,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -263,11 +328,13 @@ describe("DiffApp review flow", () => {
       );
     });
 
-    const firstSection = getDiffSection("src/a.ts");
-    expect(firstSection).not.toBeNull();
-    if (!firstSection) {
-      throw new Error("Missing first diff section");
-    }
+    const firstSection = await waitFor(() => {
+      const section = getDiffSection("src/a.ts");
+      if (!section) {
+        throw new Error("Missing first diff section");
+      }
+      return section;
+    });
 
     const viewedToggle = within(firstSection).getByRole("button", {
       name: /collapse file section/i,
@@ -348,7 +415,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -397,7 +464,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -442,7 +509,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -497,19 +564,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(
-          jsonResponse({
-            ...diffPayload,
-            generation: `generation-${version}`,
-            patchesByFile: {
-              ...diffPayload.patchesByFile,
-              "src/b.ts":
-                version === 2
-                  ? "diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+watched\n"
-                  : diffPayload.patchesByFile["src/b.ts"],
-            },
-          }),
-        );
+        return Promise.resolve(diffResponse(version === 2 ? "watched" : "newer"));
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -530,13 +585,13 @@ describe("DiffApp review flow", () => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     });
     FakeEventSource.instances[0]?.emitReady();
-    await screen.findByText("Live");
+    await screen.findAllByText("Live");
 
     version = 2;
     FakeEventSource.instances[0]?.emitChange();
 
     await screen.findByText(/watched/);
-    await screen.findByText("Updated just now");
+    await screen.findAllByText("Updated just now");
     expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
     expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
     expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(2);
@@ -569,19 +624,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(
-          jsonResponse({
-            ...diffPayload,
-            generation: `generation-${version}`,
-            patchesByFile: {
-              ...diffPayload.patchesByFile,
-              "src/b.ts":
-                version === 2
-                  ? "diff --git a/src/b.ts b/src/b.ts\n@@ -1 +1 @@\n-old\n+polled\n"
-                  : diffPayload.patchesByFile["src/b.ts"],
-            },
-          }),
-        );
+        return Promise.resolve(diffResponse(version === 2 ? "polled" : "newer"));
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -598,17 +641,15 @@ describe("DiffApp review flow", () => {
     );
 
     await screen.findByText("feature/diff-review");
-    // Poll mode force-refreshes every 25ms; the initial diff may be fetched
-    // more than once before the first version settles. Assert at least one.
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(1);
     });
-    await screen.findByText("Live");
+    await screen.findAllByText("Live");
 
     version = 2;
 
     await screen.findByText(/polled/);
-    await screen.findByText("Updated just now");
+    await screen.findAllByText("Updated just now");
     expect(FakeEventSource.instances).toHaveLength(0);
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),
@@ -630,7 +671,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -649,11 +690,13 @@ describe("DiffApp review flow", () => {
     render(<DiffApp repoPath="/tmp/repo-under-test" />);
 
     await screen.findByText("feature/diff-review");
-    const commentSection = getDiffSection("src/b.ts");
-    expect(commentSection).not.toBeNull();
-    if (!commentSection) {
-      throw new Error("Missing second diff section");
-    }
+    const commentSection = await waitFor(() => {
+      const section = getDiffSection("src/b.ts");
+      if (!section) {
+        throw new Error("Missing second diff section");
+      }
+      return section;
+    });
 
     await user.click(within(commentSection).getByTitle("Add comment for AI"));
 
@@ -679,7 +722,7 @@ describe("DiffApp review flow", () => {
       }
 
       if (url.startsWith("/api/diff")) {
-        return Promise.resolve(jsonResponse(diffPayload));
+        return Promise.resolve(diffResponse());
       }
 
       if (url === "/api/comments" && method === "GET") {
@@ -709,11 +752,13 @@ describe("DiffApp review flow", () => {
     render(<DiffApp repoPath="/tmp/repo-under-test" />);
 
     await screen.findByText("feature/diff-review");
-    const commentSection = getDiffSection("src/b.ts");
-    expect(commentSection).not.toBeNull();
-    if (!commentSection) {
-      throw new Error("Missing second diff section");
-    }
+    const commentSection = await waitFor(() => {
+      const section = getDiffSection("src/b.ts");
+      if (!section) {
+        throw new Error("Missing second diff section");
+      }
+      return section;
+    });
 
     await user.click(within(commentSection).getByTitle("Add comment for AI"));
 

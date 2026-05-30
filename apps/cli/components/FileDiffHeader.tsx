@@ -1,10 +1,34 @@
 "use client";
 
-import { ChevronDownIcon, BubbleDotsIcon } from "blode-icons-react";
+import {
+  BubbleDotsIcon,
+  ChevronDownIcon,
+  CircleDotsCenter1Icon,
+  CircleMinusIcon,
+  CirclePlusIcon,
+} from "blode-icons-react";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, truncateFilePath } from "@/lib/utils";
+
+// `DiffFileStat` carries no git change-type, so derive a coarse one from the
+// line counts to colour the header icon (new = green, removed = red, else muted).
+const CHANGE_ICONS = {
+  new: { Icon: CirclePlusIcon, className: "text-diff-green" },
+  removed: { Icon: CircleMinusIcon, className: "text-destructive" },
+  modified: { Icon: CircleDotsCenter1Icon, className: "text-muted-foreground" },
+} as const;
+
+const resolveChangeType = (insertions: number, deletions: number): keyof typeof CHANGE_ICONS => {
+  if (deletions === 0) {
+    return "new";
+  }
+  if (insertions === 0) {
+    return "removed";
+  }
+  return "modified";
+};
 
 interface FileDiffHeaderProps {
   file: string;
@@ -35,6 +59,8 @@ export const FileDiffHeader = ({
   const lastSlash = truncated.lastIndexOf("/");
   const dir = lastSlash === -1 ? "" : truncated.slice(0, lastSlash);
   const filename = lastSlash === -1 ? truncated : truncated.slice(lastSlash + 1);
+  const change = resolveChangeType(insertions, deletions);
+  const ChangeIcon = CHANGE_ICONS[change].Icon;
 
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
   const handleToggleCollapse = () => {
@@ -55,7 +81,7 @@ export const FileDiffHeader = ({
       <div
         data-active={active ? "true" : undefined}
         data-state={collapsed ? "collapsed" : "expanded"}
-        className="flex items-center gap-2 px-3 h-9 border-b border-border bg-card sticky top-[52px] z-10"
+        className="flex items-center gap-2 px-3 h-11 border-b border-border bg-card sticky top-[52px] z-10"
       >
         <h3
           id={headingId}
@@ -86,13 +112,16 @@ export const FileDiffHeader = ({
             </TooltipContent>
           </Tooltip>
 
+          {/* Change-type icon */}
+          <ChangeIcon size={14} className={cn("shrink-0", CHANGE_ICONS[change].className)} />
+
           {/* File path + stats (left group) */}
           <span className="flex min-w-0 items-center gap-2">
             <Tooltip>
               <TooltipTrigger render={<span className="flex min-w-0 items-center gap-1" />}>
                 <span className="flex min-w-0 items-baseline gap-0 font-mono">
                   {dir && <span className="text-muted-foreground truncate shrink">{dir}/</span>}
-                  <span className="text-muted-foreground font-normal shrink-0">{filename}</span>
+                  <span className="text-foreground font-normal shrink-0">{filename}</span>
                 </span>
                 <CopyButton value={`${repoPath}/${file}`} />
               </TooltipTrigger>
@@ -101,11 +130,11 @@ export const FileDiffHeader = ({
 
             {/* Stats inline after filename */}
             <span className="flex items-center gap-1 shrink-0">
-              {insertions > 0 && (
-                <span className="font-mono text-[12px] text-diff-green">+{insertions}</span>
-              )}
               {deletions > 0 && (
                 <span className="font-mono text-[12px] text-destructive">−{deletions}</span>
+              )}
+              {insertions > 0 && (
+                <span className="font-mono text-[12px] text-diff-green">+{insertions}</span>
               )}
             </span>
           </span>
