@@ -242,8 +242,8 @@ export const FileList = ({
   return (
     <Sidebar collapsible="offcanvas" className="overflow-hidden border-r border-sidebar-border">
       <SidebarHeader className="gap-0 border-b border-sidebar-border p-0">
-        {/* Filter */}
-        <div className="px-2 py-1.5">
+        {/* Filter — height matches the StatusBar header (h-[52px]) */}
+        <div className="flex h-[52px] items-center px-2">
           <div className="relative flex w-full items-center">
             <MagnifyingGlassIcon
               size={12}

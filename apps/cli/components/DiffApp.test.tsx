@@ -585,13 +585,13 @@ describe("DiffApp review flow", () => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     });
     FakeEventSource.instances[0]?.emitReady();
-    await screen.findAllByText("Live");
+    await screen.findByRole("button", { name: /Live.*force refresh diff/i });
 
     version = 2;
     FakeEventSource.instances[0]?.emitChange();
 
     await screen.findByText(/watched/);
-    await screen.findAllByText("Updated just now");
+    await screen.findByRole("button", { name: /Updated just now.*force refresh diff/i });
     expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
     expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
     expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(2);
@@ -644,12 +644,12 @@ describe("DiffApp review flow", () => {
     await waitFor(() => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(1);
     });
-    await screen.findAllByText("Live");
+    await screen.findByRole("button", { name: /Live.*force refresh diff/i });
 
     version = 2;
 
     await screen.findByText(/polled/);
-    await screen.findAllByText("Updated just now");
+    await screen.findByRole("button", { name: /Updated just now.*force refresh diff/i });
     expect(FakeEventSource.instances).toHaveLength(0);
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),

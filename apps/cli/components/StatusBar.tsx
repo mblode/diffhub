@@ -5,13 +5,13 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronGrabberVerticalIcon,
+  SquizedIcon,
   CircleBanSignIcon,
   CircleHalfFillIcon,
   CodeLinesIcon,
-  ColumnWideAddIcon,
-  ColumnWideHalfIcon,
+  LayoutColumnIcon,
+  LayoutHalfIcon,
   CopySimpleIcon,
-  SquizedIcon,
   SunIcon,
   MoonIcon,
   ArrowRightIcon,
@@ -32,6 +32,7 @@ import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -323,16 +324,6 @@ const SyncNoticeChip = ({ syncNotice }: { syncNotice: StatusBarProps["syncNotice
   );
 };
 
-const WatchStatusChip = ({ status, updating }: { status: WatchStatus; updating: boolean }) => {
-  const meta = getWatchStatusMeta(status, updating);
-
-  return (
-    <div className={cn("rounded-full border px-2 py-1 text-[11px] leading-none", meta.className)}>
-      {meta.label}
-    </div>
-  );
-};
-
 const noop = () => null;
 
 const useHasMounted = () =>
@@ -414,6 +405,7 @@ export const StatusBar = ({
   };
 
   const themeMode: ThemeModeOption = theme === "light" || theme === "dark" ? theme : "system";
+  const watchMeta = getWatchStatusMeta(watchStatus, refreshing);
 
   return (
     <TooltipProvider delay={400}>
@@ -500,8 +492,8 @@ export const StatusBar = ({
 
         <div className="flex items-center gap-0.5">
           <SyncNoticeChip syncNotice={syncNotice} />
-          <WatchStatusChip status={watchStatus} updating={refreshing} />
 
+          {/* Live status dot — doubles as force refresh (spins while updating) */}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -510,15 +502,24 @@ export const StatusBar = ({
                   size="icon-xs"
                   onClick={onRefresh}
                   disabled={refreshing}
-                  aria-label="Force refresh diff"
-                  className="text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  aria-label={`${watchMeta.label} — force refresh diff`}
+                  className="group text-muted-foreground hover:text-foreground hover:bg-secondary"
                 />
               }
             >
-              <ArrowRotateClockwiseIcon size={14} className={cn(refreshing && "animate-spin")} />
+              {refreshing ? (
+                <Spinner />
+              ) : (
+                <>
+                  <span
+                    className={cn("size-2 rounded-full group-hover:hidden", watchMeta.dotClassName)}
+                  />
+                  <ArrowRotateClockwiseIcon size={14} className="hidden group-hover:block" />
+                </>
+              )}
             </TooltipTrigger>
             <TooltipContent side="bottom" className="flex items-center gap-2">
-              <span>Force refresh</span>
+              <span>{watchMeta.label} · Force refresh</span>
               <Kbd>R</Kbd>
             </TooltipContent>
           </Tooltip>
@@ -583,6 +584,9 @@ export const StatusBar = ({
             </Tooltip>
           )}
 
+          {/* Divider — separates diff status/scope from view controls */}
+          <div className="mx-1 h-5 w-px bg-border" />
+
           {/* Collapse / expand all files */}
           <Tooltip>
             <TooltipTrigger
@@ -591,12 +595,12 @@ export const StatusBar = ({
                   variant="ghost"
                   size="icon-xs"
                   aria-label={allCollapsed ? "Expand all files" : "Collapse all files"}
-                  aria-pressed={allCollapsed}
                   onClick={allCollapsed ? onExpandAll : onCollapseAll}
                   className="text-muted-foreground hover:text-foreground hover:bg-secondary"
                 />
               }
             >
+              {/* Action: collapsed → expand (apart), expanded → collapse (squeeze) */}
               {allCollapsed ? (
                 <ChevronGrabberVerticalIcon size={14} />
               ) : (
@@ -616,18 +620,17 @@ export const StatusBar = ({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label={layout === "split" ? "Switch to unified view" : "Switch to split view"}
+                  aria-label={
+                    layout === "split" ? "Switch to unified view" : "Switch to split view"
+                  }
                   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onClick={() => onLayoutChange(layout === "split" ? "stacked" : "split")}
                   className="text-muted-foreground hover:text-foreground hover:bg-secondary"
                 />
               }
             >
-              {layout === "split" ? (
-                <ColumnWideAddIcon size={14} />
-              ) : (
-                <ColumnWideHalfIcon size={14} />
-              )}
+              {/* Action: switch to unified (halves) from split, else to split (columns) */}
+              {layout === "split" ? <LayoutHalfIcon size={14} /> : <LayoutColumnIcon size={14} />}
             </TooltipTrigger>
             <TooltipContent side="bottom">
               {layout === "split" ? "Switch to unified view (S)" : "Switch to split view (S)"}
