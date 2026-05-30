@@ -17,6 +17,17 @@ interface FileTreeBodyProps {
   filterQuery: string;
 }
 
+// Swap the tree's built-in chevron (a bold 16px filled glyph) for the lighter
+// blode-icons-react ChevronDownIcon. The tree references icons by sprite symbol
+// id, so we inject a <symbol> and remap the `file-tree-icon-chevron` slot to it.
+// Remapping preserves `data-icon-name="file-tree-icon-chevron"` (via the icon's
+// `remappedFrom`), so the library's expand/collapse rotation CSS still applies —
+// we only need the down-pointing glyph. The path/viewBox are copied verbatim
+// from `blode-icons-react` `ChevronDownIcon` (24×24, 2px round stroke).
+const CHEVRON_SYMBOL_ID = "diffhub-tree-chevron";
+const CHEVRON_VIEW_BOX = "0 0 24 24";
+const CHEVRON_SPRITE = `<svg data-icon-sprite aria-hidden="true" width="0" height="0"><symbol id="${CHEVRON_SYMBOL_ID}" viewBox="${CHEVRON_VIEW_BOX}"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9.5 6 6 6-6"/></symbol></svg>`;
+
 // Map the tree's themeable surface onto the app's sidebar / diff tokens. CSS
 // custom properties inherit across the shadow boundary, so setting the
 // `*-override` vars on the host element reaches the tree's internal styles.
@@ -61,7 +72,16 @@ const FileTreeBody = ({
     fileTreeSearchMode: "hide-non-matches",
     flattenEmptyDirectories: true,
     gitStatus,
-    icons: { colored: true, set: "standard" },
+    icons: {
+      colored: true,
+      remap: {
+        // The blode glyph spans less of its viewBox than the bundled chevron,
+        // so it reads noticeably smaller within the same 16px icon slot.
+        "file-tree-icon-chevron": { name: CHEVRON_SYMBOL_ID, viewBox: CHEVRON_VIEW_BOX },
+      },
+      set: "standard",
+      spriteSheet: CHEVRON_SPRITE,
+    },
     initialSelectedPaths: selectedFile ? [selectedFile] : [],
     onSelectionChange: (selectedPaths) => {
       const [file] = selectedPaths;

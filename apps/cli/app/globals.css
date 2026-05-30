@@ -158,9 +158,11 @@
   }
 
   /*
-   * Gutter "+" button: the library renders a light-DOM slot wrapper with
-   * inline styles `position:absolute; top:0; bottom:0` but NO width. We use
-   * a fixed pixel size so the button is always visible regardless of parent.
+   * Gutter "+" button: the library appends its slot wrapper to the line-number
+   * cell ([data-column-number]) and positions it `right:0`, so a fixed-size
+   * button lands on top of the line-number digits. Translate it right so it
+   * straddles the gutter/code divider (GitHub-style) instead of covering the
+   * number. We use a fixed pixel size so the button is always visible.
    */
   .diffhub-gutter-btn {
     display: flex;
@@ -176,6 +178,7 @@
     font-weight: bold;
     line-height: 1;
     cursor: pointer;
+    transform: translateX(50%);
     animation: diffhub-gutter-in 0.08s ease-out both;
   }
 

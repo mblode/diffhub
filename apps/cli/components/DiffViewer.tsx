@@ -27,8 +27,6 @@ import { useWorkerPool } from "@pierre/diffs/react";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
-import type { DiffTheme } from "@/lib/diff-colors";
-import { getDiffUnsafeCSS } from "@/lib/diff-colors";
 import { DEFAULT_DIFF_THEMES } from "@/lib/diff-themes";
 import { CODE_VIEW_LAYOUT } from "@/lib/diff-stream/constants";
 import { usePatchLoader } from "./use-patch-loader";
@@ -776,7 +774,11 @@ const DiffViewerInner = (
       diffIndicators,
       diffStyle: layout === "split" ? "split" : "unified",
       disableBackground: !showBackgrounds,
-      disableFileHeader: true,
+      // Must stay false: providing `renderCustomHeader` switches the header
+      // render mode to "custom", but the header host (the slot our React header
+      // mounts into) is only created when the file header is NOT disabled.
+      // Setting this true deletes the host entirely → no file headers render.
+      disableFileHeader: false,
       disableLineNumbers: !showLineNumbers,
       enableGutterUtility: true,
       // Lean on CodeView's virtualizer: render unchanged context regions in
@@ -786,7 +788,7 @@ const DiffViewerInner = (
       hunkSeparators: "line-info",
       layout: CODE_VIEW_LAYOUT,
       lineDiffType: "word-alt",
-      lineHoverHighlight: "disabled",
+      lineHoverHighlight: "number",
       maxLineDiffLength: 500,
       overflow: wordWrap ? "wrap" : "scroll",
       stickyHeaders: true,
@@ -796,7 +798,8 @@ const DiffViewerInner = (
       // (minified JS/CSS, giant base64) so one huge line can't stall a worker.
       // The line still renders as plain text.
       tokenizeMaxLineLength: LONG_LINE_TOKENIZE_LIMIT,
-      unsafeCSS: getDiffUnsafeCSS(themeType as DiffTheme),
+      // No unsafeCSS color override: render with the pierre theme's native diff
+      // colors + rounded `[data-diff-span]` pills, matching diffshub.com exactly.
     }),
     [
       diffIndicators,
