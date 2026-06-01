@@ -1,16 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { ChevronDownIcon, MagnifyingGlassIcon } from "blode-icons-react";
-import type { DiffFileStat } from "@/lib/diff-file-stat";
-import type { Comment } from "@/lib/comment-types";
-import { cn } from "@/lib/utils";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
+import type { DiffFileStat } from "../lib/diff-file-stat";
+import { cn } from "../lib/utils";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from "../ui/sidebar";
 
 // Loaded client-only: the tree mounts a Preact subtree into a custom element
 // and owns its own DOM, so it can't be server-rendered (mirrors CodeView).
-const FileTreeBody = dynamic(() => import("./FileTreeBody"), { ssr: false });
+const FileTreeBody = dynamic(() => import("./file-tree-body"), { ssr: false });
 
 const FILE_NAVIGATE_EVENT = "diffhub:file:navigate";
 
@@ -20,7 +19,8 @@ interface FileListProps {
   files: DiffFileStat[];
   selectedFile: string | null;
   onSelectFile: (file: string, behavior?: ScrollBehavior) => void;
-  comments: Comment[];
+  /** path → comment count, rendered as a trailing tree-row decoration. */
+  commentsByFile?: Map<string, number>;
   filterQuery: string;
   onFilterChange: (q: string) => void;
   isLoading?: boolean;
@@ -116,7 +116,7 @@ export const FileList = ({
   files,
   selectedFile,
   onSelectFile,
-  comments,
+  commentsByFile,
   filterQuery,
   onFilterChange,
   isLoading = false,
@@ -173,14 +173,6 @@ export const FileList = ({
     },
     [sidebarWidth],
   );
-
-  const commentsByFile = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of comments) {
-      map.set(c.file, (map.get(c.file) ?? 0) + 1);
-    }
-    return map;
-  }, [comments]);
 
   const visibleFiles = files;
 

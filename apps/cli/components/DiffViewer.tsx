@@ -27,11 +27,8 @@ import { useWorkerPool } from "@pierre/diffs/react";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
-import { DEFAULT_DIFF_THEMES } from "@/lib/diff-themes";
-import { CODE_VIEW_LAYOUT } from "@/lib/diff-stream/constants";
-import { usePatchLoader } from "./use-patch-loader";
-import { useIsWorkerPoolReady } from "./use-worker-pool-ready";
-import { FileDiffHeader } from "./FileDiffHeader";
+import { CODE_VIEW_LAYOUT, DEFAULT_DIFF_THEMES } from "@diffhub/diff-core";
+import { FileDiffHeader, usePatchLoader, useIsWorkerPoolReady } from "@diffhub/diff-core/react";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
@@ -606,14 +603,14 @@ const DiffViewerInner = (
     setCommentTarget(null);
   }, []);
 
-  const diffQuery = useMemo(
-    () => (diffMode === "uncommitted" ? "?mode=uncommitted" : ""),
+  const endpoint = useMemo(
+    () => (diffMode === "uncommitted" ? "/api/diff?mode=uncommitted" : "/api/diff"),
     [diffMode],
   );
 
   const { initialItems, loadState, errorMessage, viewerKey, retry } =
     usePatchLoader<AnnotationData>({
-      diffQuery,
+      endpoint,
       onReset: handleReset,
       prepareItems,
       reloadKey,

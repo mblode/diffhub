@@ -7,6 +7,8 @@ Local diff viewer for cmux.
 
 DiffHub opens your branch in a browser split so you can review it locally. By default it compares against the detected base branch, usually `origin/main`.
 
+**Live demo:** browse any GitHub PR in the viewer — e.g. [diffhub.blode.co/oven-sh/bun/pull/16000](https://diffhub.blode.co/oven-sh/bun/pull/16000).
+
 ![DiffHub screenshot](apps/cli/public/screenshot.png)
 
 ## Quick start

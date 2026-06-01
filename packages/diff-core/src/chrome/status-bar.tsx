@@ -19,21 +19,17 @@ import {
   SettingsGear1Icon,
   ContrastIcon,
 } from "blode-icons-react";
-import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
-import { useRef, useState, useSyncExternalStore } from "react";
-import type { Comment } from "@/lib/comment-types";
-import type { WatchStatus } from "@/lib/watch-status";
-import { getWatchStatusMeta } from "@/lib/watch-status";
-import type { DisplaySettings, DiffIndicatorStyle } from "@/lib/display-settings";
-import type { DiffThemeSelection } from "@/lib/diff-themes";
-import { DIFF_THEMES } from "@/lib/diff-themes";
-import { exportCommentsAsPrompt } from "@/lib/export-comments";
-import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRef, useState } from "react";
+import type { DiffIndicatorStyle, DisplaySettings } from "../display/display-settings";
+import type { DiffThemeSelection } from "../themes/diff-themes";
+import { DIFF_THEMES } from "../themes/diff-themes";
+import { cn } from "../lib/utils";
+import { Button } from "../ui/button";
+import { Kbd } from "../ui/kbd";
+import { SidebarTrigger } from "../ui/sidebar";
+import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,11 +40,16 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+} from "../ui/dropdown-menu";
 
 export type DiffMode = "all" | "uncommitted";
-export type { WatchStatus };
+export type ThemeModeOption = "system" | "light" | "dark";
+
+export interface StatusBarSyncNotice {
+  detail?: string;
+  label: string;
+  tone: "neutral" | "warning" | "destructive";
+}
 
 const DIFF_MODES: { value: DiffMode; label: string }[] = [
   { label: "All", value: "all" },
@@ -64,20 +65,21 @@ const truncateMiddle = (str: string, maxLen = 24) => {
 };
 
 interface StatusBarProps {
-  branch: string;
-  baseBranch: string;
-  refreshing: boolean;
-  onRefresh: () => void;
-  watchStatus: WatchStatus;
-  syncNotice: {
-    detail?: string;
-    label: string;
-    tone: "neutral" | "warning" | "destructive";
-  } | null;
-  comments: Comment[];
-  onClearComments: () => Promise<boolean>;
-  diffMode: DiffMode;
-  onDiffModeChange: (mode: DiffMode) => void;
+  // Branch comparison badges (e.g. baseBranch ← branch). Hidden when omitted.
+  branch?: string;
+  baseBranch?: string;
+  // Live status + force refresh. Hidden when onRefresh is omitted.
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  watch?: { label: string; dotClassName: string };
+  syncNotice?: StatusBarSyncNotice | null;
+  // Comment export. Hidden unless commentCount > 0 and onCopyComments is set.
+  commentCount?: number;
+  onCopyComments?: () => unknown;
+  // Diff scope. Hidden when onDiffModeChange is omitted.
+  diffMode?: DiffMode;
+  onDiffModeChange?: (mode: DiffMode) => void;
+  // View controls (always shown).
   layout: "split" | "stacked";
   onLayoutChange: (l: "split" | "stacked") => void;
   allCollapsed: boolean;
@@ -87,6 +89,19 @@ interface StatusBarProps {
   onDisplaySettingsChange: (settings: DisplaySettings) => void;
   diffThemes: DiffThemeSelection;
   onDiffThemesChange: (themes: DiffThemeSelection) => void;
+  // Color mode segmented control. Hidden when onThemeModeChange is omitted.
+  themeMode?: ThemeModeOption;
+  onThemeModeChange?: (mode: ThemeModeOption) => void;
+  // Sidebar collapse toggle. Requires a SidebarProvider ancestor.
+  showSidebarTrigger?: boolean;
+  // Optional trailing link (e.g. "View on GitHub" for the live demo).
+  githubUrl?: string;
+}
+
+interface SegmentedOption<T extends string> {
+  value: T;
+  label: string;
+  icon?: ReactNode;
 }
 
 const INDICATOR_OPTIONS: SegmentedOption<DiffIndicatorStyle>[] = [
@@ -97,8 +112,6 @@ const INDICATOR_OPTIONS: SegmentedOption<DiffIndicatorStyle>[] = [
 
 const LIGHT_THEMES = DIFF_THEMES.filter((theme) => theme.type === "light");
 const DARK_THEMES = DIFF_THEMES.filter((theme) => theme.type === "dark");
-
-// ── Inline primitives (no Switch/ToggleGroup in components/ui) ───────────────
 
 const Switch = ({
   checked,
@@ -132,12 +145,6 @@ const Switch = ({
     />
   </button>
 );
-
-interface SegmentedOption<T extends string> {
-  value: T;
-  label: string;
-  icon?: ReactNode;
-}
 
 const SegmentedControl = <T extends string>({
   value,
@@ -190,7 +197,6 @@ const SegmentedControl = <T extends string>({
   </div>
 );
 
-type ThemeModeOption = "system" | "light" | "dark";
 const THEME_MODE_OPTIONS: SegmentedOption<ThemeModeOption>[] = [
   { icon: <CircleHalfFillIcon className="size-4" />, label: "Auto", value: "system" },
   { icon: <SunIcon className="size-4" />, label: "Light", value: "light" },
@@ -200,8 +206,6 @@ const THEME_MODE_OPTIONS: SegmentedOption<ThemeModeOption>[] = [
 const themeNameById = (id: string): string =>
   DIFF_THEMES.find((theme) => theme.id === id)?.name ?? id;
 
-// A per-mode syntax-theme picker rendered as a drill-in submenu: the trigger
-// row shows the current selection; the submenu lists every theme of that type.
 const ThemeSubmenu = ({
   icon,
   selectedId,
@@ -239,8 +243,6 @@ const ThemeSubmenu = ({
   </DropdownMenuSub>
 );
 
-// Theme picker: color mode (Auto/Light/Dark) plus per-mode syntax-theme
-// submenus, all inside a single DropdownMenu (matches the reference layout).
 const ThemePicker = ({
   diffThemes,
   onDiffThemesChange,
@@ -249,8 +251,8 @@ const ThemePicker = ({
 }: {
   diffThemes: DiffThemeSelection;
   onDiffThemesChange: (themes: DiffThemeSelection) => void;
-  themeMode: ThemeModeOption;
-  onModeChange: (mode: ThemeModeOption) => void;
+  themeMode?: ThemeModeOption;
+  onModeChange?: (mode: ThemeModeOption) => void;
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger
@@ -266,15 +268,17 @@ const ThemePicker = ({
       <ContrastIcon size={14} />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-72 p-2">
-      <div className="mb-1">
-        <SegmentedControl
-          ariaLabel="Color mode"
-          value={themeMode}
-          options={THEME_MODE_OPTIONS}
-          onChange={onModeChange}
-          fullWidth
-        />
-      </div>
+      {themeMode && onModeChange && (
+        <div className="mb-1">
+          <SegmentedControl
+            ariaLabel="Color mode"
+            value={themeMode}
+            options={THEME_MODE_OPTIONS}
+            onChange={onModeChange}
+            fullWidth
+          />
+        </div>
+      )}
       <ThemeSubmenu
         icon={<SunIcon className="size-4 shrink-0 text-muted-foreground" />}
         selectedId={diffThemes.light}
@@ -293,25 +297,20 @@ const ThemePicker = ({
   </DropdownMenu>
 );
 
-const getSyncNoticeToneClass = (
-  tone: NonNullable<StatusBarProps["syncNotice"]>["tone"] | undefined,
-) => {
+const getSyncNoticeToneClass = (tone: StatusBarSyncNotice["tone"] | undefined) => {
   if (tone === "destructive") {
     return "border-destructive/30 bg-destructive/10 text-destructive";
   }
-
   if (tone === "warning") {
     return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
   }
-
   return "border-border bg-muted/40 text-muted-foreground";
 };
 
-const SyncNoticeChip = ({ syncNotice }: { syncNotice: StatusBarProps["syncNotice"] }) => {
+const SyncNoticeChip = ({ syncNotice }: { syncNotice: StatusBarSyncNotice | null | undefined }) => {
   if (!syncNotice) {
     return null;
   }
-
   return (
     <div
       className={cn(
@@ -324,25 +323,62 @@ const SyncNoticeChip = ({ syncNotice }: { syncNotice: StatusBarProps["syncNotice
   );
 };
 
-const noop = () => null;
-
-const useHasMounted = () =>
-  useSyncExternalStore(
-    () => noop,
-    () => true,
-    () => false,
+const BranchBadge = ({ value }: { value: string }) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      setCopied(true);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable
+    }
+  };
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="relative whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-secondary"
+          />
+        }
+      >
+        <span
+          className={cn("transition-opacity duration-150", copied ? "opacity-0" : "opacity-100")}
+        >
+          {truncateMiddle(value)}
+        </span>
+        <span
+          className={cn(
+            "absolute inset-0 flex items-center justify-center text-diff-green transition-opacity duration-150",
+            copied ? "opacity-100" : "opacity-0",
+          )}
+        >
+          <CheckIcon size={14} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{copied ? "Copied!" : "Click to copy"}</TooltipContent>
+    </Tooltip>
   );
+};
 
 // oxlint-disable-next-line complexity
 export const StatusBar = ({
   branch,
   baseBranch,
-  refreshing,
+  refreshing = false,
   onRefresh,
-  watchStatus,
+  watch,
   syncNotice,
-  comments,
-  onClearComments,
+  commentCount = 0,
+  onCopyComments,
   diffMode,
   onDiffModeChange,
   layout,
@@ -354,46 +390,25 @@ export const StatusBar = ({
   onDisplaySettingsChange,
   diffThemes,
   onDiffThemesChange,
+  themeMode,
+  onThemeModeChange,
+  showSidebarTrigger = true,
+  githubUrl,
 }: StatusBarProps) => {
   const [copied, setCopied] = useState(false);
-  const [copiedBranch, setCopiedBranch] = useState<"branch" | "base" | null>(null);
-  const mounted = useHasMounted();
-  const { setTheme, theme } = useTheme();
-
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const branchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const copyBranch = async (value: string, which: "branch" | "base") => {
-    try {
-      await navigator.clipboard.writeText(value);
-      if (branchTimerRef.current) {
-        clearTimeout(branchTimerRef.current);
-      }
-      setCopiedBranch(which);
-      branchTimerRef.current = setTimeout(() => setCopiedBranch(null), 1500);
-    } catch {
-      // clipboard unavailable
+  const handleCopyComments = async () => {
+    if (!onCopyComments) {
+      return;
     }
-  };
-
-  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-  const copyCommentsAsPrompt = async () => {
-    try {
-      const text = exportCommentsAsPrompt(comments);
-      await navigator.clipboard.writeText(text);
-      const cleared = await onClearComments();
-      if (!cleared) {
-        return;
-      }
-      if (copiedTimerRef.current) {
-        clearTimeout(copiedTimerRef.current);
-      }
-      setCopied(true);
-      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable — don't flip copied state
+    await onCopyComments();
+    if (copiedTimerRef.current) {
+      clearTimeout(copiedTimerRef.current);
     }
+    setCopied(true);
+    copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
@@ -404,167 +419,110 @@ export const StatusBar = ({
     onDisplaySettingsChange({ ...displaySettings, [key]: value });
   };
 
-  const themeMode: ThemeModeOption = theme === "light" || theme === "dark" ? theme : "system";
-  const watchMeta = getWatchStatusMeta(watchStatus, refreshing);
+  const watchMeta = watch ?? { dotClassName: "bg-diff-green", label: "Live" };
 
   return (
     <TooltipProvider delay={400}>
       <header className="flex h-[52px] items-center gap-2 border-b border-border bg-card px-4 text-sm">
-        {/* Sidebar toggle */}
-        <Tooltip>
-          <TooltipTrigger render={<SidebarTrigger className="-ml-1" />} />
-          <TooltipContent side="bottom" className="flex items-center gap-2">
-            <span>Toggle sidebar</span>
-            <Kbd>⌘B</Kbd>
-          </TooltipContent>
-        </Tooltip>
+        {showSidebarTrigger && (
+          <Tooltip>
+            <TooltipTrigger render={<SidebarTrigger className="-ml-1" />} />
+            <TooltipContent side="bottom" className="flex items-center gap-2">
+              <span>Toggle sidebar</span>
+              <Kbd>⌘B</Kbd>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
-        {/* Branch comparison badges */}
-        <div className="flex items-center gap-1.5">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                  onClick={() => copyBranch(branch, "branch")}
-                  className="relative whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-secondary"
-                />
-              }
-            >
-              <span
-                className={cn(
-                  "transition-opacity duration-150",
-                  copiedBranch === "branch" ? "opacity-0" : "opacity-100",
-                )}
-              >
-                {truncateMiddle(branch)}
-              </span>
-              <span
-                className={cn(
-                  "absolute inset-0 flex items-center justify-center text-diff-green transition-opacity duration-150",
-                  copiedBranch === "branch" ? "opacity-100" : "opacity-0",
-                )}
-              >
-                <CheckIcon size={14} />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {copiedBranch === "branch" ? "Copied!" : "Click to copy"}
-            </TooltipContent>
-          </Tooltip>
-          <ArrowRightIcon size={12} className="text-muted-foreground/50 shrink-0" />
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                  onClick={() => copyBranch(baseBranch, "base")}
-                  className="relative whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-secondary"
-                />
-              }
-            >
-              <span
-                className={cn(
-                  "transition-opacity duration-150",
-                  copiedBranch === "base" ? "opacity-0" : "opacity-100",
-                )}
-              >
-                {truncateMiddle(baseBranch)}
-              </span>
-              <span
-                className={cn(
-                  "absolute inset-0 flex items-center justify-center text-diff-green transition-opacity duration-150",
-                  copiedBranch === "base" ? "opacity-100" : "opacity-0",
-                )}
-              >
-                <CheckIcon size={14} />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {copiedBranch === "base" ? "Copied!" : "Click to copy"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        {branch !== undefined && baseBranch !== undefined && (
+          <div className="flex items-center gap-1.5">
+            <BranchBadge value={baseBranch} />
+            <ArrowRightIcon size={12} className="text-muted-foreground/50 shrink-0" />
+            <BranchBadge value={branch} />
+          </div>
+        )}
 
         <div className="flex-1" />
 
         <div className="flex items-center gap-0.5">
           <SyncNoticeChip syncNotice={syncNotice} />
 
-          {/* Live status dot — doubles as force refresh (spins while updating) */}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={onRefresh}
-                  disabled={refreshing}
-                  aria-label={`${watchMeta.label} — force refresh diff`}
-                  className="group text-muted-foreground hover:text-foreground hover:bg-secondary"
-                />
-              }
-            >
-              {refreshing ? (
-                <Spinner />
-              ) : (
-                <>
-                  <span
-                    className={cn("size-2 rounded-full group-hover:hidden", watchMeta.dotClassName)}
+          {onRefresh && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={onRefresh}
+                    disabled={refreshing}
+                    aria-label={`${watchMeta.label} — force refresh diff`}
+                    className="group text-muted-foreground hover:text-foreground hover:bg-secondary"
                   />
-                  <ArrowRotateClockwiseIcon size={14} className="hidden group-hover:block" />
-                </>
-              )}
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="flex items-center gap-2">
-              <span>{watchMeta.label} · Force refresh</span>
-              <Kbd>R</Kbd>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Diff mode dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1 group"
-                />
-              }
-            >
-              {diffMode === "uncommitted" ? "Uncommitted" : "All"}
-              <ChevronDownIcon
-                size={10}
-                className="transition-transform duration-150 group-data-[popup-open]:rotate-180"
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[200px]">
-              <DropdownMenuRadioGroup
-                value={diffMode}
-                // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-                onValueChange={(value) => onDiffModeChange(value as DiffMode)}
+                }
               >
-                {DIFF_MODES.map(({ value, label }) => (
-                  <DropdownMenuRadioItem key={value} value={value}>
-                    {label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {refreshing ? (
+                  <Spinner />
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        "size-2 rounded-full group-hover:hidden",
+                        watchMeta.dotClassName,
+                      )}
+                    />
+                    <ArrowRotateClockwiseIcon size={14} className="hidden group-hover:block" />
+                  </>
+                )}
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="flex items-center gap-2">
+                <span>{watchMeta.label} · Force refresh</span>
+                <Kbd>R</Kbd>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
-          {/* Comments export */}
-          {comments.length > 0 && (
+          {onDiffModeChange && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="text-muted-foreground hover:text-foreground hover:bg-secondary gap-1 group"
+                  />
+                }
+              >
+                {diffMode === "uncommitted" ? "Uncommitted" : "All"}
+                <ChevronDownIcon
+                  size={10}
+                  className="transition-transform duration-150 group-data-[popup-open]:rotate-180"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[200px]">
+                <DropdownMenuRadioGroup
+                  value={diffMode}
+                  // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
+                  onValueChange={(value) => onDiffModeChange(value as DiffMode)}
+                >
+                  {DIFF_MODES.map(({ value, label }) => (
+                    <DropdownMenuRadioItem key={value} value={value}>
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {commentCount > 0 && onCopyComments && (
             <Tooltip>
               <TooltipTrigger
                 render={
                   <Button
                     variant="ghost"
                     size="xs"
-                    onClick={copyCommentsAsPrompt}
+                    onClick={handleCopyComments}
                     className="text-muted-foreground hover:text-foreground hover:bg-secondary"
                   />
                 }
@@ -576,7 +534,7 @@ export const StatusBar = ({
                 )}
                 {copied
                   ? "Copied!"
-                  : `Copy & clear ${comments.length} comment${comments.length === 1 ? "" : "s"}`}
+                  : `Copy & clear ${commentCount} comment${commentCount === 1 ? "" : "s"}`}
               </TooltipTrigger>
               <TooltipContent side="bottom">
                 Copy all comments as AI prompt, then clear them
@@ -584,10 +542,8 @@ export const StatusBar = ({
             </Tooltip>
           )}
 
-          {/* Divider — separates diff status/scope from view controls */}
           <div className="mx-1 h-5 w-px bg-border" />
 
-          {/* Collapse / expand all files */}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -600,7 +556,6 @@ export const StatusBar = ({
                 />
               }
             >
-              {/* Action: collapsed → expand (apart), expanded → collapse (squeeze) */}
               {allCollapsed ? (
                 <ChevronGrabberVerticalIcon size={14} />
               ) : (
@@ -613,7 +568,6 @@ export const StatusBar = ({
             </TooltipContent>
           </Tooltip>
 
-          {/* Layout toggle — unified / split */}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -629,7 +583,6 @@ export const StatusBar = ({
                 />
               }
             >
-              {/* Action: switch to unified (halves) from split, else to split (columns) */}
               {layout === "split" ? <LayoutHalfIcon size={14} /> : <LayoutColumnIcon size={14} />}
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -637,7 +590,6 @@ export const StatusBar = ({
             </TooltipContent>
           </Tooltip>
 
-          {/* Display settings panel */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -705,14 +657,22 @@ export const StatusBar = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Theme picker - only render after mount to avoid hydration mismatch */}
-          {mounted && (
-            <ThemePicker
-              diffThemes={diffThemes}
-              onDiffThemesChange={onDiffThemesChange}
-              themeMode={themeMode}
-              onModeChange={setTheme}
-            />
+          <ThemePicker
+            diffThemes={diffThemes}
+            onDiffThemesChange={onDiffThemesChange}
+            themeMode={themeMode}
+            onModeChange={onThemeModeChange}
+          />
+
+          {githubUrl && (
+            <a
+              className="ml-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              href={githubUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              GitHub
+            </a>
           )}
         </div>
       </header>

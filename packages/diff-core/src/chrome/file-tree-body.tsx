@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { FileTree as PierreFileTree, useFileTree, useFileTreeSearch } from "@pierre/trees/react";
 import type { FileTreeRowDecoration, FileTreeRowDecorationContext } from "@pierre/trees";
-import type { DiffFileStat } from "@/lib/diff-file-stat";
-import { toGitStatusEntries } from "@/lib/file-tree-git-status";
+import type { DiffFileStat } from "../lib/diff-file-stat";
+import { toGitStatusEntries } from "../lib/file-tree-git-status";
+
+const EMPTY_COMMENTS = new Map<string, number>();
 
 interface FileTreeBodyProps {
   files: DiffFileStat[];
@@ -12,7 +14,7 @@ interface FileTreeBodyProps {
   /** Called when the user activates a file row (single click / keyboard). */
   onNavigate: (file: string) => void;
   /** path → comment count, rendered as a trailing row decoration. */
-  commentsByFile: Map<string, number>;
+  commentsByFile?: Map<string, number>;
   /** Current filter text; drives the tree's hide-non-matches search. */
   filterQuery: string;
 }
@@ -20,10 +22,6 @@ interface FileTreeBodyProps {
 // Swap the tree's built-in chevron (a bold 16px filled glyph) for the lighter
 // blode-icons-react ChevronDownIcon. The tree references icons by sprite symbol
 // id, so we inject a <symbol> and remap the `file-tree-icon-chevron` slot to it.
-// Remapping preserves `data-icon-name="file-tree-icon-chevron"` (via the icon's
-// `remappedFrom`), so the library's expand/collapse rotation CSS still applies —
-// we only need the down-pointing glyph. The path/viewBox are copied verbatim
-// from `blode-icons-react` `ChevronDownIcon` (24×24, 2px round stroke).
 const CHEVRON_SYMBOL_ID = "diffhub-tree-chevron";
 const CHEVRON_VIEW_BOX = "0 0 24 24";
 const CHEVRON_SPRITE = `<svg data-icon-sprite aria-hidden="true" width="0" height="0"><symbol id="${CHEVRON_SYMBOL_ID}" viewBox="${CHEVRON_VIEW_BOX}"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9.5 6 6 6-6"/></symbol></svg>`;
@@ -54,7 +52,7 @@ const FileTreeBody = ({
   files,
   selectedFile,
   onNavigate,
-  commentsByFile,
+  commentsByFile = EMPTY_COMMENTS,
   filterQuery,
 }: FileTreeBodyProps) => {
   const paths = useMemo(() => files.map((f) => f.file), [files]);

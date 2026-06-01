@@ -2,25 +2,27 @@
 
 import type { AnnotationSide } from "@pierre/diffs";
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { StatusBar } from "./StatusBar";
-import type { DiffMode, WatchStatus } from "./StatusBar";
-import { FileList } from "./FileList";
+import { useTheme } from "next-themes";
+import { FileList, SidebarInset, SidebarProvider, StatusBar } from "@diffhub/diff-core/react";
+import type { DiffMode } from "@diffhub/diff-core/react";
 import { DiffViewer } from "./DiffViewer";
 import type { DiffViewerHandle } from "./DiffViewer";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
+import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { useLocalStorage } from "@/lib/use-local-storage";
+import { getWatchStatusMeta } from "@/lib/watch-status";
+import type { WatchStatus } from "@/lib/watch-status";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
-import type { DisplaySettings } from "@/lib/display-settings";
+import type { DisplaySettings, DiffThemeSelection } from "@diffhub/diff-core";
 import {
+  DEFAULT_DIFF_THEMES,
   DEFAULT_DISPLAY_SETTINGS,
   DISPLAY_SETTINGS_KEY,
+  normalizeDiffThemes,
   normalizeDisplaySettings,
-} from "@/lib/display-settings";
-import type { DiffThemeSelection } from "@/lib/diff-themes";
-import { DEFAULT_DIFF_THEMES, normalizeDiffThemes } from "@/lib/diff-themes";
+} from "@diffhub/diff-core";
 
 const DIFF_THEME_KEY = "diffhub-diff-theme";
 
@@ -823,6 +825,26 @@ export const DiffApp = ({
     return true;
   }, []);
 
+  // The shared StatusBar is decoupled from next-themes / comment storage, so the
+  // CLI feeds it the color mode and a comment-export callback here.
+  const { theme, setTheme } = useTheme();
+  const themeMode: "system" | "light" | "dark" =
+    theme === "light" || theme === "dark" ? theme : "system";
+
+  const commentsByFile = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const comment of comments) {
+      map.set(comment.file, (map.get(comment.file) ?? 0) + 1);
+    }
+    return map;
+  }, [comments]);
+
+  const handleCopyComments = useCallback(async () => {
+    const text = exportCommentsAsPrompt(comments);
+    await navigator.clipboard.writeText(text);
+    await handleClearComments();
+  }, [comments, handleClearComments]);
+
   const syncNotice = getSyncNotice(loadError, filesData);
 
   if (loadError && filesData === null) {
@@ -851,7 +873,7 @@ export const DiffApp = ({
         files={filesData?.files ?? []}
         selectedFile={selectedFile}
         onSelectFile={scrollToFile}
-        comments={comments}
+        commentsByFile={commentsByFile}
         filterQuery={filterQuery}
         onFilterChange={setFilterQuery}
         isLoading={filesData === null}
@@ -870,9 +892,9 @@ export const DiffApp = ({
             baseBranch={filesData?.baseBranch ?? "main"}
             refreshing={refreshing}
             onRefresh={handleManualRefresh}
-            watchStatus={watchStatus}
-            comments={comments}
-            onClearComments={handleClearComments}
+            watch={getWatchStatusMeta(watchStatus, refreshing)}
+            commentCount={comments.length}
+            onCopyComments={handleCopyComments}
             diffMode={diffMode}
             onDiffModeChange={handleDiffModeChange}
             layout={layout}
@@ -885,6 +907,8 @@ export const DiffApp = ({
             onDisplaySettingsChange={handleDisplaySettingsChange}
             diffThemes={diffThemes}
             onDiffThemesChange={handleDiffThemesChange}
+            themeMode={themeMode}
+            onThemeModeChange={setTheme}
           />
         </div>
 
