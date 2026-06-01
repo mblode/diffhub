@@ -27,11 +27,13 @@ import { useWorkerPool } from "@pierre/diffs/react";
 import { toAnnotationSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import type { DiffFileStat } from "@/lib/diff-file-stat";
-import { DEFAULT_DIFF_THEMES } from "@/lib/diff-themes";
-import { CODE_VIEW_LAYOUT } from "@/lib/diff-stream/constants";
-import { usePatchLoader } from "./use-patch-loader";
-import { useIsWorkerPoolReady } from "./use-worker-pool-ready";
-import { FileDiffHeader } from "./FileDiffHeader";
+import { CODE_VIEW_LAYOUT, DEFAULT_DIFF_THEMES } from "@diffhub/diff-core";
+import {
+  FileDiffHeader,
+  useCodeViewPaintNudge,
+  useIsWorkerPoolReady,
+  usePatchLoader,
+} from "@diffhub/diff-core/react";
 import { cn } from "@/lib/utils";
 import { BranchIcon, CopySimpleIcon, TrashIcon, CheckIcon } from "blode-icons-react";
 import { Button } from "@/components/ui/button";
@@ -520,6 +522,7 @@ const DiffViewerInner = (
 
   const codeViewRef = useRef<CodeViewHandle<AnnotationData> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const diffRootRef = useRef<HTMLDivElement | null>(null);
 
   // Single active inline-comment input target (gutter "+").
   const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
@@ -606,19 +609,27 @@ const DiffViewerInner = (
     setCommentTarget(null);
   }, []);
 
-  const diffQuery = useMemo(
-    () => (diffMode === "uncommitted" ? "?mode=uncommitted" : ""),
+  const endpoint = useMemo(
+    () => (diffMode === "uncommitted" ? "/api/diff?mode=uncommitted" : "/api/diff"),
     [diffMode],
   );
 
   const { initialItems, loadState, errorMessage, viewerKey, retry } =
     usePatchLoader<AnnotationData>({
-      diffQuery,
+      endpoint,
       onReset: handleReset,
       prepareItems,
       reloadKey,
       viewerRef: codeViewRef,
     });
+
+  // Force CodeView's first window to paint (Chrome can skip compositing the
+  // freshly-mounted shadow-DOM grid until a repaint is forced).
+  useCodeViewPaintNudge(
+    diffRootRef,
+    isWorkerReady && (loadState === "ready" || initialItems.length > 0),
+    viewerKey,
+  );
 
   // ── Push theme changes into the worker pool ────────────────────────────────
   // Background tokenizers keep the pair they were initialized with unless we
@@ -924,7 +935,7 @@ const DiffViewerInner = (
   }
 
   return (
-    <div id="diff-container" className="flex min-h-0 flex-1 flex-col">
+    <div id="diff-container" className="flex min-h-0 flex-1 flex-col" ref={diffRootRef}>
       <DiffErrorBoundary>
         <CodeView
           key={viewerKey}

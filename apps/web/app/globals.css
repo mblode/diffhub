@@ -3,6 +3,10 @@
 @import "shadcn/tailwind.css";
 @plugin "@tailwindcss/typography";
 
+/* Scan the shared diff-viewer package so its utility classes (sidebar, chrome,
+ * button variants) are generated — Tailwind skips node_modules by default. */
+@source "../../../packages/diff-core/src";
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -40,6 +44,11 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Diff-specific semantic tokens (used by the live PR demo viewer) */
+  --color-diff-green: var(--diff-green);
+  --color-diff-purple: var(--diff-purple);
+  --color-diff-selected: var(--diff-selected);
+  --color-diff-success: var(--diff-success);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -118,6 +127,90 @@
   :root {
     --color-theme-border-01: oklab(0.263084 -0.00230259 0.0124794 / 0.025);
   }
+}
+
+/*
+ * Live PR demo viewer — scoped dark theme that mirrors the DiffHub CLI viewer
+ * (apps/cli). Applied via the `.diffhub-app` wrapper on the (viewer) route only,
+ * so the marketing site stays light. Token values are copied from the CLI's
+ * `.dark` palette (achromatic + GitHub Primer diff colors).
+ */
+.diffhub-app {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --link: oklch(0.708 0.12 250);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+  /* Diff-specific tokens (GitHub Primer dark) */
+  --diff-green: #3fb950;
+  --diff-purple: oklch(0.78 0.12 300);
+  --diff-selected: oklch(0.269 0 0);
+  --diff-success: #3fb950;
+  /* The diff body + monospace UI use JetBrains Mono, like the CLI. */
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --diffs-font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  background-color: var(--background);
+  color: var(--foreground);
+  color-scheme: dark;
+}
+
+/* Light color mode for the viewer (mirrors the CLI's light palette), toggled by
+ * the Auto/Light/Dark control. The `.diffhub-light` class is added alongside
+ * `.diffhub-app` on both the viewer root and <html> (so portaled popups match). */
+.diffhub-app.diffhub-light {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --link: oklch(0.55 0.2 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --diff-green: #1a7f37;
+  --diff-selected: oklch(0.93 0 0);
+  --diff-success: #1a7f37;
+  color-scheme: light;
 }
 
 @layer base {

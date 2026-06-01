@@ -3,7 +3,7 @@
 import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import type { WorkerInitializationRenderOptions, WorkerPoolOptions } from "@pierre/diffs/react";
 import { useMemo } from "react";
-import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from "@/lib/diff-themes";
+import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from "../themes/diff-themes";
 
 interface DiffsWorkerProviderProps {
   children: React.ReactNode;
@@ -39,8 +39,8 @@ export const DiffsWorkerProvider = ({ children }: DiffsWorkerProviderProps): Rea
       langs: ["cpp", "css", "go", "python", "rust", "sh", "swift", "tsx", "typescript", "zig"],
       preferredHighlighter: "shiki-wasm",
       theme: { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME },
-      // Long-line safeguard kept in sync with DiffViewer's CodeView options:
-      // skip tokenizing pathological (minified) lines so they can't stall a worker.
+      // Long-line safeguard kept in sync with the CodeView options: skip
+      // tokenizing pathological (minified) lines so they can't stall a worker.
       tokenizeMaxLineLength: 5000,
     }),
     [],

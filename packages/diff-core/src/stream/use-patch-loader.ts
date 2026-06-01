@@ -11,15 +11,15 @@ import {
   STREAM_INITIAL_PUBLISH_INTERVAL_MS,
   STREAM_PUBLISH_INTERVAL_MS,
   STREAM_WORK_BUDGET_MS,
-} from "@/lib/diff-stream/constants";
-import type { DiffStats } from "@/lib/diff-stream/diffItemAccumulator";
+} from "./constants";
+import type { DiffStats } from "./diffItemAccumulator";
 import {
   appendFileDiffToAccumulator,
   buildDiffItems,
   createDiffItemAccumulator,
   takePendingItems,
-} from "@/lib/diff-stream/diffItemAccumulator";
-import { streamGitPatchFiles } from "@/lib/diff-stream/streamGitPatchFiles";
+} from "./diffItemAccumulator";
+import { streamGitPatchFiles } from "./streamGitPatchFiles";
 
 export type PatchLoadState = "idle" | "streaming" | "parsing" | "ready" | "error";
 
@@ -28,8 +28,9 @@ const GENERIC_PATCH_LOAD_ERROR = "Failed to load the diff. Try refreshing.";
 interface UsePatchLoaderOptions<T> {
   // Bump to force a fresh load (mode change, manual refresh, watcher change).
   reloadKey: string;
-  // Query string appended to /api/diff (e.g. "?mode=uncommitted").
-  diffQuery: string;
+  // Full endpoint (path + query) to fetch the raw unified patch from, e.g.
+  // "/api/diff?mode=uncommitted" or "/api/github-diff?owner=…&repo=…&number=…".
+  endpoint: string;
   viewerRef: RefObject<CodeViewHandle<T> | null>;
   // Stamp collapse state + annotations onto freshly built items, and record
   // their ids, before they are handed to the viewer. Mutates in place.
@@ -60,7 +61,7 @@ const yieldToBrowser = (): Promise<void> =>
 
 export const usePatchLoader = <T>({
   reloadKey,
-  diffQuery,
+  endpoint,
   viewerRef,
   prepareItems,
   onReset,
@@ -73,14 +74,14 @@ export const usePatchLoader = <T>({
   const [loadAttempt, setLoadAttempt] = useState(0);
   const requestIdRef = useRef(0);
 
-  // Keep the latest callbacks/query in refs so the streaming closure can read
+  // Keep the latest callbacks/endpoint in refs so the streaming closure can read
   // live values without re-binding the load effect on every render.
   const prepareItemsRef = useRef(prepareItems);
   prepareItemsRef.current = prepareItems;
   const onResetRef = useRef(onReset);
   onResetRef.current = onReset;
-  const diffQueryRef = useRef(diffQuery);
-  diffQueryRef.current = diffQuery;
+  const endpointRef = useRef(endpoint);
+  endpointRef.current = endpoint;
 
   const retry = useCallback(() => {
     setLoadAttempt((attempt) => attempt + 1);
@@ -167,7 +168,7 @@ export const usePatchLoader = <T>({
       };
 
       try {
-        const response = await fetch(`/api/diff${diffQueryRef.current}`, {
+        const response = await fetch(endpointRef.current, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -230,7 +231,7 @@ export const usePatchLoader = <T>({
           return;
         }
         console.error("[diffhub] patch load failed", { error });
-        setErrorMessage(GENERIC_PATCH_LOAD_ERROR);
+        setErrorMessage(error instanceof Error ? error.message : GENERIC_PATCH_LOAD_ERROR);
         setLoadState("error");
       }
     };

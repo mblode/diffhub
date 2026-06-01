@@ -13,7 +13,9 @@ import { SplitText } from "griffo/motion";
 import { stagger } from "motion";
 import { MotionConfig, motion } from "motion/react";
 import Image from "next/image";
+import Link from "next/link";
 
+import { DemoLauncher } from "@/components/shared/demo-launcher";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
@@ -134,9 +136,16 @@ export default function HomePage(): React.JSX.Element {
             </motion.p>
             <motion.div
               {...blurUp}
-              className="mt-4 flex items-center justify-center"
+              className="mt-4 flex items-center justify-center gap-4"
               transition={{ ...blurUp.transition, delay: 0.6 }}
             >
+              <Link
+                className="inline-flex items-center gap-1.5 py-2 text-sm text-link transition-colors hover:text-link/90"
+                href={siteConfig.links.demo}
+              >
+                <SplitIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                Try the live demo
+              </Link>
               <a
                 className="inline-flex items-center gap-1.5 py-2 text-sm text-link transition-colors hover:text-link/90"
                 href={siteConfig.links.loom}
@@ -146,6 +155,13 @@ export default function HomePage(): React.JSX.Element {
                 <PlayIcon aria-hidden="true" className="size-3.5 shrink-0" />
                 Watch demo
               </a>
+            </motion.div>
+            <motion.div
+              {...blurUp}
+              className="mt-8"
+              transition={{ ...blurUp.transition, delay: 0.65 }}
+            >
+              <DemoLauncher />
             </motion.div>
           </div>
 
@@ -159,16 +175,20 @@ export default function HomePage(): React.JSX.Element {
               ease: [0.25, 1, 0.5, 1],
             }}
           >
-            <div className="rounded bg-card p-6">
+            <Link
+              aria-label="Open the live DiffHub demo for oven-sh/bun #16000"
+              className="block rounded bg-card p-6 transition-shadow hover:shadow-lg"
+              href={siteConfig.links.demo}
+            >
               <Image
-                alt="DiffHub showing a branch diff with file sidebar and split view"
+                alt="DiffHub live demo rendering a GitHub pull request diff with a file sidebar and split view"
                 className="w-full rounded"
                 height={777}
                 priority
                 src="/screenshot-2.png"
                 width={1400}
               />
-            </div>
+            </Link>
           </motion.div>
         </section>
 

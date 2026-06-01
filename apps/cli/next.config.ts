@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
   // .next/standalone/apps/cli/server.js (mirroring the workspace path).
   outputFileTracingRoot: join(import.meta.dirname, "../.."),
   reactCompiler: true,
+  // Source-only workspace package shared with apps/web — Next transpiles it.
+  transpilePackages: ["@diffhub/diff-core"],
 };
 
 export default nextConfig;
