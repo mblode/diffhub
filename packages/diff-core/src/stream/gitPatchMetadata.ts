@@ -7,8 +7,9 @@ const detachCommitPrefix = (value: string): string =>
   commitPrefixDecoder.decode(commitPrefixEncoder.encode(value));
 
 // Local `git diff` output has no `From <hash>` commit-format-patch headers, so
-// this never produces a real prefix in DiffHub. Ported faithfully so the stream
-// parser stays identical to the reference.
+// this never produces a real prefix for a plain diff. GitHub PR `.diff` output
+// is the same shape. Ported faithfully so the stream parser stays identical to
+// the reference.
 export const getPatchTreePathPrefix = (
   patchMetadata: string | undefined,
   patchIndex: number,

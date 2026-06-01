@@ -7,10 +7,10 @@ import {
   CircleMinusIcon,
   CirclePlusIcon,
 } from "blode-icons-react";
-import { Button } from "@/components/ui/button";
-import { CopyButton } from "@/components/ui/copy-button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, truncateFilePath } from "@/lib/utils";
+import { cn, truncateFilePath } from "../lib/utils";
+import { Button } from "../ui/button";
+import { CopyButton } from "../ui/copy-button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
 // `DiffFileStat` carries no git change-type, so derive a coarse one from the
 // line counts to colour the header icon (new = green, removed = red, else muted).
@@ -34,8 +34,9 @@ interface FileDiffHeaderProps {
   file: string;
   insertions: number;
   deletions: number;
-  commentCount: number;
-  repoPath: string;
+  commentCount?: number;
+  // When set, the copy button copies `${repoPath}/${file}`; otherwise just the path.
+  repoPath?: string;
   collapsed?: boolean;
   active?: boolean;
   onToggleCollapse?: () => void;
@@ -47,7 +48,7 @@ export const FileDiffHeader = ({
   file,
   insertions,
   deletions,
-  commentCount,
+  commentCount = 0,
   repoPath,
   collapsed = false,
   active = false,
@@ -123,7 +124,7 @@ export const FileDiffHeader = ({
                   {dir && <span className="text-muted-foreground truncate shrink">{dir}/</span>}
                   <span className="text-foreground font-normal shrink-0">{filename}</span>
                 </span>
-                <CopyButton value={`${repoPath}/${file}`} />
+                <CopyButton value={repoPath ? `${repoPath}/${file}` : file} />
               </TooltipTrigger>
               {file !== truncated && <TooltipContent side="bottom">{file}</TooltipContent>}
             </Tooltip>

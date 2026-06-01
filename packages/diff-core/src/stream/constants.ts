@@ -10,7 +10,7 @@ export const CODE_VIEW_FILE_TREE_ITEM_HEIGHT = 24;
 export const CODE_VIEW_BATCH_COUNT = 25;
 export const CODE_VIEW_BATCH_COUNT_MAX = 96;
 
-// Streaming publish cadence used by the patch loader (built in a later phase).
+// Streaming publish cadence used by the patch loader.
 export const STREAM_PUBLISH_INTERVAL_MS = 100;
 export const STREAM_INITIAL_PUBLISH_INTERVAL_MS = 500;
 export const STREAM_WORK_BUDGET_MS = 8;

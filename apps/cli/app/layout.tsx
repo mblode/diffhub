@@ -2,7 +2,7 @@ import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
-import { DiffsWorkerProvider } from "@/components/DiffsWorkerProvider";
+import { DiffsWorkerProvider } from "@diffhub/diff-core/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 

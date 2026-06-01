@@ -11,7 +11,11 @@ try {
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+  // 'wasm-unsafe-eval' lets the diff viewer's shiki-wasm highlighter instantiate
+  // its WebAssembly module (needed by the live PR demo's syntax highlighting).
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+  // The highlighter runs in a module worker spawned from a blob URL.
+  "worker-src 'self' blob:",
   "connect-src 'self'",
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
@@ -90,6 +94,7 @@ const nextConfig = {
       ],
     };
   },
+  transpilePackages: ["@diffhub/diff-core"],
 };
 
 export default nextConfig;
