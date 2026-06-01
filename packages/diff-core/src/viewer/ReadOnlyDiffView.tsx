@@ -5,7 +5,6 @@ import {
   Component,
   forwardRef,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -27,6 +26,7 @@ import { usePatchLoader } from "../stream/use-patch-loader";
 import type { DiffThemeSelection } from "../themes/diff-themes";
 import { DEFAULT_DIFF_THEMES } from "../themes/diff-themes";
 import { useIsWorkerPoolReady } from "../worker/use-worker-pool-ready";
+import { useCodeViewPaintNudge } from "./use-paint-nudge";
 
 // Lines longer than this skip syntax tokenization (rendered as plain text) so a
 // single minified/generated line can't block the highlighter. Kept in sync with
@@ -344,56 +344,10 @@ const ReadOnlyDiffViewInner = (
     [],
   );
 
-  // CodeView's virtualizer renders into a pooled, sticky-positioned grid; on first
-  // mount Chrome can skip *compositing* that grid until something forces a repaint,
-  // so a freshly-streamed viewer can look blank until the user scrolls even though
-  // the rows are already in the DOM and tokenized. The fix is a pure compositing
-  // nudge: flicking the scroll container's opacity to 0.999 and back forces Chrome
-  // to repaint the subtree (including the shadow-DOM grid) without any re-measure
-  // or layout shift — 0.999 is visually identical to 1, so it is imperceptible.
-  // Timing of the skip varies (cold compile vs warm), so we nudge on a slow cadence
-  // across the settling window; once painted, it stays painted.
+  // Force CodeView's first window to paint (Chrome can skip compositing the
+  // freshly-mounted shadow-DOM grid until something forces a repaint).
   const hasInitialContent = isWorkerReady && (loadState === "ready" || initialItems.length > 0);
-  useEffect(() => {
-    if (!hasInitialContent) {
-      return;
-    }
-    const root = rootRef.current;
-    if (!root) {
-      return;
-    }
-    const restoreTimers = new Set<ReturnType<typeof globalThis.setTimeout>>();
-    const nudge = () => {
-      const scroller = root.querySelector<HTMLElement>(".overflow-y-auto");
-      if (!scroller || scroller.style.opacity) {
-        return;
-      }
-      scroller.style.opacity = "0.999";
-      const timer = globalThis.setTimeout(() => {
-        scroller.style.opacity = "";
-        restoreTimers.delete(timer);
-      }, 100);
-      restoreTimers.add(timer);
-    };
-    let ticks = 0;
-    const interval = globalThis.setInterval(() => {
-      ticks += 1;
-      nudge();
-      if (ticks >= 50) {
-        globalThis.clearInterval(interval);
-      }
-    }, 300);
-    return () => {
-      globalThis.clearInterval(interval);
-      for (const timer of restoreTimers) {
-        globalThis.clearTimeout(timer);
-      }
-      const scroller = root.querySelector<HTMLElement>(".overflow-y-auto");
-      if (scroller) {
-        scroller.style.opacity = "";
-      }
-    };
-  }, [hasInitialContent, viewerKey]);
+  useCodeViewPaintNudge(rootRef, hasInitialContent, viewerKey);
 
   // Active-file tracking: report the topmost rendered item on scroll (rAF-debounced).
   const activeFileRafRef = useRef(0);
