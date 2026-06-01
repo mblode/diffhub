@@ -4,8 +4,11 @@
 @plugin "@tailwindcss/typography";
 
 /* Scan the shared diff-viewer package so its utility classes (sidebar, chrome,
- * button variants) are generated — Tailwind skips node_modules by default. */
-@source "../../../packages/diff-core/src";
+ * button variants) are generated — Tailwind skips node_modules by default.
+ * Use an explicit glob: Turbopack dev does not auto-expand the bare-directory
+ * form, so package-only utilities (toolbar h-[52px], switch w-9, etc.) would
+ * otherwise never generate in `next dev`. */
+@source "../../../packages/diff-core/src/**/*.{ts,tsx}";
 
 @theme inline {
   --color-background: var(--background);

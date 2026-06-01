@@ -2,9 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Scan the shared diff-viewer package so its utility classes (sidebar, chrome,
- * button variants) are generated — Tailwind skips node_modules by default. */
-@source "../../../packages/diff-core/src";
+/* Scan the shared diff-viewer package so its utility classes (toolbar, switches,
+ * file list, etc.) are generated — Tailwind skips node_modules by default, and
+ * the chrome components live in the sibling @diffhub/diff-core package. */
+@source "../../../packages/diff-core/src/**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
 
