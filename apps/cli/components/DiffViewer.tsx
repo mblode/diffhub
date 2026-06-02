@@ -442,6 +442,14 @@ export interface DiffViewerHandle {
   scrollToFile: (file: string) => void;
 }
 
+// Minimal view of the CodeView instance handed to the onScroll listener, used to
+// resolve the active file from the viewer's own scroll coordinates.
+interface ActiveFileViewer {
+  getRenderedItems?: () => { id: string }[];
+  getTopForItem: (id: string) => number | undefined;
+  getScrollTop: () => number;
+}
+
 interface DiffViewerProps {
   // Streaming load inputs.
   reloadKey: string;
@@ -729,10 +737,16 @@ const DiffViewerInner = (
     [],
   );
 
-  // Active-file tracking: on scroll, read the topmost rendered item from the
-  // CodeView instance and report it up (rAF-debounced).
+  // Active-file tracking: on scroll, find the file section that contains the top
+  // of the viewport and report it up (rAF-debounced so geometry is read once per
+  // frame). `getRenderedItems()` carries no geometry and its array order lists
+  // the file scrolled partially *above* the viewport first — the old code read a
+  // non-existent `top` field and so always returned that file (the one above the
+  // one you scrolled to). Instead, use the viewer's own coordinates: the active
+  // file is the item with the greatest content-top still at/above the scroll
+  // position (i.e. the section the viewport top currently sits inside).
   const activeFileRafRef = useRef(0);
-  const pendingActiveFileRef = useRef<string | null>(null);
+  const pendingViewerRef = useRef<ActiveFileViewer | null>(null);
   const onActiveFileChangeRef = useRef(onActiveFileChange);
   useEffect(() => {
     onActiveFileChangeRef.current = onActiveFileChange;
@@ -749,34 +763,33 @@ const DiffViewerInner = (
   );
 
   const handleScroll = useCallback((_scrollTop: number, viewer: unknown) => {
-    const instance = viewer as
-      | { getRenderedItems?: () => { id: string; top?: number }[] }
-      | undefined;
-    const rendered = instance?.getRenderedItems?.();
-    if (!rendered || rendered.length === 0) {
-      return;
-    }
-
-    // Topmost rendered item is the active file.
-    const [firstItem] = rendered;
-    let topItem = firstItem;
-    for (const item of rendered) {
-      if ((item.top ?? 0) < (topItem.top ?? 0)) {
-        topItem = item;
-      }
-    }
-    pendingActiveFileRef.current = topItem.id;
-
+    pendingViewerRef.current = viewer as ActiveFileViewer | null;
     if (activeFileRafRef.current !== 0) {
       return;
     }
     activeFileRafRef.current = requestAnimationFrame(() => {
       activeFileRafRef.current = 0;
-      const file = pendingActiveFileRef.current;
-      pendingActiveFileRef.current = null;
-      if (file) {
-        onActiveFileChangeRef.current(file);
+      const instance = pendingViewerRef.current;
+      pendingViewerRef.current = null;
+      const rendered = instance?.getRenderedItems?.();
+      if (!instance || !rendered || rendered.length === 0) {
+        return;
       }
+
+      // `+ 1` px absorbs sub-pixel landing when scrollTo() snaps a file to the top.
+      const reference = instance.getScrollTop() + 1;
+      let activeId: string | null = null;
+      let activeTop = Number.NEGATIVE_INFINITY;
+      for (const { id } of rendered) {
+        const top = instance.getTopForItem(id);
+        if (top !== undefined && top <= reference && top > activeTop) {
+          activeTop = top;
+          activeId = id;
+        }
+      }
+      // Above the first file's top (e.g. scrolled to the very top): fall back to
+      // the first rendered item.
+      onActiveFileChangeRef.current(activeId ?? rendered[0].id);
     });
   }, []);
 

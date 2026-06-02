@@ -59,6 +59,14 @@ export interface ReadOnlyDiffViewHandle {
   expandAll: () => void;
 }
 
+// Minimal view of the CodeView instance handed to the onScroll listener, used to
+// resolve the active file from the viewer's own scroll coordinates.
+interface ActiveFileViewer {
+  getRenderedItems?: () => { id: string }[];
+  getTopForItem: (id: string) => number | undefined;
+  getScrollTop: () => number;
+}
+
 interface ReadOnlyDiffViewProps {
   // Full endpoint (path + query) that returns the raw unified patch (text/plain).
   endpoint: string;
@@ -349,35 +357,38 @@ const ReadOnlyDiffViewInner = (
   const hasInitialContent = isWorkerReady && (loadState === "ready" || initialItems.length > 0);
   useCodeViewPaintNudge(rootRef, hasInitialContent, viewerKey);
 
-  // Active-file tracking: report the topmost rendered item on scroll (rAF-debounced).
+  // Active-file tracking: find the file section that contains the top of the
+  // viewport (rAF-debounced). `getRenderedItems()` carries no geometry and lists
+  // the file scrolled partially above the viewport first, so use the viewer's own
+  // coordinates — the active file is the item with the greatest content-top still
+  // at/above the scroll position (the section the viewport top sits inside).
   const activeFileRafRef = useRef(0);
-  const pendingActiveFileRef = useRef<string | null>(null);
+  const pendingViewerRef = useRef<ActiveFileViewer | null>(null);
   const handleScroll = useCallback((_scrollTop: number, viewer: unknown) => {
-    const instance = viewer as
-      | { getRenderedItems?: () => { id: string; top?: number }[] }
-      | undefined;
-    const rendered = instance?.getRenderedItems?.();
-    if (!rendered || rendered.length === 0) {
-      return;
-    }
-    const [firstItem] = rendered;
-    let topItem = firstItem;
-    for (const item of rendered) {
-      if ((item.top ?? 0) < (topItem.top ?? 0)) {
-        topItem = item;
-      }
-    }
-    pendingActiveFileRef.current = topItem.id;
+    pendingViewerRef.current = viewer as ActiveFileViewer | null;
     if (activeFileRafRef.current !== 0) {
       return;
     }
     activeFileRafRef.current = requestAnimationFrame(() => {
       activeFileRafRef.current = 0;
-      const file = pendingActiveFileRef.current;
-      pendingActiveFileRef.current = null;
-      if (file) {
-        onActiveFileChangeRef.current?.(file);
+      const instance = pendingViewerRef.current;
+      pendingViewerRef.current = null;
+      const rendered = instance?.getRenderedItems?.();
+      if (!instance || !rendered || rendered.length === 0) {
+        return;
       }
+      // `+ 1` px absorbs sub-pixel landing when scrollTo() snaps a file to the top.
+      const reference = instance.getScrollTop() + 1;
+      let activeId: string | null = null;
+      let activeTop = Number.NEGATIVE_INFINITY;
+      for (const { id } of rendered) {
+        const top = instance.getTopForItem(id);
+        if (top !== undefined && top <= reference && top > activeTop) {
+          activeTop = top;
+          activeId = id;
+        }
+      }
+      onActiveFileChangeRef.current?.(activeId ?? rendered[0].id);
     });
   }, []);
 
