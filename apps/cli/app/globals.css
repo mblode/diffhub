@@ -223,18 +223,35 @@
   are needed here.
 */
 
-/* ── Safari per-file scrollbar ──────────────────────────────────────────── */
+/* ── Safari diff scrollbar ──────────────────────────────────────────────── */
 /*
-  Inside @pierre/diffs' Shadow DOM the per-file horizontal scroller ([data-code])
-  draws a 6px scrollbar at the bottom, and the line-number gutter ([data-gutter])
-  is position:relative; z-index:3 with an opaque background. WebKit paints
-  ::-webkit-scrollbar BELOW positioned descendants, so the scrollbar's left
-  portion renders *behind* the gutter — it looks like the scrollbar is hidden
-  behind the diff content. The scrollbar lives in Shadow DOM (global CSS can't
-  reach it), but its size is driven by an inheritable custom property that
-  crosses the shadow boundary. Collapse the per-file scrollbar so the broken
-  artifact is gone; horizontal scrolling still works via trackpad/shift-scroll.
+  The diff's vertical scroll container (#diff-container .overflow-y-auto) uses a
+  native macOS OVERLAY scrollbar by default. @pierre/diffs renders the diff with
+  z-indexed stacking contexts inside ([data-gutter] z-index:3, annotations
+  z-index:2), and WebKit paints that composited content ABOVE the overlay
+  scrollbar layer — so in Safari the vertical scrollbar renders behind the diff
+  content. Styling ::-webkit-scrollbar forces WebKit to use a LEGACY scrollbar
+  that lives in reserved layout space the content can't overlap. A static
+  scrollbar is also friendlier to CodeView's Safari scroll-anchoring than an
+  appearing/disappearing overlay one. (Chrome composites the overlay scrollbar
+  on top, so it was never affected — but the styled thumb applies there too.)
 */
-#diff-container {
-  --diffs-scrollbar-gutter-override: 0px;
+#diff-container .overflow-y-auto {
+  scrollbar-gutter: stable;
+}
+#diff-container .overflow-y-auto::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+#diff-container .overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+#diff-container .overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  background-clip: content-box;
+  border: 3px solid transparent;
+  border-radius: 6px;
+}
+#diff-container .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
 }
