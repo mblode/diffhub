@@ -541,7 +541,8 @@ describe("DiffApp review flow", () => {
     });
   });
 
-  it("refetches files and diff when the watch stream reports a change", async () => {
+  it("flags updates available on a watch-stream change and refreshes on demand", async () => {
+    const user = userEvent.setup();
     let version = 1;
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -585,23 +586,31 @@ describe("DiffApp review flow", () => {
       expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     });
     FakeEventSource.instances[0]?.emitReady();
-    await screen.findByRole("button", { name: /Live.*force refresh diff/i });
+    await screen.findByRole("button", { name: /Up to date.*force refresh diff/i });
 
+    // A change on disk raises the indicator but must NOT refresh the view.
     version = 2;
+    const diffCallsBeforeChange = countFetchCalls(fetchMock, "/api/diff");
     FakeEventSource.instances[0]?.emitChange();
 
+    await screen.findByRole("button", { name: /Updates available.*force refresh diff/i });
+    expect(screen.queryByText(/watched/)).toBeNull();
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(diffCallsBeforeChange);
+
+    // Manual refresh pulls in the new diff and clears the indicator.
+    await user.click(screen.getByRole("button", { name: /force refresh diff/i }));
+
     await screen.findByText(/watched/);
-    await screen.findByRole("button", { name: /Updated just now.*force refresh diff/i });
-    expect(countFetchCalls(fetchMock, "/api/files")).toBeGreaterThanOrEqual(2);
-    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
-    expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(2);
+    await screen.findByRole("button", { name: /Up to date.*force refresh diff/i });
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThan(diffCallsBeforeChange);
     expect(FakeEventSource.instances[0]?.url).toBe("/api/watch");
 
     unmount();
     expect(FakeEventSource.instances[0]?.close).toHaveBeenCalledOnce();
   });
 
-  it("supports a polling fallback without opening EventSource", async () => {
+  it("flags updates available via polling without opening EventSource", async () => {
+    const user = userEvent.setup();
     let version = 1;
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -642,19 +651,26 @@ describe("DiffApp review flow", () => {
 
     await screen.findByText("feature/diff-review");
     await waitFor(() => {
-      expect(countFetchCalls(fetchMock, "/api/diff")).toBeGreaterThanOrEqual(1);
+      expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     });
-    await screen.findByRole("button", { name: /Live.*force refresh diff/i });
+    await screen.findByRole("button", { name: /Up to date.*force refresh diff/i });
 
+    // Polling notices the change and raises the indicator without re-streaming.
     version = 2;
-
-    await screen.findByText(/polled/);
-    await screen.findByRole("button", { name: /Updated just now.*force refresh diff/i });
+    await screen.findByRole("button", { name: /Updates available.*force refresh diff/i });
     expect(FakeEventSource.instances).toHaveLength(0);
+    expect(screen.queryByText(/polled/)).toBeNull();
+    expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),
     ).toBeTruthy();
-    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(1);
+
+    // Manual refresh applies the pending change.
+    await user.click(screen.getByRole("button", { name: /force refresh diff/i }));
+
+    await screen.findByText(/polled/);
+    await screen.findByRole("button", { name: /Up to date.*force refresh diff/i });
+    expect(countFetchCalls(fetchMock, "/api/comments")).toBe(2);
 
     unmount();
   });
