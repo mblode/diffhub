@@ -104,16 +104,24 @@ const FileTreeBody = ({
 
   const search = useFileTreeSearch(model);
 
-  // Push a fresh path set + git status whenever the diff's files change.
-  const isFirstSync = useRef(true);
+  // Rebuilding the tree (`resetPaths`) clears its DOM and visibly flashes, so do
+  // it only when the *set* of files actually changes — not on every re-fetch
+  // that merely changed line counts. Status/decoration changes are applied
+  // incrementally via `setGitStatus` below, which doesn't flash.
+  const pathsKey = useMemo(() => paths.join("\n"), [paths]);
+  const prevPathsKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (isFirstSync.current) {
-      isFirstSync.current = false;
+    if (prevPathsKeyRef.current === null) {
+      prevPathsKeyRef.current = pathsKey;
       return;
     }
+    if (prevPathsKeyRef.current === pathsKey) {
+      return;
+    }
+    prevPathsKeyRef.current = pathsKey;
     model.resetPaths(paths);
     model.setGitStatus(gitStatus);
-  }, [model, paths, gitStatus]);
+  }, [model, paths, pathsKey, gitStatus]);
 
   // Comments aren't part of the tree input; re-applying git status nudges the
   // virtualizer to re-render visible rows so comment decorations update live.

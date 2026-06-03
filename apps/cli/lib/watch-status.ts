@@ -1,55 +1,45 @@
-export type WatchStatus = "connecting" | "live" | "offline" | "updated";
+export type WatchHealth = "connecting" | "live" | "offline";
 
-export interface WatchStatusMeta {
-  /** Chip styling (border + bg + text) used by the StatusBar pill. */
-  className: string;
-  /** Solid background colour for the System Monitor status dot. */
+export interface RefreshStatusMeta {
+  /** Solid background colour for the status-bar refresh dot. */
   dotClassName: string;
   label: string;
 }
 
 /**
- * Shared mapping from watch state → display metadata. The StatusBar renders
- * `dotClassName` as a status dot and surfaces `label` via the refresh button's
- * tooltip/aria-label. `updating` (a manual or change-triggered refresh in
- * flight) takes precedence over the base state.
+ * Display metadata for the status-bar refresh control. The diff never refreshes
+ * on its own — a background detector only watches for changes and raises
+ * `updatesAvailable` so the user knows a manual refresh would pull in new
+ * changes. The StatusBar renders `dotClassName` as a status dot and surfaces
+ * `label` via the refresh button's tooltip/aria-label.
  */
-export const getWatchStatusMeta = (status: WatchStatus, updating: boolean): WatchStatusMeta => {
-  if (updating) {
+export const getRefreshStatusMeta = (
+  updatesAvailable: boolean,
+  watchHealth: WatchHealth,
+): RefreshStatusMeta => {
+  if (updatesAvailable) {
     return {
-      className: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
-      dotClassName: "bg-blue-500",
-      label: "Updating…",
+      dotClassName: "bg-blue-500 animate-pulse",
+      label: "Updates available",
     };
   }
 
-  if (status === "updated") {
+  if (watchHealth === "offline") {
     return {
-      className: "border-diff-green/30 bg-diff-green/10 text-diff-green",
-      dotClassName: "bg-diff-green",
-      label: "Updated just now",
-    };
-  }
-
-  if (status === "offline") {
-    return {
-      className: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
       dotClassName: "bg-amber-500",
-      label: "Watch offline",
+      label: "Change detection offline",
     };
   }
 
-  if (status === "connecting") {
+  if (watchHealth === "connecting") {
     return {
-      className: "border-border bg-muted/40 text-muted-foreground",
       dotClassName: "bg-muted-foreground",
       label: "Connecting…",
     };
   }
 
   return {
-    className: "border-border bg-muted/40 text-muted-foreground",
     dotClassName: "bg-diff-green",
-    label: "Live",
+    label: "Up to date",
   };
 };
