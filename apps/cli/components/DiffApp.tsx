@@ -12,8 +12,8 @@ import { toCommentSide } from "@/lib/comment-sides";
 import type { Comment, CommentTag } from "@/lib/comment-types";
 import { exportCommentsAsPrompt } from "@/lib/export-comments";
 import { useLocalStorage } from "@/lib/use-local-storage";
-import { getWatchStatusMeta } from "@/lib/watch-status";
-import type { WatchStatus } from "@/lib/watch-status";
+import { getRefreshStatusMeta } from "@/lib/watch-status";
+import type { WatchHealth } from "@/lib/watch-status";
 import { WATCH_STREAM_EVENTS } from "@/lib/watch-stream";
 import type { DisplaySettings, DiffThemeSelection } from "@diffhub/diff-core";
 import {
@@ -284,8 +284,14 @@ export const DiffApp = ({
     [setStatsPanel],
   );
   const [refreshing, setRefreshing] = useState(false);
-  const [watchStatus, setWatchStatus] = useState<WatchStatus>("connecting");
-  const watchStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Connection health of the background change-detector (it never refreshes the
+  // diff itself — see `checkForUpdates`).
+  const [watchStatus, setWatchStatus] = useState<WatchHealth>("connecting");
+  // Set when the background detector notices the diff changed on disk; cleared
+  // by a manual refresh. Drives the status-bar "updates available" indicator.
+  const [updatesAvailable, setUpdatesAvailable] = useState(false);
+  const updatesAvailableRef = useRef(false);
+  const checkingRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diffMode, setDiffMode] = useLocalStorage<DiffMode>(
     "diffhub-diffMode",
@@ -469,6 +475,10 @@ export const DiffApp = ({
       }
 
       const nextFilesData = (await filesResponse.json()) as FilesData;
+      // The view is about to reflect the latest diff, so any pending
+      // "updates available" indicator is now resolved.
+      updatesAvailableRef.current = false;
+      setUpdatesAvailable(false);
       const shouldUpdateFiles = !areFilesDataEqual(filesDataRef.current, nextFilesData);
       const shouldUpdateComments =
         nextComments !== null && !areCommentsEqual(commentsRef.current, nextComments);
@@ -500,6 +510,45 @@ export const DiffApp = ({
     pollFilesRef.current = pollFiles;
   }, [pollFiles]);
 
+  // Background change-detector. Fetches the lightweight file-stats payload and,
+  // if the diff differs from what's on screen, raises the "updates available"
+  // flag WITHOUT touching the rendered diff — so the sidebar never flashes and
+  // the view only changes when the user manually refreshes.
+  const checkForUpdates = useCallback(async () => {
+    // No baseline yet (initial load in flight), a manual refresh is running, a
+    // check is already in flight, or the indicator is already raised.
+    if (
+      filesDataRef.current === null ||
+      fetchingRef.current ||
+      checkingRef.current ||
+      updatesAvailableRef.current
+    ) {
+      return;
+    }
+
+    checkingRef.current = true;
+    try {
+      const response = await fetch(`/api/files${buildFilesQuery({ forceRefresh: true })}`);
+      if (!response.ok) {
+        return;
+      }
+      const nextFilesData = (await response.json()) as FilesData;
+      if (!areFilesDataEqual(filesDataRef.current, nextFilesData)) {
+        updatesAvailableRef.current = true;
+        setUpdatesAvailable(true);
+      }
+    } catch (error) {
+      console.error("[diffhub] background update check failed", { error });
+    } finally {
+      checkingRef.current = false;
+    }
+  }, [buildFilesQuery]);
+
+  const checkForUpdatesRef = useRef(checkForUpdates);
+  useEffect(() => {
+    checkForUpdatesRef.current = checkForUpdates;
+  }, [checkForUpdates]);
+
   useEffect(() => {
     if (watchMode === "poll") {
       let active = true;
@@ -508,37 +557,12 @@ export const DiffApp = ({
         if (!active) {
           return;
         }
-
-        void (async () => {
-          const didUpdate = await pollFilesRef.current({
-            forceRefresh: true,
-            includeComments: false,
-          });
-          if (!active) {
-            return;
-          }
-          if (!didUpdate) {
-            return;
-          }
-          setWatchStatus("updated");
-          if (watchStatusTimerRef.current) {
-            clearTimeout(watchStatusTimerRef.current);
-          }
-          watchStatusTimerRef.current = setTimeout(() => {
-            if (active) {
-              setWatchStatus("live");
-            }
-          }, 2500);
-        })();
+        void checkForUpdatesRef.current();
       }, watchPollMs);
 
       return () => {
         active = false;
         clearInterval(interval);
-        if (watchStatusTimerRef.current) {
-          clearTimeout(watchStatusTimerRef.current);
-          watchStatusTimerRef.current = null;
-        }
       };
     }
 
@@ -550,38 +574,20 @@ export const DiffApp = ({
     let active = true;
     setWatchStatus("connecting");
     const source = new EventSource("/api/watch");
-    const clearWatchStatusTimer = () => {
-      if (watchStatusTimerRef.current) {
-        clearTimeout(watchStatusTimerRef.current);
-        watchStatusTimerRef.current = null;
-      }
-    };
     const handleReady = () => {
-      clearWatchStatusTimer();
       setWatchStatus("live");
     };
     const handleChange = () => {
-      clearWatchStatusTimer();
-      void (async () => {
-        await pollFilesRef.current({ forceRefresh: true, includeComments: false });
-        if (!active) {
-          return;
-        }
-        setWatchStatus("updated");
-        watchStatusTimerRef.current = setTimeout(() => {
-          if (active) {
-            setWatchStatus("live");
-          }
-        }, 2500);
-      })();
+      if (!active) {
+        return;
+      }
+      void checkForUpdatesRef.current();
     };
     const handleWatchError = (event: Event) => {
       console.error("[diffhub] file watch stream reported an error", { event });
-      clearWatchStatusTimer();
       setWatchStatus("offline");
     };
     const handleStreamError = () => {
-      clearWatchStatusTimer();
       setWatchStatus("offline");
     };
 
@@ -592,7 +598,6 @@ export const DiffApp = ({
 
     return () => {
       active = false;
-      clearWatchStatusTimer();
       source.removeEventListener(WATCH_STREAM_EVENTS.READY, handleReady);
       source.removeEventListener(WATCH_STREAM_EVENTS.CHANGE, handleChange);
       source.removeEventListener(WATCH_STREAM_EVENTS.ERROR, handleWatchError);
@@ -892,7 +897,7 @@ export const DiffApp = ({
             baseBranch={filesData?.baseBranch ?? "main"}
             refreshing={refreshing}
             onRefresh={handleManualRefresh}
-            watch={getWatchStatusMeta(watchStatus, refreshing)}
+            watch={getRefreshStatusMeta(updatesAvailable, watchStatus)}
             commentCount={comments.length}
             onCopyComments={handleCopyComments}
             diffMode={diffMode}
