@@ -222,3 +222,19 @@
   reach them. The library provides its own expand-button styling. No overrides
   are needed here.
 */
+
+/* ── Safari per-file scrollbar ──────────────────────────────────────────── */
+/*
+  Inside @pierre/diffs' Shadow DOM the per-file horizontal scroller ([data-code])
+  draws a 6px scrollbar at the bottom, and the line-number gutter ([data-gutter])
+  is position:relative; z-index:3 with an opaque background. WebKit paints
+  ::-webkit-scrollbar BELOW positioned descendants, so the scrollbar's left
+  portion renders *behind* the gutter — it looks like the scrollbar is hidden
+  behind the diff content. The scrollbar lives in Shadow DOM (global CSS can't
+  reach it), but its size is driven by an inheritable custom property that
+  crosses the shadow boundary. Collapse the per-file scrollbar so the broken
+  artifact is gone; horizontal scrolling still works via trackpad/shift-scroll.
+*/
+#diff-container {
+  --diffs-scrollbar-gutter-override: 0px;
+}

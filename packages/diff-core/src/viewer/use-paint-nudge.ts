@@ -3,6 +3,17 @@
 import { useEffect } from "react";
 import type { RefObject } from "react";
 
+// The blank-first-paint compositing skip this hook works around is a Chrome
+// (Blink) quirk. In WebKit (Safari) the same `opacity` flick is actively
+// harmful: dropping opacity below 1 promotes the scroll subtree to its own
+// compositing layer and restoring it demotes it, so every tick forces a full
+// re-rasterization of the diff grid — a constant visible flicker. Safari paints
+// the grid correctly on its own, so the nudge is skipped there entirely.
+const isWebKit =
+  typeof navigator !== "undefined" &&
+  /AppleWebKit/.test(navigator.userAgent) &&
+  !/Chrome|Chromium|Edg/.test(navigator.userAgent);
+
 /**
  * Force CodeView's first window to composite/paint.
  *
@@ -26,7 +37,7 @@ export const useCodeViewPaintNudge = (
   resetKey: unknown = 0,
 ): void => {
   useEffect(() => {
-    if (!active) {
+    if (!active || isWebKit) {
       return;
     }
     const container = root.current;
