@@ -80,6 +80,9 @@ const FileTreeBody = ({
       set: "standard",
       spriteSheet: CHEVRON_SPRITE,
     },
+    // Show every folder expanded on load so all changed files are visible
+    // without manual drilling.
+    initialExpansion: "open",
     initialSelectedPaths: selectedFile ? [selectedFile] : [],
     onSelectionChange: (selectedPaths) => {
       const [file] = selectedPaths;
