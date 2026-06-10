@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
+[![Bun 1.0.23+](https://img.shields.io/badge/bun-1.0.23+-green)](https://bun.sh)
 
 Local diff viewer for cmux.
 
@@ -105,7 +106,7 @@ diffhub --no-open
 
 ## Requirements
 
-- Node.js 20.11+
+- Node.js 20.11+ or Bun 1.0.23+
 - A git repository with at least one commit on your current branch
 - For `cmux` mode, `cmux.app` installed on macOS
 

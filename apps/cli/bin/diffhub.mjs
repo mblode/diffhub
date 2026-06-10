@@ -26,20 +26,38 @@ const __dirname = import.meta.dirname;
 const __filename = import.meta.filename;
 const PREFERRED_BASE_BRANCHES = ["main", "master", "develop", "dev"];
 
-// Fast-fail on unsupported Node.js versions
-const [nodeMajor, nodeMinor] = process.versions.node
-  .split(".")
-  .slice(0, 2)
-  .map((value) => Number.parseInt(value, 10));
-const isSupportedNode =
-  Number.isFinite(nodeMajor) &&
-  Number.isFinite(nodeMinor) &&
-  (nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 11));
+// Fast-fail on unsupported runtimes. Both floors are set by the same feature:
+// import.meta.dirname/filename (used below) landed in Node 20.11 and Bun 1.0.23.
+if (process.versions.bun) {
+  const [bunMajor, bunMinor, bunPatch] = process.versions.bun
+    .split(".")
+    .map((value) => Number.parseInt(value, 10));
+  const isSupportedBun =
+    Number.isFinite(bunMajor) &&
+    (bunMajor > 1 ||
+      (bunMajor === 1 &&
+        (bunMinor > 0 || (bunMinor === 0 && bunPatch >= 23))));
 
-if (!isSupportedNode) {
-  process.stderr.write(`❌ diffhub requires Node.js 20.11+. You have ${process.version}.\n`);
-  process.stderr.write(`   Download: https://nodejs.org\n`);
-  process.exit(1);
+  if (!isSupportedBun) {
+    process.stderr.write(`❌ diffhub requires Bun 1.0.23+. You have ${process.versions.bun}.\n`);
+    process.stderr.write(`   Upgrade: bun upgrade\n`);
+    process.exit(1);
+  }
+} else {
+  const [nodeMajor, nodeMinor] = process.versions.node
+    .split(".")
+    .slice(0, 2)
+    .map((value) => Number.parseInt(value, 10));
+  const isSupportedNode =
+    Number.isFinite(nodeMajor) &&
+    Number.isFinite(nodeMinor) &&
+    (nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 11));
+
+  if (!isSupportedNode) {
+    process.stderr.write(`❌ diffhub requires Node.js 20.11+ or Bun 1.0.23+. You have ${process.version}.\n`);
+    process.stderr.write(`   Download: https://nodejs.org or https://bun.sh\n`);
+    process.exit(1);
+  }
 }
 
 // -- Port utilities ----------------------------------------------------------
@@ -1008,7 +1026,9 @@ const startServer = (repoPath, baseBranch, port, options = {}) => {
     delete serverEnv.DIFFHUB_DISABLE_WATCH;
   }
 
-  const server = spawn("node", ["server.js"], {
+  // Use whatever runtime launched this CLI (node or bun) instead of a
+  // hardcoded "node" — so a bun-only machine can spawn the server too.
+  const server = spawn(process.execPath, ["server.js"], {
     cwd: standaloneDir,
     detached,
     env: serverEnv,
