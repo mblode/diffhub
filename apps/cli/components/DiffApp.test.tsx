@@ -662,7 +662,10 @@ describe("DiffApp review flow", () => {
     expect(screen.queryByText(/polled/)).toBeNull();
     expect(countFetchCalls(fetchMock, "/api/diff")).toBe(1);
     expect(
-      fetchMock.mock.calls.some(([input]) => String(input).startsWith("/api/files?refresh=1")),
+      fetchMock.mock.calls.some(([input]) => {
+        const url = String(input);
+        return url.startsWith("/api/files?") && url.includes("refresh=1");
+      }),
     ).toBeTruthy();
 
     // Manual refresh applies the pending change.

@@ -91,7 +91,7 @@ interface PlaceholderProps {
 
 const CMUX_WATCH_POLL_MS = 2000;
 const LAYOUT_OPTIONS = ["split", "stacked"] as const;
-const DIFF_MODE_OPTIONS = ["all", "uncommitted"] as const;
+const DIFF_MODE_OPTIONS = ["all", "committed", "staged", "unstaged", "touched"] as const;
 const PANEL_OPTIONS = ["open", "closed"] as const;
 type PanelState = (typeof PANEL_OPTIONS)[number];
 type WatchMode = "poll" | "stream";
@@ -295,7 +295,7 @@ export const DiffApp = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [diffMode, setDiffMode] = useLocalStorage<DiffMode>(
     "diffhub-diffMode",
-    "all",
+    "touched",
     DIFF_MODE_OPTIONS,
   );
   const diffModeRef = useRef<DiffMode>(diffMode);
@@ -385,9 +385,7 @@ export const DiffApp = ({
 
   const buildFilesQuery = useCallback((options: { forceRefresh?: boolean } = {}) => {
     const params = new URLSearchParams();
-    if (diffModeRef.current === "uncommitted") {
-      params.set("mode", "uncommitted");
-    }
+    params.set("mode", diffModeRef.current);
     if (options.forceRefresh) {
       params.set("refresh", "1");
     }

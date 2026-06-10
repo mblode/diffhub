@@ -1,10 +1,9 @@
 import type { NextRequest } from "next/server";
-import { streamDiffPatch } from "@/lib/git";
+import { parseDiffScope, streamDiffPatch } from "@/lib/git";
 
 // git / child_process require the Node.js runtime.
 export const runtime = "nodejs";
 
-type DiffMode = "uncommitted" | undefined;
 type WhitespaceMode = "ignore" | undefined;
 
 const CACHE_CONTROL = "no-store";
@@ -32,16 +31,17 @@ const createTextResponse = (
 // render files as bytes arrive instead of waiting for the full patch.
 //
 // Query params:
-//   - mode=uncommitted  → diff the working tree against HEAD
-//                         (default: merge-base against the base branch)
-//   - ws=ignore         → pass `-w` to git diff (ignore whitespace changes)
+//   - mode=<scope>  → all | committed | staged | unstaged | touched
+//                     (default: the server default scope when omitted)
+//   - ws=ignore     → pass `-w` to git diff (ignore whitespace changes)
 export const GET = async (request: NextRequest): Promise<Response> => {
   const { searchParams } = request.nextUrl;
   const base = searchParams.get("base") ?? undefined;
   const rawMode = searchParams.get("mode");
   const rawWs = searchParams.get("ws");
 
-  if (rawMode !== null && rawMode !== "all" && rawMode !== "uncommitted") {
+  const scope = rawMode === null ? undefined : (parseDiffScope(rawMode) ?? "invalid");
+  if (scope === "invalid") {
     return createTextResponse(`Invalid mode parameter: ${rawMode}`, { status: 400 });
   }
 
@@ -49,13 +49,12 @@ export const GET = async (request: NextRequest): Promise<Response> => {
     return createTextResponse(`Invalid ws parameter: ${rawWs}`, { status: 400 });
   }
 
-  const mode: DiffMode = rawMode === "uncommitted" ? "uncommitted" : undefined;
   const whitespace: WhitespaceMode = rawWs === "ignore" ? "ignore" : undefined;
 
   try {
     const stream = await streamDiffPatch({
       base,
-      mode,
+      scope,
       signal: request.signal,
       whitespace,
     });
