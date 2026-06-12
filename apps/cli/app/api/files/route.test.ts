@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DiffScope } from "@/lib/git";
 
 interface DiffStatsPayload {
   baseBranch: string;
@@ -25,9 +26,13 @@ const gitMock = vi.hoisted(() => ({
   invalidateGitCache: vi.fn<() => void>(),
 }));
 
+const DIFF_SCOPES = new Set(["all", "committed", "staged", "unstaged", "touched"]);
+
 vi.mock(import("@/lib/git"), () => ({
   getDiffStats: gitMock.getDiffStats,
   invalidateGitCache: gitMock.invalidateGitCache,
+  parseDiffScope: (value: string | null | undefined): DiffScope | null =>
+    value !== null && value !== undefined && DIFF_SCOPES.has(value) ? (value as DiffScope) : null,
 }));
 
 describe("/api/files", () => {

@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 
-export type DiffMode = "all" | "uncommitted";
+export type DiffMode = "all" | "committed" | "staged" | "unstaged" | "touched";
 export type ThemeModeOption = "system" | "light" | "dark";
 
 export interface StatusBarSyncNotice {
@@ -51,10 +51,31 @@ export interface StatusBarSyncNotice {
   tone: "neutral" | "warning" | "destructive";
 }
 
-const DIFF_MODES: { value: DiffMode; label: string }[] = [
-  { label: "All", value: "all" },
-  { label: "Uncommitted changes", value: "uncommitted" },
+// Ordered narrowest-base → widest. "All" and "Touched" include untracked files;
+// the rest are tracked-only. See lib/git.ts `resolveDiff` for the git mappings.
+const DIFF_MODES: { value: DiffMode; label: string; description: string }[] = [
+  {
+    description: "Everything since the base branch, plus untracked files",
+    label: "All",
+    value: "all",
+  },
+  {
+    description: "Commits on this branch vs the base branch",
+    label: "Committed",
+    value: "committed",
+  },
+  { description: "Staged changes not yet committed", label: "Staged", value: "staged" },
+  { description: "Unstaged changes to tracked files", label: "Unstaged", value: "unstaged" },
+  { description: "All uncommitted work, plus untracked files", label: "Touched", value: "touched" },
 ];
+
+const DIFF_MODE_LABELS: Record<DiffMode, string> = {
+  all: "All",
+  committed: "Committed",
+  staged: "Staged",
+  touched: "Touched",
+  unstaged: "Unstaged",
+};
 
 const truncateMiddle = (str: string, maxLen = 24) => {
   if (str.length <= maxLen) {
@@ -493,7 +514,7 @@ export const StatusBar = ({
                   />
                 }
               >
-                {diffMode === "uncommitted" ? "Uncommitted" : "All"}
+                {diffMode ? DIFF_MODE_LABELS[diffMode] : "All"}
                 <ChevronDownIcon
                   size={10}
                   className="transition-transform duration-150 group-data-[popup-open]:rotate-180"
@@ -505,9 +526,12 @@ export const StatusBar = ({
                   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
                   onValueChange={(value) => onDiffModeChange(value as DiffMode)}
                 >
-                  {DIFF_MODES.map(({ value, label }) => (
+                  {DIFF_MODES.map(({ value, label, description }) => (
                     <DropdownMenuRadioItem key={value} value={value}>
-                      {label}
+                      <span className="flex flex-col">
+                        <span>{label}</span>
+                        <span className="text-muted-foreground text-xs">{description}</span>
+                      </span>
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

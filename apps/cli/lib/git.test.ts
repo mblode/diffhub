@@ -154,15 +154,31 @@ describe("streamDiffPatch", () => {
     }
   });
 
-  it("streams the raw uncommitted git patch", async () => {
+  it("streams the raw working-tree git patch", async () => {
     const repoPath = createRepo();
     process.env.DIFFHUB_REPO = repoPath;
     const { streamDiffPatch } = await loadGitModule();
 
-    const patch = await readStream(await streamDiffPatch({ mode: "uncommitted" }));
+    const patch = await readStream(await streamDiffPatch({ scope: "touched" }));
 
     expect(patch).toContain("diff --git a/notes.txt b/notes.txt");
     expect(patch).toContain("+after");
+  });
+
+  it("appends synthesized patches for untracked files in untracked-inclusive scopes", async () => {
+    const repoPath = createRepo();
+    writeFileSync(join(repoPath, "fresh.txt"), "brand new\n", "utf-8");
+    process.env.DIFFHUB_REPO = repoPath;
+    const { streamDiffPatch } = await loadGitModule();
+
+    const touched = await readStream(await streamDiffPatch({ scope: "touched" }));
+    expect(touched).toContain("diff --git a/fresh.txt b/fresh.txt");
+    expect(touched).toContain("new file mode");
+    expect(touched).toContain("+brand new");
+
+    // "unstaged" is tracked-only, so the untracked file must not appear.
+    const unstaged = await readStream(await streamDiffPatch({ scope: "unstaged" }));
+    expect(unstaged).not.toContain("fresh.txt");
   });
 
   it("drops whitespace-only changes when whitespace is 'ignore'", async () => {
@@ -174,11 +190,11 @@ describe("streamDiffPatch", () => {
     writeFileSync(join(repoPath, "notes.txt"), "before \nafter\n", "utf-8");
     const { streamDiffPatch } = await loadGitModule();
 
-    const withWhitespace = await readStream(await streamDiffPatch({ mode: "uncommitted" }));
+    const withWhitespace = await readStream(await streamDiffPatch({ scope: "touched" }));
     expect(withWhitespace).toContain("diff --git a/notes.txt b/notes.txt");
 
     const ignored = await readStream(
-      await streamDiffPatch({ mode: "uncommitted", whitespace: "ignore" }),
+      await streamDiffPatch({ scope: "touched", whitespace: "ignore" }),
     );
     expect(ignored).not.toContain("diff --git");
   });
@@ -192,7 +208,7 @@ describe("streamDiffPatch", () => {
     controller.abort();
 
     await expect(
-      streamDiffPatch({ mode: "uncommitted", signal: controller.signal }),
+      streamDiffPatch({ scope: "touched", signal: controller.signal }),
     ).rejects.toMatchObject({ name: "AbortError" });
   });
 });

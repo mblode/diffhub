@@ -55,12 +55,12 @@ const getSnapshotCachePrefix = (repoPath: string): string =>
 const getSnapshotCachePath = (
   repoPath: string,
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
 ): string => {
   const cacheKey = JSON.stringify({
     base: base ?? "",
-    mode: mode ?? "",
+    scope: scope ?? "",
     whitespace: whitespace ?? "",
   });
   const suffix = createHash("sha1").update(cacheKey).digest("hex");
@@ -134,7 +134,14 @@ const cached = async <T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 
 const getRepoPath = (): string => getConfiguredRepoPath();
 
-const runGitUnqueued = async (args: string[]): Promise<string> => {
+interface RunGitOptions {
+  // Exit codes (besides 0) to treat as success and resolve with stdout. Used by
+  // `git diff --no-index`, which exits 1 whenever the two inputs differ — the
+  // expected outcome when diffing an untracked file against /dev/null.
+  allowExitCodes?: number[];
+}
+
+const runGitUnqueued = async (args: string[], options: RunGitOptions = {}): Promise<string> => {
   const startedAt = Date.now();
   if (isDebugLogging) {
     console.info("[diffhub] git command start", { args });
@@ -190,7 +197,7 @@ const runGitUnqueued = async (args: string[]): Promise<string> => {
       child.on("close", (code) => {
         const stdoutText = Buffer.concat(stdoutChunks).toString("utf-8");
         const stderrText = Buffer.concat(stderrChunks).toString("utf-8").trim();
-        if (code === 0) {
+        if (code === 0 || (code !== null && options.allowExitCodes?.includes(code))) {
           finish(() => resolve(stdoutText));
           return;
         }
@@ -251,7 +258,7 @@ const runGitUnqueued = async (args: string[]): Promise<string> => {
   }
 };
 
-const runGit = async (args: string[]): Promise<string> => {
+const runGit = async (args: string[], options: RunGitOptions = {}): Promise<string> => {
   let releaseQueue!: VoidFunction;
   // oxlint-disable-next-line promise/avoid-new
   const gate = new Promise<void>((resolve) => {
@@ -263,7 +270,7 @@ const runGit = async (args: string[]): Promise<string> => {
   await previous;
 
   try {
-    return await runGitUnqueued(args);
+    return await runGitUnqueued(args, options);
   } finally {
     releaseQueue();
   }
@@ -410,6 +417,129 @@ type WhitespaceMode = "ignore";
 const addWhitespaceArgs = (args: string[], whitespace?: WhitespaceMode): string[] =>
   whitespace === "ignore" ? ["-w", ...args] : args;
 
+/**
+ * Diff scope selected in the StatusBar dropdown. Each value maps to a distinct
+ * `git diff` range (see {@link resolveDiff}); "all" and "touched" additionally
+ * fold in untracked files via {@link getUntrackedDiff}.
+ *
+ *   all       → merge-base(base, HEAD) vs working tree   (+ untracked)
+ *   committed → merge-base(base, HEAD) vs HEAD
+ *   staged    → HEAD vs index            (git diff --cached)
+ *   unstaged  → index vs working tree    (git diff)
+ *   touched   → HEAD vs working tree     (git diff HEAD, + untracked)
+ */
+export type DiffScope = "all" | "committed" | "staged" | "unstaged" | "touched";
+
+export const DIFF_SCOPES = ["all", "committed", "staged", "unstaged", "touched"] as const;
+
+// Validate a raw `?mode=` query value, returning null for unknown scopes so the
+// route can reply 400 instead of silently falling back.
+export const parseDiffScope = (value: string | null | undefined): DiffScope | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return (DIFF_SCOPES as readonly string[]).includes(value) ? (value as DiffScope) : null;
+};
+
+const DEFAULT_SCOPE: DiffScope = "touched";
+const SCOPES_WITH_UNTRACKED: ReadonlySet<DiffScope> = new Set<DiffScope>(["all", "touched"]);
+
+interface ResolvedDiff {
+  // Arguments appended after `git diff -M [-w]` to select the range.
+  range: string[];
+  includeUntracked: boolean;
+  baseBranch: string;
+  mergeBase: string;
+  branch: string;
+}
+
+// Translate a scope into the concrete git-diff range plus the branch metadata
+// the StatusBar surfaces. Only "all"/"committed" resolve a base branch; the
+// working-tree scopes have no meaningful base comparison, so they report HEAD.
+const WORKING_TREE_RANGES: Record<"staged" | "unstaged" | "touched", string[]> = {
+  staged: ["--cached"],
+  touched: ["HEAD"],
+  unstaged: [],
+};
+
+const resolveDiff = async (scope: DiffScope, base?: string): Promise<ResolvedDiff> => {
+  const branchRaw = await runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const branch = branchRaw.trim();
+  const includeUntracked = SCOPES_WITH_UNTRACKED.has(scope);
+
+  if (scope === "all" || scope === "committed") {
+    const baseBranch = base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch());
+    const mergeBase = await getMergeBase(baseBranch);
+    return {
+      baseBranch,
+      branch,
+      includeUntracked,
+      mergeBase,
+      range: scope === "committed" ? [mergeBase, "HEAD"] : [mergeBase],
+    };
+  }
+
+  return {
+    baseBranch: "HEAD",
+    branch,
+    includeUntracked,
+    mergeBase: "HEAD",
+    range: WORKING_TREE_RANGES[scope],
+  };
+};
+
+// `/dev/null` is the canonical "empty" side for synthesising a new-file patch.
+// Untracked files only run on macOS/Linux dev machines; git also accepts this
+// path on Windows.
+const NULL_DEVICE = "/dev/null";
+
+const listUntrackedFiles = async (): Promise<string[]> => {
+  const raw = await runGit(["ls-files", "--others", "--exclude-standard", "-z"]);
+  return raw.split("\0").filter(Boolean);
+};
+
+const buildUntrackedStat = (file: string, patch: string): DiffFileStat => {
+  if (/^Binary files /m.test(patch)) {
+    return { binary: true, changes: 0, deletions: 0, file, insertions: 0 };
+  }
+  let insertions = 0;
+  for (const line of patch.split("\n")) {
+    // Count added content lines; skip the "+++ b/file" header line.
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      insertions += 1;
+    }
+  }
+  return { binary: false, changes: insertions, deletions: 0, file, insertions };
+};
+
+interface UntrackedDiff {
+  files: DiffFileStat[];
+  patchByFile: Map<string, string>;
+}
+
+// Synthesise "new file" patches for untracked files by diffing each against
+// /dev/null. `--no-index` rewrites both header sides to the real path, so the
+// output slots into splitPatchByFile/the stream parser like any added file.
+const getUntrackedDiff = async (): Promise<UntrackedDiff> => {
+  const untrackedFiles = await listUntrackedFiles();
+  const patchByFile = new Map<string, string>();
+  const files: DiffFileStat[] = [];
+
+  for (const file of untrackedFiles) {
+    const patch = await runGit(["diff", "--no-index", "-M", "--", NULL_DEVICE, file], {
+      allowExitCodes: [1],
+    });
+    // Empty/identical files produce no diff (exit 0, empty stdout) — nothing to render.
+    if (!patch.trim()) {
+      continue;
+    }
+    patchByFile.set(file, patch.endsWith("\n") ? patch : `${patch}\n`);
+    files.push(buildUntrackedStat(file, patch));
+  }
+
+  return { files, patchByFile };
+};
+
 interface SnapshotMetadata {
   bootId: string;
   createdAt: number;
@@ -438,7 +568,7 @@ const createReviewKey = (patch: string): string => createHash("sha1").update(pat
 const readSnapshotFromDisk = (
   repoPath: string,
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
   expectedGeneration?: string,
 ): DiffSnapshot | null => {
@@ -446,7 +576,7 @@ const readSnapshotFromDisk = (
     return null;
   }
 
-  const snapshotPath = getSnapshotCachePath(repoPath, base, mode, whitespace);
+  const snapshotPath = getSnapshotCachePath(repoPath, base, scope, whitespace);
   try {
     const raw = readFileSync(snapshotPath, "utf-8");
     const snapshot = JSON.parse(raw) as SerializedDiffSnapshot;
@@ -492,14 +622,14 @@ const readSnapshotFromDisk = (
 const waitForSnapshotFromDisk = async (
   repoPath: string,
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
   expectedGeneration?: string,
 ): Promise<DiffSnapshot | null> => {
   const deadline = Date.now() + 1000;
 
   while (Date.now() < deadline) {
-    const snapshot = readSnapshotFromDisk(repoPath, base, mode, whitespace, expectedGeneration);
+    const snapshot = readSnapshotFromDisk(repoPath, base, scope, whitespace, expectedGeneration);
     if (snapshot) {
       return snapshot;
     }
@@ -516,7 +646,7 @@ const waitForSnapshotFromDisk = async (
 const writeSnapshotToDisk = (
   repoPath: string,
   base: string | undefined,
-  mode: "uncommitted" | undefined,
+  scope: DiffScope | undefined,
   whitespace: WhitespaceMode | undefined,
   snapshot: DiffSnapshot,
 ): void => {
@@ -529,7 +659,7 @@ const writeSnapshotToDisk = (
     patchByFile: Object.fromEntries(snapshot.patchByFile),
   };
   writeFileSync(
-    getSnapshotCachePath(repoPath, base, mode, whitespace),
+    getSnapshotCachePath(repoPath, base, scope, whitespace),
     JSON.stringify(serialized),
     "utf-8",
   );
@@ -544,12 +674,12 @@ const writeSnapshotToDisk = (
 
 const getDiffSnapshot = (
   base?: string,
-  mode?: "uncommitted",
+  scope: DiffScope = DEFAULT_SCOPE,
   whitespace?: WhitespaceMode,
   expectedGeneration?: string,
 ): Promise<DiffSnapshot> => {
   const repoPath = getRepoPath();
-  const cacheKey = `snapshot:${repoPath}:${base ?? ""}:${mode ?? ""}:${whitespace ?? ""}:${expectedGeneration ?? ""}`;
+  const cacheKey = `snapshot:${repoPath}:${base ?? ""}:${scope}:${whitespace ?? ""}:${expectedGeneration ?? ""}`;
   return cached(cacheKey, SNAPSHOT_TTL_MS, () => {
     const existing = inflight.get(cacheKey);
     if (existing) {
@@ -561,7 +691,7 @@ const getDiffSnapshot = (
         const diskSnapshot = readSnapshotFromDisk(
           repoPath,
           base,
-          mode,
+          scope,
           whitespace,
           expectedGeneration,
         );
@@ -573,7 +703,7 @@ const getDiffSnapshot = (
           const awaitedSnapshot = await waitForSnapshotFromDisk(
             repoPath,
             base,
-            mode,
+            scope,
             whitespace,
             expectedGeneration,
           );
@@ -582,50 +712,54 @@ const getDiffSnapshot = (
           }
           console.warn("[diffhub] external snapshot unavailable, recomputing inline", {
             expectedGeneration: expectedGeneration ?? null,
-            mode: mode ?? "all",
             repoPath,
+            scope,
             whitespace: whitespace ?? "default",
           });
         }
 
-        const branchRaw = await runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
-        const branch = branchRaw.trim();
-        const baseBranch =
-          mode === "uncommitted"
-            ? "HEAD"
-            : (base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch()));
-        const mergeBase = mode === "uncommitted" ? "HEAD" : await getMergeBase(baseBranch);
-        const diffArgs = addWhitespaceArgs([mergeBase], whitespace);
+        const resolved = await resolveDiff(scope, base);
+        const rangeArgs = addWhitespaceArgs(resolved.range, whitespace);
 
-        const [fullPatch, rawSummary] = await Promise.all([
-          runGit(["diff", ...diffArgs]),
-          runGit(["diff", "--numstat", "-z", "-M", ...diffArgs]),
+        const [trackedPatch, rawSummary, untracked] = await Promise.all([
+          runGit(["diff", "-M", ...rangeArgs]),
+          runGit(["diff", "--numstat", "-z", "-M", ...rangeArgs]),
+          resolved.includeUntracked
+            ? getUntrackedDiff()
+            : Promise.resolve<UntrackedDiff>({ files: [], patchByFile: new Map() }),
         ]);
+
+        const fullPatch = untracked.patchByFile.size
+          ? [trackedPatch, ...untracked.patchByFile.values()].join("")
+          : trackedPatch;
         const fingerprint = createHash("sha1").update(fullPatch).digest("hex");
         const summary = parseDiffStats(rawSummary);
+        const files = [...summary.files, ...untracked.files];
+        const insertions =
+          summary.insertions + untracked.files.reduce((total, file) => total + file.insertions, 0);
         const createdAt = Date.now();
         const generation = createSnapshotGeneration(
           gitRuntimeState.serverBootId,
           fingerprint,
-          mergeBase,
+          resolved.mergeBase,
         );
 
         const snapshot: DiffSnapshot = {
-          baseBranch,
-          branch,
+          baseBranch: resolved.baseBranch,
+          branch: resolved.branch,
           deletions: summary.deletions,
-          files: summary.files,
+          files,
           fingerprint,
           fullPatch,
           generation,
-          insertions: summary.insertions,
-          mergeBase,
+          insertions,
+          mergeBase: resolved.mergeBase,
           metadata: {
             bootId: gitRuntimeState.serverBootId,
             createdAt,
             repoPath,
           },
-          patchByFile: splitPatchByFile(fullPatch),
+          patchByFile: new Map([...splitPatchByFile(trackedPatch), ...untracked.patchByFile]),
         };
 
         if (isDebugLogging) {
@@ -635,7 +769,7 @@ const getDiffSnapshot = (
             source: "recomputed",
           });
         }
-        writeSnapshotToDisk(repoPath, base, mode, whitespace, snapshot);
+        writeSnapshotToDisk(repoPath, base, scope, whitespace, snapshot);
         return snapshot;
       } finally {
         inflight.delete(cacheKey);
@@ -649,7 +783,7 @@ const getDiffSnapshot = (
 
 interface StreamDiffPatchOptions {
   base?: string;
-  mode?: "uncommitted";
+  scope?: DiffScope;
   whitespace?: WhitespaceMode;
   signal?: AbortSignal;
 }
@@ -667,18 +801,24 @@ interface StreamDiffPatchOptions {
 export const streamDiffPatch = async (
   options: StreamDiffPatchOptions = {},
 ): Promise<ReadableStream<Uint8Array>> => {
-  const { base, mode, whitespace, signal } = options;
+  const { base, scope = DEFAULT_SCOPE, whitespace, signal } = options;
 
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
 
   const repoPath = getRepoPath();
-  const baseBranch =
-    mode === "uncommitted" ? "HEAD" : (base ?? process.env.DIFFHUB_BASE ?? (await getBaseBranch()));
-  const mergeBase = mode === "uncommitted" ? "HEAD" : await getMergeBase(baseBranch);
-  const diffArgs = addWhitespaceArgs([mergeBase], whitespace);
-  const args = ["diff", "-M", ...diffArgs];
+  const resolved = await resolveDiff(scope, base);
+  const args = ["diff", "-M", ...addWhitespaceArgs(resolved.range, whitespace)];
+
+  // Untracked files have no git object to stream, so synthesise their patches up
+  // front and flush them after the tracked diff closes. They're typically few
+  // and small relative to the tracked diff, so buffering them is fine.
+  let untrackedBytes: Uint8Array | null = null;
+  if (resolved.includeUntracked) {
+    const untracked = await getUntrackedDiff();
+    untrackedBytes = new TextEncoder().encode([...untracked.patchByFile.values()].join(""));
+  }
 
   if (isDebugLogging) {
     console.info("[diffhub] git stream start", { args });
@@ -759,6 +899,9 @@ export const streamDiffPatch = async (
         settled = true;
         cleanup();
         if (code === 0) {
+          if (untrackedBytes?.length) {
+            controller.enqueue(untrackedBytes);
+          }
           controller.close();
           return;
         }
@@ -776,11 +919,11 @@ export const streamDiffPatch = async (
 export const getDiffForFile = async (
   file: string,
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
   expectedGeneration?: string,
 ): Promise<DiffResult> => {
-  const snapshot = await getDiffSnapshot(base, mode, whitespace, expectedGeneration);
+  const snapshot = await getDiffSnapshot(base, scope, whitespace, expectedGeneration);
   const patch = snapshot.patchByFile.get(file) ?? "";
   return {
     baseBranch: snapshot.baseBranch,
@@ -801,11 +944,11 @@ interface MultiFileDiffResult extends DiffStatsResult {
 
 export const getMultiFileDiff = async (
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
   expectedGeneration?: string,
 ): Promise<MultiFileDiffResult> => {
-  const snapshot = await getDiffSnapshot(base, mode, whitespace, expectedGeneration);
+  const snapshot = await getDiffSnapshot(base, scope, whitespace, expectedGeneration);
   const patchByFile = Object.fromEntries(snapshot.patchByFile);
   const reviewKeyByFile = Object.fromEntries(
     Object.entries(patchByFile).map(([file, patch]) => [file, createReviewKey(patch)]),
@@ -844,10 +987,10 @@ interface DiffStatsResult {
 
 export const getDiffStats = async (
   base?: string,
-  mode?: "uncommitted",
+  scope?: DiffScope,
   whitespace?: WhitespaceMode,
 ): Promise<DiffStatsResult> => {
-  const snapshot = await getDiffSnapshot(base, mode, whitespace);
+  const snapshot = await getDiffSnapshot(base, scope, whitespace);
   return {
     baseBranch: snapshot.baseBranch,
     branch: snapshot.branch,
@@ -860,9 +1003,11 @@ export const getDiffStats = async (
 };
 
 export const primeGitSnapshots = async (): Promise<void> => {
+  // Warm the default scope plus the committed (base-branch) view, which is the
+  // other one most likely to be opened first.
   const results = await Promise.allSettled([
-    getDiffStats(),
-    getDiffStats(undefined, "uncommitted"),
+    getDiffStats(undefined, DEFAULT_SCOPE),
+    getDiffStats(undefined, "committed"),
   ]);
 
   for (const result of results) {

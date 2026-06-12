@@ -63,7 +63,7 @@ const EMPTY_COMMENTS: readonly Comment[] = [];
 // the worker-pool init in DiffsWorkerProvider.
 const LONG_LINE_TOKENIZE_LIMIT = 5000;
 
-type DiffMode = "all" | "uncommitted";
+type DiffMode = "all" | "committed" | "staged" | "unstaged" | "touched";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -617,10 +617,7 @@ const DiffViewerInner = (
     setCommentTarget(null);
   }, []);
 
-  const endpoint = useMemo(
-    () => (diffMode === "uncommitted" ? "/api/diff?mode=uncommitted" : "/api/diff"),
-    [diffMode],
-  );
+  const endpoint = useMemo(() => `/api/diff?mode=${diffMode}`, [diffMode]);
 
   const { initialItems, loadState, errorMessage, viewerKey, retry } =
     usePatchLoader<AnnotationData>({
