@@ -24,7 +24,18 @@ BASE_BRANCH=""
 PROJECT_DIR="${DIFFHUB_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
 CLI_DIR="$PROJECT_DIR/apps/cli"
 BIN="$CLI_DIR/bin/diffhub.mjs"
-NPM="$(command -v npm)"
+
+# Pick a JS runtime (node or bun) and a matching build command.
+if command -v node > /dev/null 2>&1; then
+  RUNTIME="$(command -v node)"
+  BUILD=("$(command -v npm)" run build --prefix "$PROJECT_DIR")
+elif command -v bun > /dev/null 2>&1; then
+  RUNTIME="$(command -v bun)"
+  BUILD=("$(command -v bun)" run --cwd "$PROJECT_DIR" build)
+else
+  echo "Error: neither node nor bun found on PATH" >&2
+  exit 1
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -58,7 +69,7 @@ if true; then
   if [[ ! -d "$CLI_DIR/.next" ]]; then
     echo "No build found — running npm run build..."
     "$CMUX" notify --title "diffhub" --body "Building... (first run only)"
-    "$NPM" run build --prefix "$PROJECT_DIR" > /tmp/diffhub-build.log 2>&1
+    "${BUILD[@]}" > /tmp/diffhub-build.log 2>&1
     if [[ $? -ne 0 ]]; then
       echo "Error: Build failed. See /tmp/diffhub-build.log" >&2
       "$CMUX" notify --title "diffhub" --body "Build failed — check /tmp/diffhub-build.log"
@@ -71,7 +82,7 @@ if true; then
 
   DIFFHUB_REPO="$targetDir" \
     ${BASE_BRANCH:+DIFFHUB_BASE="$BASE_BRANCH"} \
-    node "$BIN" --no-open --port "$PORT" --repo "$targetDir" \
+    "$RUNTIME" "$BIN" --no-open --port "$PORT" --repo "$targetDir" \
     ${BASE_BRANCH:+--base "$BASE_BRANCH"} \
     > /tmp/diffhub-server.log 2>&1 &
 
