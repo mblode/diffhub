@@ -1,5 +1,15 @@
 # diffhub
 
+## 0.3.0
+
+### Minor Changes
+
+- bdc00de: Add Bun support as an alternative runtime to Node.js. The CLI now spawns the standalone server with whatever runtime launched it (`process.execPath`) instead of hardcoding `node`, and the startup gate accepts Bun 1.0.23+ (the version that added `import.meta.dirname`/`filename`, mirroring the existing Node 20.11+ floor). The `open-in-diffhub.sh` launcher detects `node` or `bun` and picks a matching build command.
+
+### Patch Changes
+
+- 08644ea: Show untracked files in local diffs by default. The CLI now exposes diff scope modes for touched, staged, unstaged, committed, and all changes, and synthesizes new-file patches for untracked files so they appear in the streamed diff and file list.
+
 ## 0.2.6
 
 ### Patch Changes
