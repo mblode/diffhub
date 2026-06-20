@@ -16,6 +16,7 @@
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@diffhub/diff-core": "*",
+    "@next/third-parties": "^16.2.3",
     "@pierre/diffs": "^1.2.4",
     "@pierre/trees": "^1.0.0-beta.4",
     "@tailwindcss/typography": "^0.5.19",
