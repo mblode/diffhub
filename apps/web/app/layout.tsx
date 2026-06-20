@@ -1,6 +1,7 @@
 import { GeistMono } from "geist/font/mono";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 import { JsonLd } from "@/components/shared/json-ld";
 import { siteConfig } from "@/lib/config";
@@ -125,6 +126,7 @@ export default function RootLayout({
         <JsonLd data={softwareJsonLd} />
         {children}
       </body>
+      <GoogleAnalytics gaId="G-V7L24QTC6G" />
     </html>
   );
 }
