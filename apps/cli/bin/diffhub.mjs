@@ -34,9 +34,7 @@ if (process.versions.bun) {
     .map((value) => Number.parseInt(value, 10));
   const isSupportedBun =
     Number.isFinite(bunMajor) &&
-    (bunMajor > 1 ||
-      (bunMajor === 1 &&
-        (bunMinor > 0 || (bunMinor === 0 && bunPatch >= 23))));
+    (bunMajor > 1 || (bunMajor === 1 && (bunMinor > 0 || (bunMinor === 0 && bunPatch >= 23))));
 
   if (!isSupportedBun) {
     process.stderr.write(`❌ diffhub requires Bun 1.0.23+. You have ${process.versions.bun}.\n`);
@@ -54,7 +52,9 @@ if (process.versions.bun) {
     (nodeMajor > 20 || (nodeMajor === 20 && nodeMinor >= 11));
 
   if (!isSupportedNode) {
-    process.stderr.write(`❌ diffhub requires Node.js 20.11+ or Bun 1.0.23+. You have ${process.version}.\n`);
+    process.stderr.write(
+      `❌ diffhub requires Node.js 20.11+ or Bun 1.0.23+. You have ${process.version}.\n`,
+    );
     process.stderr.write(`   Download: https://nodejs.org or https://bun.sh\n`);
     process.exit(1);
   }
