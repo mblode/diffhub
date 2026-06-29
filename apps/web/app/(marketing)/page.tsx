@@ -107,7 +107,7 @@ export default function HomePage(): React.JSX.Element {
                 ease: [0.25, 1, 0.5, 1],
               }}
             >
-              <p>Review your branch in cmux</p>
+              <span>Review your branch in cmux</span>
             </SplitText>
             <motion.p
               {...blurUp}
