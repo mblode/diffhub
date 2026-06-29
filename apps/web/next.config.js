@@ -17,7 +17,7 @@ const contentSecurityPolicy = [
   // The highlighter runs in a module worker spawned from a blob URL.
   "worker-src 'self' blob:",
   "connect-src 'self'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https://matthewblode.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "object-src 'none'",
