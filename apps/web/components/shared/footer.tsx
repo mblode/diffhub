@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 import { siteConfig } from "@/lib/config";
 
 export const Footer = (): React.JSX.Element => (
@@ -9,14 +7,15 @@ export const Footer = (): React.JSX.Element => (
       <a
         className="flex items-center gap-2 rounded-full py-1.5 pr-2.5 pl-1.5 transition-colors hover:text-foreground"
         href={siteConfig.links.author}
-        rel="noopener noreferrer"
+        rel="author"
         target="_blank"
       >
-        <Image
+        {/* oxlint-disable-next-line nextjs/no-img-element -- canonical avatar is hosted on matthewblode.com, not optimized via next/image */}
+        <img
           alt="Avatar of Matthew Blode"
           className="rounded-full"
           height={20}
-          src="/matthew-blode-profile.jpg"
+          src="https://matthewblode.com/avatar-sm.png"
           width={20}
         />
         Matthew Blode
