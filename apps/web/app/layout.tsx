@@ -87,29 +87,6 @@ const webSiteJsonLd = {
   url: siteConfig.url,
 };
 
-const softwareJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  applicationCategory: "DeveloperApplication",
-  author: {
-    "@type": "Person",
-    name: "Matthew Blode",
-    url: siteConfig.links.author,
-  },
-  description: siteConfig.description,
-  downloadUrl: siteConfig.links.npm,
-  license: "https://opensource.org/licenses/MIT",
-  name: siteConfig.name,
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-  },
-  operatingSystem: "macOS, Windows, Linux",
-  softwareVersion: process.env.DIFFHUB_VERSION,
-  url: siteConfig.links.npm,
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -123,7 +100,6 @@ export default function RootLayout({
       <body className="flex min-h-screen flex-col">
         <JsonLd data={organizationJsonLd} />
         <JsonLd data={webSiteJsonLd} />
-        <JsonLd data={softwareJsonLd} />
         {children}
       </body>
       <GoogleAnalytics gaId="G-V7L24QTC6G" />

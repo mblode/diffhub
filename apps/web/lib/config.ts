@@ -1,5 +1,6 @@
 export const siteConfig = {
-  description: "Local diff viewer for cmux. Review your branch against the detected base branch.",
+  description:
+    "DiffHub is a local diff viewer for cmux. Review your full branch against the detected base branch, leave inline notes on any line, and copy them as a prompt.",
   links: {
     author: "https://matthewblode.com",
     demo: "/oven-sh/bun/pull/16000",

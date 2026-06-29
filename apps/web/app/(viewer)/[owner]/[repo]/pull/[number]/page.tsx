@@ -17,7 +17,7 @@ export const generateMetadata = async ({
   const { owner, repo, number } = await params;
   const title = `${owner}/${repo} #${number} · DiffHub`;
   return {
-    description: `Browse the diff for ${owner}/${repo} pull request #${number} in DiffHub's live PR viewer.`,
+    description: `Browse the diff for ${owner}/${repo} pull request #${number} in DiffHub's live PR viewer: explore changed files side by side or inline, with syntax highlighting and line notes.`,
     robots: { follow: true, index: false },
     title,
   };
