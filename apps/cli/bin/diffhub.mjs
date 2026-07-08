@@ -9,11 +9,12 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
@@ -1072,10 +1073,46 @@ const derivePort = (repoPath) => {
 
 // -- cmux utilities ----------------------------------------------------------
 
+const getCmuxCliEnv = () => {
+  const env = { ...process.env };
+  delete env.CMUX_SOCKET;
+  delete env.CMUX_SOCKET_PATH;
+  delete env.CMUX_SOCKET_PASSWORD;
+  delete env.CMUX_BUNDLE_ID;
+  delete env.CMUX_BUNDLED_CLI_PATH;
+  return env;
+};
+
+const isSocketPath = (path) => {
+  try {
+    return statSync(path).isSocket();
+  } catch {
+    return false;
+  }
+};
+
+const getCmuxSocketPath = () => {
+  const envSocket = process.env.CMUX_SOCKET_PATH?.trim();
+  if (envSocket && isSocketPath(envSocket)) {
+    return envSocket;
+  }
+
+  const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  const candidates = [
+    uid === null ? null : join(homedir(), ".local", "state", "cmux", `cmux-${uid}.sock`),
+    join(homedir(), ".local", "state", "cmux", "cmux.sock"),
+    "/tmp/cmux.sock",
+  ].filter(Boolean);
+
+  return candidates.find(isSocketPath) ?? null;
+};
+
 const cmuxExec = async (args) => {
-  const { stdout } = await execFile(CMUX_PATH, args, {
+  const socketPath = getCmuxSocketPath();
+  const cmuxArgs = socketPath ? ["--socket", socketPath, ...args] : args;
+  const { stdout } = await execFile(CMUX_PATH, cmuxArgs, {
     encoding: "utf-8",
-    env: process.env,
+    env: getCmuxCliEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
   return stdout;

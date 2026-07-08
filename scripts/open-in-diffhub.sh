@@ -24,6 +24,37 @@ BASE_BRANCH=""
 PROJECT_DIR="${DIFFHUB_PROJECT:-/Users/mblode/Code/mblode/cmux-diff}"
 CLI_DIR="$PROJECT_DIR/apps/cli"
 BIN="$CLI_DIR/bin/diffhub.mjs"
+CMUX_ENV=(env -u CMUX_SOCKET -u CMUX_SOCKET_PATH -u CMUX_SOCKET_PASSWORD -u CMUX_BUNDLE_ID -u CMUX_BUNDLED_CLI_PATH)
+
+cmux_socket_args() {
+  if [[ -n "${CMUX_SOCKET_PATH:-}" && -S "$CMUX_SOCKET_PATH" ]]; then
+    printf '%s\n' "--socket" "$CMUX_SOCKET_PATH"
+    return
+  fi
+
+  local uid
+  uid="$(id -u)"
+  local candidates=(
+    "$HOME/.local/state/cmux/cmux-$uid.sock"
+    "$HOME/.local/state/cmux/cmux.sock"
+    "/tmp/cmux.sock"
+  )
+  for candidate in "${candidates[@]}"; do
+    if [[ -S "$candidate" ]]; then
+      printf '%s\n' "--socket" "$candidate"
+      return
+    fi
+  done
+}
+
+run_cmux() {
+  local socket_args=()
+  while IFS= read -r arg; do
+    socket_args+=("$arg")
+  done < <(cmux_socket_args)
+
+  "${CMUX_ENV[@]}" "$CMUX" "${socket_args[@]}" "$@"
+}
 
 # Pick a JS runtime (node or bun) and a matching build command.
 if command -v node > /dev/null 2>&1; then
@@ -68,17 +99,17 @@ if true; then
   # Build if no production build exists
   if [[ ! -d "$CLI_DIR/.next" ]]; then
     echo "No build found — running npm run build..."
-    "$CMUX" notify --title "diffhub" --body "Building... (first run only)"
+    run_cmux notify --title "diffhub" --body "Building... (first run only)"
     "${BUILD[@]}" > /tmp/diffhub-build.log 2>&1
     if [[ $? -ne 0 ]]; then
       echo "Error: Build failed. See /tmp/diffhub-build.log" >&2
-      "$CMUX" notify --title "diffhub" --body "Build failed — check /tmp/diffhub-build.log"
+      run_cmux notify --title "diffhub" --body "Build failed — check /tmp/diffhub-build.log"
       exit 1
     fi
     echo "Build complete."
   fi
 
-  "$CMUX" notify --title "diffhub" --body "Starting server..."
+  run_cmux notify --title "diffhub" --body "Starting server..."
 
   DIFFHUB_REPO="$targetDir" \
     ${BASE_BRANCH:+DIFFHUB_BASE="$BASE_BRANCH"} \
@@ -96,7 +127,7 @@ if true; then
     fi
     if [[ $i -eq 40 ]]; then
       echo "Error: Server did not start in 20 seconds. See /tmp/diffhub-server.log" >&2
-      "$CMUX" notify --title "diffhub" --body "Server failed to start"
+      run_cmux notify --title "diffhub" --body "Server failed to start"
       exit 1
     fi
     sleep 0.5
@@ -104,9 +135,9 @@ if true; then
 
 fi
 
-"$CMUX" notify --title "diffhub" --body "Opening diff: $targetDir"
+run_cmux notify --title "diffhub" --body "Opening diff: $targetDir"
 
-cmuxOut=$("$CMUX" --json browser open-split "http://localhost:$PORT/" 2>&1)
+cmuxOut=$(run_cmux --json browser open-split "http://localhost:$PORT/" 2>&1)
 
 browserSurface=$(echo "$cmuxOut" \
   | grep -o '"surface_ref" *: *"surface:[^"]*"' \
@@ -119,7 +150,7 @@ if [[ -z "$browserSurface" ]]; then
 fi
 
 echo "Opened surface $browserSurface — waiting for it to close..."
-while "$CMUX" surface-health 2>&1 | grep -q "$browserSurface"; do
+while run_cmux surface-health 2>&1 | grep -q "$browserSurface"; do
   sleep 1
 done
 
