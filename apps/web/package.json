@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "portless diffhub-web next dev",
-    "build": "next build",
+    "build": "node scripts/next-build.mjs",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -44,6 +44,7 @@
     "portless": "^0.15.1",
     "tailwindcss": "^4",
     "typescript": "7.0.2",
+    "typescript-next-build": "npm:typescript@^5.9.3",
     "ultracite": "7.9.3"
   }
 }
