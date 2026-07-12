@@ -78,88 +78,87 @@ vi.mock(import("@pierre/diffs/react"), async (importOriginal) => {
 vi.mock(import("next/dynamic"), async (importOriginal) => {
   const actual = await importOriginal();
 
-  const MockDynamic = React.forwardRef<MockHandle, MockCodeViewProps>(function MockDynamicImpl(
-    { initialItems, renderCustomHeader, renderAnnotation, renderGutterUtility },
-    ref,
-  ) {
-    const itemsRef = React.useRef<MockItem[]>(initialItems ?? []);
-    const [, force] = React.useReducer((value: number) => value + 1, 0);
+  const MockDynamic = React.forwardRef<MockHandle, MockCodeViewProps>(
+    ({ initialItems, renderCustomHeader, renderAnnotation, renderGutterUtility }, ref) => {
+      const itemsRef = React.useRef<MockItem[]>(initialItems ?? []);
+      const [, force] = React.useReducer((value: number) => value + 1, 0);
 
-    React.useEffect(() => {
-      if (initialItems !== undefined) {
-        itemsRef.current = [...initialItems];
-        force();
-      }
-    }, [initialItems]);
-
-    React.useImperativeHandle(ref, () => ({
-      addItem(item: MockItem) {
-        itemsRef.current.push(item);
-        force();
-      },
-      addItems(items: MockItem[]) {
-        itemsRef.current.push(...items);
-        force();
-      },
-      clearSelectedLines() {},
-      getInstance() {},
-      getItem(id: string) {
-        return itemsRef.current.find((item) => item.id === id);
-      },
-      getSelectedLines() {
-        return null;
-      },
-      scrollTo() {},
-      setSelectedLines() {},
-      updateItem(item: MockItem) {
-        const index = itemsRef.current.findIndex((candidate) => candidate.id === item.id);
-        if (index !== -1) {
-          itemsRef.current[index] = item;
+      React.useEffect(() => {
+        if (initialItems !== undefined) {
+          itemsRef.current = [...initialItems];
+          force();
         }
-        force();
-        return index !== -1;
-      },
-      updateItemId() {
-        return true;
-      },
-    }));
+      }, [initialItems]);
 
-    // Non-CodeView dynamic children (no items) render a harmless stub.
-    if (initialItems === undefined) {
-      return <div data-testid="file-tree-body" />;
-    }
+      React.useImperativeHandle(ref, () => ({
+        addItem(item: MockItem) {
+          itemsRef.current.push(item);
+          force();
+        },
+        addItems(items: MockItem[]) {
+          itemsRef.current.push(...items);
+          force();
+        },
+        clearSelectedLines() {},
+        getInstance() {},
+        getItem(id: string) {
+          return itemsRef.current.find((item) => item.id === id);
+        },
+        getSelectedLines() {
+          return null;
+        },
+        scrollTo() {},
+        setSelectedLines() {},
+        updateItem(item: MockItem) {
+          const index = itemsRef.current.findIndex((candidate) => candidate.id === item.id);
+          if (index !== -1) {
+            itemsRef.current[index] = item;
+          }
+          force();
+          return index !== -1;
+        },
+        updateItemId() {
+          return true;
+        },
+      }));
 
-    return (
-      <div data-testid="code-view">
-        {itemsRef.current.map((item) => (
-          <div data-filename={item.id} key={item.id}>
-            {renderCustomHeader?.(item)}
-            <div role="region" hidden={item.collapsed ?? false}>
-              <div data-testid={`patch:${item.id}`}>
-                {item.id}
-                {(item.fileDiff as { additionLines?: string[] } | undefined)?.additionLines?.join(
-                  "\n",
-                )}
+      // Non-CodeView dynamic children (no items) render a harmless stub.
+      if (initialItems === undefined) {
+        return <div data-testid="file-tree-body" />;
+      }
+
+      return (
+        <div data-testid="code-view">
+          {itemsRef.current.map((item) => (
+            <div data-filename={item.id} key={item.id}>
+              {renderCustomHeader?.(item)}
+              <div role="region" hidden={item.collapsed ?? false}>
+                <div data-testid={`patch:${item.id}`}>
+                  {item.id}
+                  {(item.fileDiff as { additionLines?: string[] } | undefined)?.additionLines?.join(
+                    "\n",
+                  )}
+                </div>
+                {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
+                {item.annotations?.map((annotation) => {
+                  const metadataKey =
+                    typeof annotation.metadata === "object" && annotation.metadata !== null
+                      ? JSON.stringify(annotation.metadata)
+                      : String(annotation.metadata ?? "");
+
+                  return (
+                    <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
+                      {renderAnnotation?.(annotation, item)}
+                    </div>
+                  );
+                })}
               </div>
-              {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
-              {item.annotations?.map((annotation) => {
-                const metadataKey =
-                  typeof annotation.metadata === "object" && annotation.metadata !== null
-                    ? JSON.stringify(annotation.metadata)
-                    : String(annotation.metadata ?? "");
-
-                return (
-                  <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
-                    {renderAnnotation?.(annotation, item)}
-                  </div>
-                );
-              })}
             </div>
-          </div>
-        ))}
-      </div>
-    );
-  });
+          ))}
+        </div>
+      );
+    },
+  );
 
   const dynamicMock = (() => MockDynamic) as typeof actual.default;
 

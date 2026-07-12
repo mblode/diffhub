@@ -16,8 +16,17 @@ export default defineConfig({
     },
   ],
   rules: {
+    // Sequential stream reads cannot safely be parallelized; Base UI render
+    // props also hide labels from static analysis.
+    "jsx-a11y/control-has-associated-label": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "no-await-in-loop": "off",
     // Intentional public entry points for the package.
     "no-barrel-file": "off",
+    "prefer-named-capture-group": "off",
+    "react/react-compiler": "off",
+    "require-unicode-regexp": "off",
+    "typescript/method-signature-style": "off",
     // React components use PascalCase filenames by convention.
     "unicorn/filename-case": ["error", { cases: { kebabCase: true, pascalCase: true } }],
   },

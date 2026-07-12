@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   // Source-only workspace package shared with apps/web — Next transpiles it.
   transpilePackages: ["@diffhub/diff-core"],
+  // TS 7's compiler API moved to typescript/unstable/*, which Next's built-in
+  // inline check can't load. `check-types` (tsc --noEmit) is the real gate;
+  // this only disables Next's redundant build-time type check.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;

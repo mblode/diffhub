@@ -414,11 +414,7 @@ interface GutterButtonProps {
   onCommentTargetChange: (target: CommentTarget | null) => void;
 }
 
-const GutterButton = memo(function GutterButton({
-  getHoveredLine,
-  file,
-  onCommentTargetChange,
-}: GutterButtonProps) {
+const GutterButton = memo(({ getHoveredLine, file, onCommentTargetChange }: GutterButtonProps) => {
   const handleClick = useCallback(() => {
     const line = getHoveredLine();
     if (line) {
