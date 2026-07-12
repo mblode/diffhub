@@ -1,6 +1,7 @@
 pre-commit:
-  commands:
-    lint:
-      run: npm run lint:fix
-    format:
-      run: npm run format
+  parallel: true
+  jobs:
+    - name: ultracite
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      run: npx ultracite fix {staged_files}
+      stage_fixed: true

@@ -75,75 +75,74 @@ vi.mock(import("@pierre/diffs/react"), async (importOriginal) => {
 vi.mock(import("next/dynamic"), async (importOriginal) => {
   const actual = await importOriginal();
 
-  const MockCodeView = React.forwardRef<MockHandle, MockCodeViewProps>(function MockCodeViewImpl(
-    { initialItems, renderCustomHeader, renderAnnotation, renderGutterUtility },
-    ref,
-  ) {
-    const itemsRef = React.useRef<MockItem[]>(initialItems ?? []);
-    const [, force] = React.useReducer((value: number) => value + 1, 0);
+  const MockCodeView = React.forwardRef<MockHandle, MockCodeViewProps>(
+    ({ initialItems, renderCustomHeader, renderAnnotation, renderGutterUtility }, ref) => {
+      const itemsRef = React.useRef<MockItem[]>(initialItems ?? []);
+      const [, force] = React.useReducer((value: number) => value + 1, 0);
 
-    React.useEffect(() => {
-      itemsRef.current = [...(initialItems ?? [])];
-      force();
-    }, [initialItems]);
+      React.useEffect(() => {
+        itemsRef.current = [...(initialItems ?? [])];
+        force();
+      }, [initialItems]);
 
-    React.useImperativeHandle(ref, () => ({
-      addItem(item: MockItem) {
-        itemsRef.current.push(item);
-        force();
-      },
-      addItems(items: MockItem[]) {
-        itemsRef.current.push(...items);
-        force();
-      },
-      clearSelectedLines() {},
-      getInstance() {},
-      getItem(id: string) {
-        return itemsRef.current.find((item) => item.id === id);
-      },
-      getSelectedLines() {
-        return null;
-      },
-      scrollTo() {},
-      setSelectedLines() {},
-      updateItem(item: MockItem) {
-        const index = itemsRef.current.findIndex((candidate) => candidate.id === item.id);
-        if (index !== -1) {
-          itemsRef.current[index] = item;
-        }
-        force();
-        return index !== -1;
-      },
-      updateItemId() {
-        return true;
-      },
-    }));
+      React.useImperativeHandle(ref, () => ({
+        addItem(item: MockItem) {
+          itemsRef.current.push(item);
+          force();
+        },
+        addItems(items: MockItem[]) {
+          itemsRef.current.push(...items);
+          force();
+        },
+        clearSelectedLines() {},
+        getInstance() {},
+        getItem(id: string) {
+          return itemsRef.current.find((item) => item.id === id);
+        },
+        getSelectedLines() {
+          return null;
+        },
+        scrollTo() {},
+        setSelectedLines() {},
+        updateItem(item: MockItem) {
+          const index = itemsRef.current.findIndex((candidate) => candidate.id === item.id);
+          if (index !== -1) {
+            itemsRef.current[index] = item;
+          }
+          force();
+          return index !== -1;
+        },
+        updateItemId() {
+          return true;
+        },
+      }));
 
-    return (
-      <div data-testid="code-view">
-        {itemsRef.current.map((item) => (
-          <div data-filename={item.id} key={item.id}>
-            {renderCustomHeader?.(item)}
-            <div role="region" hidden={item.collapsed ?? false}>
-              <div data-testid="patch-viewer">{item.id}</div>
-              {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
-              {item.annotations?.map((annotation) => {
-                const metadataKey =
-                  typeof annotation.metadata === "object" && annotation.metadata !== null
-                    ? JSON.stringify(annotation.metadata)
-                    : String(annotation.metadata ?? "");
-                return (
-                  <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
-                    {renderAnnotation?.(annotation, item)}
-                  </div>
-                );
-              })}
+      return (
+        <div data-testid="code-view">
+          {itemsRef.current.map((item) => (
+            <div data-filename={item.id} key={item.id}>
+              {renderCustomHeader?.(item)}
+              <div role="region" hidden={item.collapsed ?? false}>
+                <div data-testid="patch-viewer">{item.id}</div>
+                {renderGutterUtility?.(() => ({ lineNumber: 12, side: "additions" }), item)}
+                {item.annotations?.map((annotation) => {
+                  const metadataKey =
+                    typeof annotation.metadata === "object" && annotation.metadata !== null
+                      ? JSON.stringify(annotation.metadata)
+                      : String(annotation.metadata ?? "");
+                  return (
+                    <div key={`${annotation.lineNumber}:${annotation.side}:${metadataKey}`}>
+                      {renderAnnotation?.(annotation, item)}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    );
-  });
+          ))}
+        </div>
+      );
+    },
+  );
 
   const dynamicMock = (() => MockCodeView) as typeof actual.default;
 

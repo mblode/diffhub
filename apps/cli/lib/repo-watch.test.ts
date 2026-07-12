@@ -113,6 +113,7 @@ describe("repo watcher", () => {
     }
   });
 
+  // oxlint-disable vitest/max-expects -- one path-classification matrix
   it("ignores generated paths while keeping important git metadata visible", async () => {
     const { shouldIgnoreWatchPath } = await import("./repo-watch");
     const repoPath = createRepo();
@@ -131,6 +132,7 @@ describe("repo watcher", () => {
     expect(shouldIgnoreWatchPath(join(repoPath, ".git/packed-refs"), repoPath)).toBeFalsy();
     expect(shouldIgnoreWatchPath(join(repoPath, ".git/refs/heads/main"), repoPath)).toBeFalsy();
   });
+  // oxlint-enable vitest/max-expects
 
   it("emits one debounced change after a burst and invalidates cache first", async () => {
     const { subscribeRepoChanges } = await import("./repo-watch");
