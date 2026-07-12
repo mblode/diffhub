@@ -25,7 +25,7 @@
     "clsx": "^2.1.1",
     "next": "^16.2.10",
     "tailwind-merge": "^3.6.0",
-    "typescript": "7.0.2"
+    "typescript": "6.0.3"
   },
   "peerDependencies": {
     "@base-ui/react": "^1.6.0",
