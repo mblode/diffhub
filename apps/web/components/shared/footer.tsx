@@ -10,12 +10,12 @@ export const Footer = (): React.JSX.Element => (
         rel="author"
         target="_blank"
       >
-        {/* oxlint-disable-next-line nextjs/no-img-element -- canonical avatar is hosted on matthewblode.com, not optimized via next/image */}
+        {/* oxlint-disable-next-line nextjs/no-img-element -- self-hosted 20px avatar, plain img avoids next/image overhead */}
         <img
           alt="Avatar of Matthew Blode"
           className="rounded-full"
           height={20}
-          src="https://matthewblode.com/avatar-sm.png"
+          src="/avatar-sm.png"
           width={20}
         />
         Matthew Blode
