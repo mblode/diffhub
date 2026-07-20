@@ -3,6 +3,11 @@ import { join } from "node:path";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["diffhub.localhost", "*.diffhub.localhost"],
+  // No next/image usage — keeps sharp's platform-specific binaries (16 MB,
+  // built for the publishing machine only) out of the standalone trace.
+  images: {
+    unoptimized: true,
+  },
   logging: {
     browserToTerminal: true,
   },

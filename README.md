@@ -10,7 +10,7 @@ DiffHub opens your branch in a browser split so you can review it locally. By de
 
 **Live demo:** browse any GitHub PR in the viewer — e.g. [diffhub.blode.co/oven-sh/bun/pull/16000](https://diffhub.blode.co/oven-sh/bun/pull/16000).
 
-![DiffHub screenshot](apps/cli/public/screenshot.png)
+![DiffHub screenshot](.github/screenshot.png)
 
 ## Quick start
 
