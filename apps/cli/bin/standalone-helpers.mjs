@@ -94,6 +94,30 @@ export const findMissingStandaloneNodeModuleAliases = (standaloneDir) => {
   return [...missingAliases].toSorted();
 };
 
+// Traced-but-never-loaded packages, dropped from the npm package at pack time:
+// - sharp/@img: pulled in via Next's own server trace (next-server.js.nft.json,
+//   unreachable by outputFileTracingExcludes); with images.unoptimized the
+//   optimizer never loads them, and the binaries only fit the publish machine.
+// - @shikijs/langs + themes: shiki is a server external, so its lazy
+//   per-language/theme dynamic imports get traced wholesale. Highlighting runs
+//   exclusively in client-side workers (bundled into .next/static); the server
+//   never creates a highlighter. If server-side highlighting ever returns, the
+//   failure is a loud "Cannot find module '@shikijs/langs/…'" in the server log.
+const PRUNED_STANDALONE_PACKAGES = ["sharp", "@img", "@shikijs/langs", "@shikijs/themes"];
+
+export const pruneStandalonePackages = (standaloneRoot) => {
+  const pruned = [];
+  for (const name of PRUNED_STANDALONE_PACKAGES) {
+    const packageDir = join(standaloneRoot, "node_modules", name);
+    if (existsSync(packageDir)) {
+      rmSync(packageDir, { force: true, recursive: true });
+      pruned.push(name);
+    }
+  }
+
+  return pruned;
+};
+
 export const syncStandaloneAssets = (appDir, standaloneDir) => {
   const copies = [
     {

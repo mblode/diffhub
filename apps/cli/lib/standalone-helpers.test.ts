@@ -1,10 +1,19 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   findMissingStandaloneNodeModuleAliases,
   materializeStandaloneNodeModuleAliases,
+  pruneStandalonePackages,
 } from "../bin/standalone-helpers.mjs";
 
 const tempDirs: string[] = [];
@@ -57,5 +66,31 @@ describe("standalone helpers", () => {
     expect(findMissingStandaloneNodeModuleAliases(standaloneDir)).toStrictEqual([
       "shiki-43d062b67f27bbdc",
     ]);
+  });
+
+  it("prunes traced-but-unused packages from the standalone node_modules", () => {
+    const standaloneRoot = createTempDir();
+    for (const name of [
+      "sharp",
+      "@img/sharp-darwin-arm64",
+      "@shikijs/langs",
+      "@shikijs/themes",
+      "@shikijs/core",
+      "react",
+    ]) {
+      const packageDir = join(standaloneRoot, "node_modules", name);
+      mkdirSync(packageDir, { recursive: true });
+      writeFileSync(join(packageDir, "package.json"), `{"name":"${name}"}`);
+    }
+
+    const pruned = pruneStandalonePackages(standaloneRoot);
+
+    const remaining = ["sharp", "@img", "@shikijs/langs", "@shikijs/themes"].filter((name) =>
+      existsSync(join(standaloneRoot, "node_modules", name)),
+    );
+    expect(pruned).toStrictEqual(["sharp", "@img", "@shikijs/langs", "@shikijs/themes"]);
+    expect(remaining).toStrictEqual([]);
+    expect(existsSync(join(standaloneRoot, "node_modules", "@shikijs", "core"))).toBeTruthy();
+    expect(existsSync(join(standaloneRoot, "node_modules", "react"))).toBeTruthy();
   });
 });
