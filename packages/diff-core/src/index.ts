@@ -1,5 +1,5 @@
 // Framework-agnostic diff utilities, types, and client-safe catalogs shared by
-// the DiffHub CLI viewer and the diffhub.blode.co live demo.
+// the DiffHub CLI viewer and the blode.co/diffhub live demo.
 
 export * from "./stream/constants";
 export * from "./stream/gitPatchMetadata";

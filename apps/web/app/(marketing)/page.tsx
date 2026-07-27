@@ -19,7 +19,7 @@ import { DemoLauncher } from "@/components/shared/demo-launcher";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { siteConfig } from "@/lib/config";
+import { asset, siteConfig } from "@/lib/config";
 
 const blurUp = {
   animate: { filter: "blur(0px)", opacity: 1, y: 0 },
@@ -185,7 +185,7 @@ export default function HomePage(): React.JSX.Element {
                 className="w-full rounded"
                 height={777}
                 priority
-                src="/screenshot-2.png"
+                src={asset("/screenshot-2.png")}
                 width={1400}
               />
             </Link>

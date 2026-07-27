@@ -1,4 +1,4 @@
-import { siteConfig } from "@/lib/config";
+import { asset, siteConfig } from "@/lib/config";
 
 export const Footer = (): React.JSX.Element => (
   <footer className="flex flex-col items-center justify-center gap-2 pt-16 pb-8 text-muted-foreground text-sm">
@@ -15,7 +15,7 @@ export const Footer = (): React.JSX.Element => (
           alt="Avatar of Matthew Blode"
           className="rounded-full"
           height={20}
-          src="/avatar-sm.png"
+          src={asset("/avatar-sm.png")}
           width={20}
         />
         Matthew Blode

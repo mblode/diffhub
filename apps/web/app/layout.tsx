@@ -1,7 +1,6 @@
 import { GeistMono } from "geist/font/mono";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { GoogleAnalytics } from "@next/third-parties/google";
 
 import { JsonLd } from "@/components/shared/json-ld";
 import { siteConfig } from "@/lib/config";
@@ -23,7 +22,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   alternates: {
-    canonical: "/",
+    canonical: siteConfig.url,
   },
   appleWebApp: {
     title: "DiffHub",
@@ -97,12 +96,15 @@ export default function RootLayout({
       className={`${glide.variable} ${GeistMono.variable} min-h-screen font-sans antialiased`}
       lang="en"
     >
+      <head>
+        <link href="https://us.i.posthog.com" rel="preconnect" />
+        <link href="https://us-assets.i.posthog.com" rel="dns-prefetch" />
+      </head>
       <body className="flex min-h-screen flex-col">
         <JsonLd data={organizationJsonLd} />
         <JsonLd data={webSiteJsonLd} />
         {children}
       </body>
-      <GoogleAnalytics gaId="G-V7L24QTC6G" />
     </html>
   );
 }

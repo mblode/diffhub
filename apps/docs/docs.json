@@ -5,7 +5,7 @@
   "description": "Review your branch against the detected base branch in cmux or a browser",
   "navbar": {
     "links": [
-      { "label": "Website", "href": "https://diffhub.blode.co" },
+      { "label": "Website", "href": "https://blode.co/diffhub" },
       { "label": "GitHub", "href": "https://github.com/mblode/diffhub" }
     ]
   },
