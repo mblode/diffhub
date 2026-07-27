@@ -108,22 +108,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  rewrites() {
-    return {
-      beforeFiles: [
-        {
-          basePath: false,
-          destination: "https://diffhub.blode.md/docs",
-          source: `${basePath}/docs`,
-        },
-        {
-          basePath: false,
-          destination: "https://diffhub.blode.md/docs/:path*",
-          source: `${basePath}/docs/:path*`,
-        },
-      ],
-    };
-  },
   transpilePackages: ["@diffhub/diff-core"],
 };
 
