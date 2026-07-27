@@ -1,7 +1,16 @@
 pre-commit:
   parallel: true
   jobs:
-    - name: ultracite
-      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
-      run: npx ultracite fix {staged_files}
+    # oxfmt and oxlint are split rather than run together via `ultracite fix`:
+    # oxlint exits 1 when the staged set contains no lintable JS/TS, which
+    # blocked every commit that touched only package.json, a lockfile, or CSS.
+    # lefthook skips a job whose glob matches nothing, so each tool now runs
+    # only when it actually has files to work on.
+    - name: oxfmt
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json,jsonc,css}"
+      run: npx oxfmt --write {staged_files}
+      stage_fixed: true
+    - name: oxlint
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
+      run: npx oxlint --fix {staged_files}
       stage_fixed: true
