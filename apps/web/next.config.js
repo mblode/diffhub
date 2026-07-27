@@ -11,14 +11,15 @@ try {
   // CLI package unavailable in standalone Vercel deployments
 }
 
+const posthogOrigin = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "";
 const contentSecurityPolicy = [
   "default-src 'self'",
   // 'wasm-unsafe-eval' lets the diff viewer's shiki-wasm highlighter instantiate
   // its WebAssembly module (needed by the live PR demo's syntax highlighting).
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://r.blode.co${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${posthogOrigin}${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
   // The highlighter runs in a module worker spawned from a blob URL.
   "worker-src 'self' blob:",
-  "connect-src 'self' https://r.blode.co",
+  `connect-src 'self' ${posthogOrigin}`,
   "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
