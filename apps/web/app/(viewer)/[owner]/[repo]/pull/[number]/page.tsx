@@ -43,13 +43,20 @@ export default async function PullRequestPage({
   const hasMeta = !isGithubError(meta);
 
   return (
-    <PrDiffViewer
-      baseRef={hasMeta ? meta.baseRef : "base"}
-      headRef={hasMeta ? meta.headRef : `pull/${number}`}
-      number={number}
-      owner={owner}
-      prUrl={githubPrUrl(repoParams)}
-      repo={repo}
-    />
+    <>
+      {/* The viewer chrome is full-bleed and has no room for a visible title, so
+          the document heading is exposed to assistive tech only. */}
+      <h1 className="sr-only">
+        {hasMeta ? `${meta.title} · ${owner}/${repo} #${number}` : `${owner}/${repo} #${number}`}
+      </h1>
+      <PrDiffViewer
+        baseRef={hasMeta ? meta.baseRef : "base"}
+        headRef={hasMeta ? meta.headRef : `pull/${number}`}
+        number={number}
+        owner={owner}
+        prUrl={githubPrUrl(repoParams)}
+        repo={repo}
+      />
+    </>
   );
 }
