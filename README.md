@@ -8,7 +8,7 @@ Local diff viewer for cmux.
 
 DiffHub opens your branch in a browser split so you can review it locally. By default it compares against the detected base branch, usually `origin/main`.
 
-**Live demo:** browse any GitHub PR in the viewer — e.g. [diffhub.blode.co/oven-sh/bun/pull/16000](https://diffhub.blode.co/oven-sh/bun/pull/16000).
+**Live demo:** browse any GitHub PR in the viewer, for example [blode.co/diffhub/oven-sh/bun/pull/16000](https://blode.co/diffhub/oven-sh/bun/pull/16000).
 
 ![DiffHub screenshot](.github/screenshot.png)
 
@@ -116,4 +116,4 @@ MIT
 
 ---
 
-Crafted by [<img src="https://matthewblode.com/avatar-circle.png" width="20" align="top" />](https://matthewblode.com) [Matthew Blode](https://matthewblode.com)
+Crafted by [<img src="https://blode.co/avatar-circle.png" width="20" align="top" />](https://blode.co) [Matthew Blode](https://blode.co)

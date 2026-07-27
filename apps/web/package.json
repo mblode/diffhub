@@ -16,7 +16,6 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@diffhub/diff-core": "*",
-    "@next/third-parties": "^16.2.10",
     "@pierre/diffs": "^1.2.12",
     "@pierre/trees": "^1.0.0-beta.5",
     "@tailwindcss/typography": "^0.5.20",
@@ -27,6 +26,7 @@
     "griffo": "^1.1.1",
     "motion": "^12.42.2",
     "next": "^16.2.10",
+    "posthog-js": "^1.407.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "shadcn": "^4.13.0",

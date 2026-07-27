@@ -1,6 +1,6 @@
 // React entry point: the worker pool provider, streaming hook, the read-only
 // CodeView wrapper, and the shared diff-viewer chrome (status bar, file list,
-// per-file header) used by both the CLI viewer and the diffhub.blode.co demo.
+// per-file header) used by both the CLI viewer and the blode.co/diffhub demo.
 
 export { DiffsWorkerProvider } from "./worker/DiffsWorkerProvider";
 export { useIsWorkerPoolReady } from "./worker/use-worker-pool-ready";

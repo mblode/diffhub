@@ -60,7 +60,7 @@
 
 ### Patch Changes
 
-- 6216cf9: Fix the diff viewer occasionally rendering blank (line backgrounds only, no code) on first load until you scroll — the shared CodeView now reliably paints its first window. Internally, the diff viewer engine and chrome (status bar, file list, per-file header, sidebar) were extracted into a shared `@diffhub/diff-core` package that also powers the new diffhub.blode.co live PR viewer.
+- 6216cf9: Fix the diff viewer occasionally rendering blank (line backgrounds only, no code) on first load until you scroll. The shared CodeView now reliably paints its first window. Internally, the diff viewer engine and chrome (status bar, file list, per-file header, sidebar) were extracted into a shared `@diffhub/diff-core` package that also powers the new blode.co/diffhub live PR viewer.
 
 ## 0.2.0
 

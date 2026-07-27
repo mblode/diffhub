@@ -23,6 +23,8 @@ import type {
 } from "@diffhub/diff-core/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { asset } from "@/lib/config";
+
 const LAYOUT_KEY = "diffhub-demo-layout";
 const THEME_KEY = "diffhub-diff-theme";
 const DISPLAY_KEY = "diffhub-display-settings";
@@ -134,7 +136,7 @@ export const PrDiffViewer = ({
 
   const endpoint = useMemo(
     () =>
-      `/api/github-diff?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(
+      `${asset("/api/github-diff")}?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(
         repo,
       )}&number=${encodeURIComponent(number)}`,
     [owner, repo, number],

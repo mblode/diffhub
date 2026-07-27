@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 
+import { basePath } from "./lib/config.ts";
+
 let version = "0.0.0";
 try {
   ({ version } = JSON.parse(
@@ -13,11 +15,11 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   // 'wasm-unsafe-eval' lets the diff viewer's shiki-wasm highlighter instantiate
   // its WebAssembly module (needed by the live PR demo's syntax highlighting).
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://us-assets.i.posthog.com${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
   // The highlighter runs in a module worker spawned from a blob URL.
   "worker-src 'self' blob:",
-  "connect-src 'self'",
-  "img-src 'self' data: https://matthewblode.com",
+  "connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com",
+  "img-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "object-src 'none'",
@@ -47,6 +49,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  assetPrefix: basePath,
+  basePath,
   env: {
     DIFFHUB_VERSION: version,
   },
@@ -80,6 +84,24 @@ const nextConfig = {
     ];
   },
   reactCompiler: true,
+  redirects() {
+    return [
+      {
+        basePath: false,
+        destination: `https://blode.co${basePath}`,
+        has: [{ type: "host", value: "diffhub.blode.co" }],
+        permanent: true,
+        source: "/",
+      },
+      {
+        basePath: false,
+        destination: `https://blode.co${basePath}/:path*`,
+        has: [{ type: "host", value: "diffhub.blode.co" }],
+        permanent: true,
+        source: "/:path*",
+      },
+    ];
+  },
   // TS 7's compiler API moved to typescript/unstable/*, which Next's built-in
   // inline check can't load. `check-types` (tsc --noEmit) is the real gate;
   // this only disables Next's redundant build-time type check.
@@ -90,12 +112,14 @@ const nextConfig = {
     return {
       beforeFiles: [
         {
+          basePath: false,
           destination: "https://diffhub.blode.md/docs",
-          source: "/docs",
+          source: `${basePath}/docs`,
         },
         {
+          basePath: false,
           destination: "https://diffhub.blode.md/docs/:path*",
-          source: "/docs/:path*",
+          source: `${basePath}/docs/:path*`,
         },
       ],
     };
