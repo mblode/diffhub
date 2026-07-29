@@ -11,7 +11,8 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -44,6 +45,7 @@
     "portless": "^0.15.1",
     "tailwindcss": "^4",
     "typescript": "6.0.3",
-    "ultracite": "7.9.3"
+    "ultracite": "7.9.3",
+    "vitest": "^4.1.10"
   }
 }
