@@ -85,12 +85,58 @@ const normaliseHeaders = (source: Headers, ok: boolean): Headers => {
 
 const ASSET_URL_PATTERN = new RegExp(`(["'(])${UPSTREAM_ASSET_PREFIX}`, "g");
 
+/**
+ * The upstream `<head>` points its metadata at root-absolute paths. Assets are
+ * handled above; these are the rest, and they escape the zone the same way.
+ * They resolve against blode.co, which answers 200 with the root site's own
+ * files, so a DiffHub docs page advertises the personal site's llms.txt,
+ * manifest and icons. Nothing 404s, which is why no crawler flags it, and
+ * llms.txt is the worst of them: an agent told to read the documentation index
+ * for these docs is handed a different site's index instead.
+ *
+ * The two llms files are docs content, so they come from the docs path, where
+ * the platform already publishes its own. The manifest and icons are site
+ * chrome, and this zone serves its own from `apps/web/app`, so they come from
+ * the zone root. Nothing here points at a docs path that does not exist:
+ * `/docs/manifest.json` upstream is a 404, which would be worse than the
+ * wrong-content 200 it replaced.
+ */
+const ROOT_URL_REWRITES: readonly (readonly [string, string])[] = [
+  ["/llms.txt", `${PUBLIC_DOCS_PATH}/llms.txt`],
+  ["/llms-full.txt", `${PUBLIC_DOCS_PATH}/llms-full.txt`],
+  ["/manifest.json", `${basePath}/manifest.json`],
+  ["/favicon.ico", `${basePath}/favicon.ico`],
+  ["/icon0.svg", `${basePath}/icon0.svg`],
+  ["/icon1.png", `${basePath}/icon1.png`],
+  ["/apple-icon.png", `${basePath}/apple-icon.png`],
+];
+
+/**
+ * Each path is matched only where a URL can start, the same guard the asset
+ * rewrite uses. That quote class also covers the escaped `\"` form, so the
+ * copies carried in the flight payload are rewritten alongside the rendered
+ * `<head>`. Miss those and a client-side navigation restores the old metadata.
+ */
+const ROOT_URL_PATTERNS = ROOT_URL_REWRITES.map(
+  ([from, to]) => [new RegExp(`(["'(])${from.replaceAll(".", "\\.")}`, "g"), `$1${to}`] as const,
+);
+
+const rewriteRootUrls = (html: string): string => {
+  let result = html;
+  for (const [pattern, replacement] of ROOT_URL_PATTERNS) {
+    result = result.replaceAll(pattern, replacement);
+  }
+  return result;
+};
+
 export const rewriteDocsHtml = (html: string): string =>
-  html
-    .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
-    // Absolute self-references, so nothing points readers back at the origin.
-    .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
-    .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`);
+  rewriteRootUrls(
+    html
+      .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
+      // Absolute self-references, so nothing points readers back at the origin.
+      .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
+      .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`),
+  );
 
 const rewriteLocation = (location: string): string => {
   if (location.startsWith(`${DOCS_ORIGIN}/docs`)) {
