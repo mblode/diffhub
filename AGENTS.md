@@ -40,7 +40,8 @@ diffhub/
 - **CLI uses standalone build** — `bin/diffhub.mjs` runs `.next/standalone/apps/cli/server.js` (not `next start`). Run `npm run build` first. The `prepack` script does this automatically before `npm publish`/`npm pack`.
 - **Standalone needs static copies** — After `next build`, the `prepack` script copies `.next/static/` and `public/` into `.next/standalone/`. Don't skip this step when testing the CLI locally.
 - **Env for dev** — Set `DIFFHUB_REPO` in `apps/cli/.env.local` to point at a real git repo when developing. Without it, the diff API defaults to `process.cwd()`.
-- **Marketing site proxies docs** — `apps/web/next.config.js` rewrites `/docs/*` to `https://diffhub.blode.md/docs/*`. This will 404 until the docs site is deployed via blodemd.
+- **Marketing site proxies docs** — `apps/web/app/docs/[[...slug]]/route.ts` proxies `/docs/*` to `https://diffhub.blode.md/docs/*` through `lib/docs-proxy.ts`, which also rewrites the upstream's root-absolute asset URLs into `/diffhub/docs/_docs/*` so they stay inside the zone prefix blode.co forwards to us. This will 404 until the docs site is deployed via blodemd.
+- **Docs assets track blode.md, not this repo** — the asset segment in `lib/docs-proxy.ts` is the platform's Next.js `assetPrefix`. It has changed under us once (`/_next` to `/_docs`), which left every docs page unstyled. Chunks are also served only from the apex `blode.md`; the tenant host `diffhub.blode.md` emits those URLs but 404s on them. If the docs render with no CSS, diff the upstream HTML's asset paths against `ASSET_SEGMENT` first.
 
 ## Debugging browser logs
 
