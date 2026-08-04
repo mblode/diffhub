@@ -55,6 +55,11 @@ const nextConfig = {
   env: {
     DIFFHUB_VERSION: version,
   },
+  experimental: {
+    // Runs the React Compiler in Turbopack's Rust pipeline, so the build no
+    // longer needs the Babel plugin.
+    turbopackRustReactCompiler: true,
+  },
   headers() {
     return [
       {
