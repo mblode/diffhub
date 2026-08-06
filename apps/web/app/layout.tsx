@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 
 import { JsonLd } from "@/components/shared/json-ld";
 import { siteConfig } from "@/lib/config";
+import { siteGraph } from "@/lib/schema";
 
 import "./globals.css";
 
@@ -14,7 +15,7 @@ const glide = localFont({
   weight: "400 900",
 });
 
-const siteTitle = `${siteConfig.name} | Local diff viewer for cmux`;
+const siteTitle = `${siteConfig.name} | cmux git diff viewer`;
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -28,20 +29,7 @@ export const metadata: Metadata = {
     title: "DiffHub",
   },
   description: siteConfig.description,
-  keywords: [
-    "cmux",
-    "conductor",
-    "diff viewer",
-    "git diff",
-    "git files changed",
-    "code review",
-    "branch diff",
-    "local code review",
-    "split diff",
-    "unified diff",
-    "cli tool",
-    "DiffHub",
-  ],
+  keywords: ["cmux git diff", "cmux diff viewer", "git diff viewer", "cmux", "DiffHub"],
   metadataBase: new URL(siteConfig.url),
   openGraph: {
     description: siteConfig.description,
@@ -70,22 +58,6 @@ export const metadata: Metadata = {
   },
 };
 
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  logo: `${siteConfig.url}/icon0.svg`,
-  name: siteConfig.name,
-  sameAs: [siteConfig.links.github],
-  url: siteConfig.url,
-};
-
-const webSiteJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: siteConfig.name,
-  url: siteConfig.url,
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -100,8 +72,7 @@ export default function RootLayout({
         <link href={process.env.NEXT_PUBLIC_POSTHOG_HOST} rel="preconnect" />
       </head>
       <body className="flex min-h-screen flex-col">
-        <JsonLd data={organizationJsonLd} />
-        <JsonLd data={webSiteJsonLd} />
+        <JsonLd data={siteGraph} />
         {children}
       </body>
     </html>

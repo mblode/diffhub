@@ -43,6 +43,12 @@ export const Navbar = () => {
             </Link>
 
             <div className="flex items-center gap-4">
+              <Link
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                href="/cmux-git-diff"
+              >
+                Guide
+              </Link>
               <a
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 href={siteConfig.links.docs}

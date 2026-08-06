@@ -5,7 +5,7 @@
     "siteUrl": "https://blode.co/diffhub/docs"
   },
   "slug": "diffhub",
-  "description": "Review your branch against the detected base branch in cmux or a browser",
+  "description": "Git diff viewer for cmux: review your branch against the detected base branch",
   "navbar": {
     "links": [
       { "label": "Website", "href": "https://blode.co/diffhub" },

@@ -4,7 +4,7 @@
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
 [![Bun 1.0.23+](https://img.shields.io/badge/bun-1.0.23+-green)](https://bun.sh)
 
-Local diff viewer for cmux.
+Git diff viewer for cmux.
 
 DiffHub opens your branch in a browser split so you can review it locally. By default it compares against the detected base branch, usually `origin/main`.
 

@@ -6,7 +6,7 @@ export const siteUrl = `https://blode.co${basePath}`;
 
 export const siteConfig = {
   description:
-    "DiffHub is a local diff viewer for cmux. Review your full branch against the detected base branch, leave inline notes on any line, and copy them as a prompt.",
+    "DiffHub is a git diff viewer for cmux. Review your full branch against the detected base branch, leave inline notes on any line, and copy them as a prompt.",
   links: {
     author: "https://blode.co",
     // Routed through next/link, which applies the basePath itself.
