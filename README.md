@@ -1,77 +1,63 @@
-# DiffHub
+<div align="center">
 
-[![npm version](https://img.shields.io/npm/v/diffhub)](https://www.npmjs.com/package/diffhub)
-[![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
-[![Bun 1.0.23+](https://img.shields.io/badge/bun-1.0.23+-green)](https://bun.sh)
+# [DiffHub](https://blode.co/diffhub)
 
-Git diff viewer for cmux.
+**Review your git branch in a [cmux](https://cmux.com) browser split, with inline comments you can hand to an agent**
 
-DiffHub opens your branch in a browser split so you can review it locally. By default it compares against the detected base branch, usually `origin/main`.
+Run one command inside any git repository and DiffHub serves a GitHub-style diff of your branch at `localhost:2047`.
 
-**Live demo:** browse any GitHub PR in the viewer, for example [blode.co/diffhub/oven-sh/bun/pull/16000](https://blode.co/diffhub/oven-sh/bun/pull/16000).
+<p align="center">
+  <a href="https://www.npmjs.com/package/diffhub">
+    <img src="https://img.shields.io/npm/v/diffhub?style=flat&colorA=000000&colorB=000000" />
+  </a>
+  <a href="https://github.com/mblode/diffhub/blob/main/LICENSE.md">
+    <img src="https://img.shields.io/github/license/mblode/diffhub?style=flat&colorA=000000&colorB=000000" />
+  </a>
+</p>
 
-![DiffHub screenshot](.github/screenshot.png)
+</div>
 
-## Quick start
+## Demo
 
-### cmux
+Browse any public GitHub pull request in the hosted viewer, with nothing installed.
 
-```bash
-npx diffhub@latest cmux
-```
+<p>
+<a href="https://blode.co/diffhub/oven-sh/bun/pull/16000">
+<img alt="View demo" src=".github/assets/demo.svg" width="200" />
+</a>
+</p>
 
-Run that inside any git repository. DiffHub starts the local viewer and opens it in a cmux browser split.
+![DiffHub reviewing a branch](.github/assets/screenshot.png)
 
-cmux mode currently expects `cmux.app` on macOS at `/Applications/cmux.app`.
-
-### Normal browser window
-
-```bash
-npx diffhub@latest
-```
-
-Use that if you want the same viewer in your default browser instead.
-
-### Global install
+## Install
 
 ```bash
 npm install -g diffhub
 ```
 
-## What it does
+Or run it without installing: `npx diffhub@latest`.
 
-- Opens in a cmux browser split
-- Shows your branch against the merge-base
-- Supports split and unified views
-- Lets you add notes and open files in your editor
-
-## Usage
+## Quickstart
 
 Run inside any git repository.
 
 ```bash
-# Open in cmux
+# Review the current branch in a cmux browser split
 diffhub cmux
 
-# Open in a normal browser window
+# The same viewer in your default browser
 diffhub
-```
 
-```bash
-# Use a different base branch
+# Compare against a different base branch
 diffhub cmux --base develop
 
-# Point at a repo in another directory
-diffhub cmux --repo ~/projects/my-app
-
-# Use a different port in browser mode
-diffhub --port 3000
-
-# Don't open the browser automatically
-diffhub --no-open
+# Review a repository in another directory
+diffhub cmux --repo ~/Code/mblode/cmux
 ```
 
-### Commands
+DiffHub diffs your branch against the merge-base with the detected base branch, preferring `origin/main` so unpushed commits still show up. It watches the repository and refreshes as you work.
+
+## Commands
 
 | Command         | Description                                 |
 | --------------- | ------------------------------------------- |
@@ -79,16 +65,18 @@ diffhub --no-open
 | `diffhub cmux`  | Open DiffHub in a cmux browser split        |
 | `diffhub serve` | Same as `diffhub`, starts the local web app |
 
-### `diffhub` / `diffhub serve` options
+## Options
+
+### `diffhub` and `diffhub serve`
 
 | Flag                  | Default | Description                 |
 | --------------------- | ------- | --------------------------- |
 | `-p, --port <port>`   | `2047`  | Port to serve on            |
 | `-r, --repo <path>`   | `cwd`   | Path to the git repository  |
 | `-b, --base <branch>` | auto    | Base branch to diff against |
-| `--no-open`           | —       | Skip automatic browser open |
+| `--no-open`           |         | Skip automatic browser open |
 
-### `diffhub cmux` options
+### `diffhub cmux`
 
 | Flag                  | Default | Description                 |
 | --------------------- | ------- | --------------------------- |
@@ -97,18 +85,19 @@ diffhub --no-open
 
 ## Keyboard shortcuts
 
-| Key       | Action                      |
-| --------- | --------------------------- |
-| `j` / `k` | Next / previous file        |
-| `s`       | Toggle split / unified view |
-| `/`       | Focus file filter           |
-| `r`       | Refresh diff                |
+| Key       | Action                            |
+| --------- | --------------------------------- |
+| `j` / `k` | Next / previous file              |
+| `s`       | Toggle split / stacked view       |
+| `c`       | Collapse or expand the whole file |
+| `/`       | Focus the file filter             |
+| `r`       | Refresh the diff                  |
 
-## Requirements
+## Notes
 
-- Node.js 20.11+ or Bun 1.0.23+
-- A git repository with at least one commit on your current branch
-- For `cmux` mode, `cmux.app` installed on macOS
+- Node.js 20.11+ or Bun 1.0.23+, and a git repository with at least one commit on the current branch.
+- cmux mode expects `cmux.app` installed on macOS at `/Applications/cmux.app`.
+- Comments live in `.git/diffhub-comments.json` in the repository you are reviewing, and copy out as a markdown review prompt for a coding agent.
 
 ## License
 
