@@ -4,7 +4,7 @@
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
 [![Bun 1.0.23+](https://img.shields.io/badge/bun-1.0.23+-green)](https://bun.sh)
 
-GitHub PR-style diff viewer. Opens in the browser and shows tracked changes relative to your merge-base by default, with a UI toggle for uncommitted-only changes, split/unified diff views, inline comments, and live auto-refresh.
+Git diff viewer for cmux. Opens in a browser split and shows tracked changes relative to your merge-base by default, with a UI toggle for uncommitted-only changes, split/unified diff views, inline comments, and live auto-refresh.
 
 ## Install
 

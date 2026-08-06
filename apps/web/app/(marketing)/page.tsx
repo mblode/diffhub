@@ -107,15 +107,15 @@ export default function HomePage(): React.JSX.Element {
                 ease: [0.25, 1, 0.5, 1],
               }}
             >
-              <span>Review your branch in cmux</span>
+              <span>Review your git diff in cmux</span>
             </SplitText>
             <motion.p
               {...blurUp}
               className="mx-auto mt-4 max-w-[48ch] text-pretty text-lg text-muted-foreground"
               transition={{ ...blurUp.transition, delay: 0.35 }}
             >
-              DiffHub opens your branch in a cmux browser split and compares it with the detected
-              base branch, usually origin/main.
+              DiffHub is a git diff viewer for cmux. It opens your branch in a browser split and
+              compares it with the detected base branch, usually origin/main.
             </motion.p>
             <motion.div
               {...blurUp}
@@ -195,7 +195,7 @@ export default function HomePage(): React.JSX.Element {
         <section className="@container py-16 sm:py-24">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="max-w-[40ch] text-balance text-2xl font-medium tracking-tight">
-              Why use it
+              Why review your git diff in cmux
             </h2>
             <dl className="mt-12 space-y-3">
               {painSolution.map((item, index) => (
@@ -221,7 +221,7 @@ export default function HomePage(): React.JSX.Element {
         <section className="@container py-16 sm:py-24" id="features">
           <div className="mx-auto max-w-4xl px-6">
             <h2 className="max-w-[40ch] text-balance text-2xl font-medium tracking-tight">
-              What it does
+              What the cmux diff viewer does
             </h2>
 
             <dl className="mt-12 grid grid-cols-1 gap-4 @sm:grid-cols-2 @lg:grid-cols-3">
@@ -323,6 +323,16 @@ export default function HomePage(): React.JSX.Element {
                   View on GitHub
                 </Button>
               </div>
+              <p key="guide" className="mt-8 text-sm text-muted-foreground">
+                cmux has its own diff viewer now.{" "}
+                <Link
+                  className="text-link transition-colors hover:text-link/90"
+                  href="/cmux-git-diff"
+                >
+                  How to view a git diff in cmux
+                </Link>{" "}
+                covers where each one fits.
+              </p>
             </motion.div>
           </div>
         </section>
