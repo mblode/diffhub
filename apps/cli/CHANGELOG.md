@@ -1,5 +1,11 @@
 # diffhub
 
+## 0.3.3
+
+### Patch Changes
+
+- adfd4f2: Describe DiffHub as a git diff viewer for cmux in the package description, keywords, and README. The previous description did not mention cmux, which is what people search for. No functional changes.
+
 ## 0.3.2
 
 ### Patch Changes
