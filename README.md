@@ -23,7 +23,7 @@ Browse any public GitHub pull request in the hosted viewer, with nothing install
 
 <p>
 <a href="https://blode.co/diffhub/oven-sh/bun/pull/16000">
-<img alt="View demo" src=".github/assets/demo.svg" width="200" />
+<img alt="View the demo" src=".github/assets/demo.svg" width="200" />
 </a>
 </p>
 
