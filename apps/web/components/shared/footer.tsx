@@ -34,7 +34,7 @@ export const Footer = (): React.JSX.Element => (
       >
         All projects
       </a>
-      <span>&middot;</span>
+      <span aria-hidden="true">·</span>
       <a
         className="text-muted-foreground transition-colors hover:text-foreground"
         href={siteConfig.links.github}
@@ -43,7 +43,7 @@ export const Footer = (): React.JSX.Element => (
       >
         GitHub
       </a>
-      <span>&middot;</span>
+      <span aria-hidden="true">·</span>
       <a
         className="text-muted-foreground transition-colors hover:text-foreground"
         href={siteConfig.links.npm}
