@@ -4,7 +4,7 @@ import Link from "next/link";
 import { JsonLd } from "@/components/shared/json-ld";
 import { CopyButton } from "@/components/ui/copy-button";
 import { siteConfig } from "@/lib/config";
-import { schemaId } from "@/lib/schema";
+import { breadcrumbGraph, schemaId } from "@/lib/schema";
 
 /**
  * Deliberately a Server Component. The homepage is `"use client"` for its
@@ -47,20 +47,20 @@ export const metadata: Metadata = {
   },
 };
 
+// Starts at the blode.co root, not at this zone: a trail beginning at
+// blode.co/diffhub tells crawlers the zone is its own site.
 const breadcrumbJsonLd = {
   "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  itemListElement: [
-    { "@type": "ListItem", item: siteConfig.url, name: siteConfig.name, position: 1 },
-    { "@type": "ListItem", item: url, name: title, position: 2 },
-  ],
+  ...breadcrumbGraph([{ name: title, url }]),
 };
 
 const articleJsonLd = {
   "@context": "https://schema.org",
   "@type": "TechArticle",
+  author: { "@id": schemaId.person },
   description,
   headline: title,
+  isPartOf: { "@id": schemaId.website },
   mainEntityOfPage: url,
   publisher: { "@id": schemaId.organization },
   url,
