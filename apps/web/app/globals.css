@@ -15,7 +15,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-glide), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:
-    var(--font-geist-mono), ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
+    var(--font-glide-mono), ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -88,7 +88,9 @@
   --secondary: #eceae5;
   --secondary-foreground: #26251e;
   --muted: #eceae5;
-  --muted-foreground: #26251e99;
+  /* Was 99 (60%): 4.06:1 on --background and 3.90:1 on --muted, both under AA.
+     AE (68%) keeps the warm paper ink and clears 4.5 on either surface. */
+  --muted-foreground: #26251eae;
   --accent: #eceae5;
   --accent-foreground: #26251e;
   --link: #f54e00bf;
