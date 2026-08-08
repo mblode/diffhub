@@ -9,11 +9,11 @@ import "./globals.css";
 const glide = localFont({
   display: "swap",
   src: [
-    { path: "../public/glide-variable.woff2", style: "normal" },
-    { path: "../public/glide-variable-italic.woff2", style: "italic" },
+    { path: "./fonts/glide-variable.woff2", style: "normal" },
+    { path: "./fonts/glide-variable-italic.woff2", style: "italic" },
   ],
   variable: "--font-glide",
-  weight: "400 900",
+  weight: "100 950",
 });
 
 const jetbrainsMono = JetBrains_Mono({
