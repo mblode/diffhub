@@ -16,6 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { DemoLauncher } from "@/components/shared/demo-launcher";
+import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
@@ -93,7 +94,14 @@ export default function HomePage(): React.JSX.Element {
   return (
     <MotionConfig reducedMotion="user">
       <div>
-        <section className="@container py-16 sm:py-24">
+        {/* Root page only, and matched word for word by the BreadcrumbList in
+            lib/schema.ts. Aligned to the navbar's container so the trail sits
+            under the wordmark. */}
+        <div className="mx-auto max-w-4xl px-6 pt-6">
+          <ZoneBreadcrumb product="DiffHub" />
+        </div>
+
+        <section className="@container pt-8 pb-16 sm:pt-12 sm:pb-24">
           <div className="mx-auto max-w-2xl px-6 text-center">
             <SplitText
               animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}

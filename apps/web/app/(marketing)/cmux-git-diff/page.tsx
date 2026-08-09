@@ -39,7 +39,8 @@ export const metadata: Metadata = {
     type: "article",
     url,
   },
-  title: `${title} | ${siteConfig.name}`,
+  // Bare: the root layout's `title.template` appends " | DiffHub".
+  title,
   twitter: {
     card: "summary_large_image",
     description,
@@ -47,23 +48,29 @@ export const metadata: Metadata = {
   },
 };
 
-// Starts at the blode.co root, not at this zone: a trail beginning at
-// blode.co/diffhub tells crawlers the zone is its own site.
-const breadcrumbJsonLd = {
+/**
+ * One script, one `@graph`. Two separate `ld+json` blocks describe two
+ * unrelated things: the article and the trail cannot be merged into a single
+ * entity unless a crawler sees them in the same graph.
+ *
+ * The breadcrumb starts at the blode.co root, not at this zone. A trail
+ * beginning at blode.co/diffhub tells crawlers the zone is its own site.
+ */
+const pageJsonLd = {
   "@context": "https://schema.org",
-  ...breadcrumbGraph([{ name: title, url }]),
-};
-
-const articleJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "TechArticle",
-  author: { "@id": schemaId.person },
-  description,
-  headline: title,
-  isPartOf: { "@id": schemaId.website },
-  mainEntityOfPage: url,
-  publisher: { "@id": schemaId.organization },
-  url,
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      author: { "@id": schemaId.person },
+      description,
+      headline: title,
+      isPartOf: { "@id": schemaId.website },
+      mainEntityOfPage: url,
+      publisher: { "@id": schemaId.organization },
+      url,
+    },
+    breadcrumbGraph([{ name: title, url }]),
+  ],
 };
 
 const alternatives = [
@@ -96,8 +103,7 @@ const heading = "mt-16 text-2xl font-medium tracking-tight";
 export default function CmuxGitDiffPage(): React.JSX.Element {
   return (
     <div>
-      <JsonLd data={breadcrumbJsonLd} />
-      <JsonLd data={articleJsonLd} />
+      <JsonLd data={pageJsonLd} />
 
       <article className="@container py-16 sm:py-24">
         <div className="mx-auto max-w-3xl px-6">

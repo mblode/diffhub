@@ -15,11 +15,12 @@ export const generateMetadata = async ({
   params: Promise<PageParams>;
 }): Promise<Metadata> => {
   const { owner, repo, number } = await params;
-  const title = `${owner}/${repo} #${number} · DiffHub`;
   return {
     description: `Browse the diff for ${owner}/${repo} pull request #${number} in DiffHub's live PR viewer: explore changed files side by side or inline, with syntax highlighting and line notes.`,
     robots: { follow: true, index: false },
-    title,
+    // Bare: the root layout's `title.template` appends " | DiffHub". Spelling
+    // the product out here too would render it twice.
+    title: `${owner}/${repo} #${number}`,
   };
 };
 
