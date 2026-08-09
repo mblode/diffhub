@@ -25,9 +25,14 @@ export const Footer = (): React.JSX.Element => (
         href={siteConfig.links.author}
         rel="author"
       >
+        {/*
+          Decorative, so alt="". The link's own text already reads "Matthew
+          Blode"; any alt here makes the accessible name "Matthew Blode Matthew
+          Blode". zone-conventions.md Rule 1.
+        */}
         {/* oxlint-disable-next-line nextjs/no-img-element -- self-hosted 20px avatar, plain img avoids next/image overhead */}
         <img
-          alt="Matthew Blode"
+          alt=""
           className="rounded-full"
           height={20}
           loading="lazy"
