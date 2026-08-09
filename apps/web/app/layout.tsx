@@ -49,14 +49,19 @@ export const metadata: Metadata = {
   openGraph: {
     description: siteConfig.description,
     /**
-     * Load-bearing, and the card 404s without it. Do not delete as redundant.
+     * Load-bearing. Do not delete as redundant next to the same-named file.
      *
      * The card images live in `public/`, not `app/`. As `app/opengraph-image.png`
      * they were a file-convention route, and that convention is the one form
      * Next basePath-prefixes itself: the loader builds `/diffhub/opengraph-image.png`,
      * then `resolveUrl` joins `metadataBase.pathname` onto it again and emits
-     * `/diffhub/diffhub/opengraph-image.png`, which 404s. Verified by building
-     * with this block removed. That is how glide's share card broke in production.
+     * `/diffhub/diffhub/opengraph-image.png`. Verified by building with this
+     * block removed. That doubling is how glide's card broke in production.
+     *
+     * Here it degraded rather than broke: the doubled-basePath healing rules in
+     * `next.config.js` 308 it onto the right path. But an og:image behind a
+     * redirect is at the mercy of whether a given unfurler follows one, so the
+     * card should be a direct 200 and not depend on those rules staying.
      *
      * Note the asymmetry: `opengraph-image.tsx` (allmd, commandment, rubber-duck)
      * emits an unprefixed path and resolves correctly. Only the static-file form
