@@ -23,12 +23,19 @@ export const schemaId = {
   website: `${host}/#website`,
 } as const;
 
-/** Home -> Projects -> this zone, then any deeper page within it. */
+/**
+ * Matthew Blode -> Projects -> this zone, then any deeper page within it.
+ *
+ * The root crumb is named for the person, not "Home", and
+ * `components/shared/zone-breadcrumb.tsx` renders the same three names
+ * visibly. Google treats a mismatch between the two as a markup error, so
+ * they change together.
+ */
 export const breadcrumbGraph = (trail: { name: string; url: string }[] = []) => ({
   "@id": schemaId.breadcrumb,
   "@type": "BreadcrumbList",
   itemListElement: [
-    { "@type": "ListItem", item: `${host}/`, name: "Home", position: 1 },
+    { "@type": "ListItem", item: `${host}/`, name: "Matthew Blode", position: 1 },
     {
       "@type": "ListItem",
       item: `${host}/projects`,
