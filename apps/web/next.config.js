@@ -61,32 +61,24 @@ const nextConfig = {
     turbopackRustReactCompiler: true,
   },
   headers() {
+    // Every matching rule is applied in order and a later one wins on a
+    // repeated key, so the catch-all has to come FIRST. With it last it
+    // overwrote all three shareable-asset rules below and every one of them
+    // served `same-origin`, which is the opposite of what they were added for:
+    // a card image an unfurler cannot fetch cross-origin is a blank card.
+    const shareable = ["/opengraph-image.png", "/twitter-image.png", "/web-app-manifest-:size.png"];
     return [
-      {
-        headers: [
-          ...securityHeaders.filter((h) => h.key !== "Cross-Origin-Resource-Policy"),
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        ],
-        source: "/opengraph-image.png",
-      },
-      {
-        headers: [
-          ...securityHeaders.filter((h) => h.key !== "Cross-Origin-Resource-Policy"),
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        ],
-        source: "/twitter-image.png",
-      },
-      {
-        headers: [
-          ...securityHeaders.filter((h) => h.key !== "Cross-Origin-Resource-Policy"),
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        ],
-        source: "/web-app-manifest-:size.png",
-      },
       {
         headers: securityHeaders,
         source: "/(.*)",
       },
+      ...shareable.map((source) => ({
+        headers: [
+          ...securityHeaders.filter((h) => h.key !== "Cross-Origin-Resource-Policy"),
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+        ],
+        source,
+      })),
     ];
   },
   reactCompiler: true,

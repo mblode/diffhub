@@ -30,11 +30,16 @@ const title = "How to view a git diff in cmux";
 const description =
   "cmux has its own git diff viewer, and there's git diff in a pane, and there's a browser split that refreshes while you work. What each one is good for.";
 
+// Declaring `openGraph` here replaces the layout's block rather than merging
+// into it, so the card image has to be repeated or this page ships without one.
+const cardImage = "/opengraph-image.png";
+
 export const metadata: Metadata = {
   alternates: { canonical: url },
   description,
   openGraph: {
     description,
+    images: [{ alt: title, height: 630, url: cardImage, width: 1200 }],
     title: `${title} | ${siteConfig.name}`,
     type: "article",
     url,
@@ -44,6 +49,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     description,
+    images: [cardImage],
     title: `${title} | ${siteConfig.name}`,
   },
 };
