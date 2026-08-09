@@ -91,20 +91,59 @@ const nextConfig = {
   },
   reactCompiler: true,
   redirects() {
+    // The vanity host stays attached to this Vercel project, so the 308 onto
+    // the canonical blode.co zone path has to happen here.
+    //
+    // Paths that already include the basePath must be matched first. A bare
+    // `/:path*` captures `diffhub/cmux-git-diff` and rewrites it to
+    // `/diffhub/diffhub/cmux-git-diff` — a 404. Search Console reports that
+    // as a Redirect error: the 308 lands on a missing page.
+    //
+    // No loop on the live zone: blode.co/diffhub proxies to
+    // diffhub.zone.blode.co, whose host does not match these rules.
+    const vanityHost = [{ type: "host", value: "diffhub.blode.co" }];
     return [
       {
         basePath: false,
         destination: `https://blode.co${basePath}`,
-        has: [{ type: "host", value: "diffhub.blode.co" }],
+        has: vanityHost,
+        permanent: true,
+        source: basePath,
+      },
+      {
+        basePath: false,
+        destination: `https://blode.co${basePath}/:path*`,
+        has: vanityHost,
+        permanent: true,
+        source: `${basePath}/:path*`,
+      },
+      {
+        basePath: false,
+        destination: `https://blode.co${basePath}`,
+        has: vanityHost,
         permanent: true,
         source: "/",
       },
       {
         basePath: false,
         destination: `https://blode.co${basePath}/:path*`,
-        has: [{ type: "host", value: "diffhub.blode.co" }],
+        has: vanityHost,
         permanent: true,
         source: "/:path*",
+      },
+      // Heal doubled-basePath URLs already produced by the old vanity rules
+      // (or typed by hand). Same on every host, including blode.co.
+      {
+        basePath: false,
+        destination: basePath,
+        permanent: true,
+        source: `${basePath}${basePath}`,
+      },
+      {
+        basePath: false,
+        destination: `${basePath}/:path*`,
+        permanent: true,
+        source: `${basePath}${basePath}/:path*`,
       },
     ];
   },
