@@ -2,41 +2,59 @@ import { expect, test } from "vitest";
 
 import nextConfig from "./next.config.js";
 
-/**
- * The vanity host used to match only `/:path*`, which captured an already-
- * prefixed `/diffhub/...` path and 308'd it to `/diffhub/diffhub/...` (404).
- * Search Console reports that as a Redirect error. Keep the basePath-prefixed
- * sources ahead of the catch-all.
- */
-test("vanity host redirects do not double the basePath", async () => {
-  const redirects = await nextConfig.redirects();
-  const vanity = redirects.filter((r) => r.has?.[0]?.value === "diffhub.blode.co");
+type Rule = Awaited<ReturnType<NonNullable<typeof nextConfig.redirects>>>[number];
 
-  expect(vanity.map((r) => r.source)).toEqual(["/diffhub", "/diffhub/:path*", "/", "/:path*"]);
-  expect(vanity.map((r) => r.destination)).toEqual([
-    "https://blode.co/diffhub",
-    "https://blode.co/diffhub/:path*",
-    "https://blode.co/diffhub",
-    "https://blode.co/diffhub/:path*",
-  ]);
+/**
+ * Next resolves redirects first-match-wins, which is the whole bug: a bare
+ * `/:path*` on the vanity host swallowed already-prefixed `/diffhub/...` paths
+ * and 308'd them to `/diffhub/diffhub/...` — a 404, which Search Console
+ * reports as a Redirect error. Asserting the rule array's shape would only
+ * restate the config, so resolve a request through it instead.
+ *
+ * Models the two source shapes this config uses: an exact path, and a
+ * `/:path*` tail (which also matches the bare prefix, as path-to-regexp does).
+ */
+const resolve = (rules: Rule[], host: string, path: string) => {
+  for (const rule of rules) {
+    if (rule.has?.some((h) => h.type !== "host" || h.value !== host)) {
+      continue;
+    }
+    const [prefix, ...wildcard] = rule.source.split("/:path*");
+    if (wildcard.length === 0) {
+      if (path === rule.source) {
+        return rule.destination;
+      }
+      continue;
+    }
+    if (path === prefix || path.startsWith(`${prefix}/`)) {
+      const tail = path.slice(prefix.length).replace(/^\//, "");
+      return rule.destination.replace("/:path*", tail ? `/${tail}` : "");
+    }
+  }
+};
+
+const resolver = async (host: string) => {
+  const rules = (await nextConfig.redirects?.()) ?? [];
+  return (path: string) => resolve(rules, host, path);
+};
+
+test("the vanity host redirects onto the canonical zone path", async () => {
+  const at = await resolver("diffhub.blode.co");
+
+  // The regression: an already-prefixed path must not gain a second /diffhub.
+  expect(at("/diffhub/cmux-git-diff")).toBe("https://blode.co/diffhub/cmux-git-diff");
+  expect(at("/diffhub")).toBe("https://blode.co/diffhub");
+  // Bare paths still pick the prefix up.
+  expect(at("/cmux-git-diff")).toBe("https://blode.co/diffhub/cmux-git-diff");
+  expect(at("/")).toBe("https://blode.co/diffhub");
 });
 
-test("doubled basePath paths heal to the canonical zone path", async () => {
-  const redirects = await nextConfig.redirects();
-  const heal = redirects.filter((r) => r.source.startsWith("/diffhub/diffhub"));
+test("doubled paths already crawled heal to the canonical zone path", async () => {
+  const at = await resolver("blode.co");
 
-  expect(heal).toEqual([
-    {
-      basePath: false,
-      destination: "/diffhub",
-      permanent: true,
-      source: "/diffhub/diffhub",
-    },
-    {
-      basePath: false,
-      destination: "/diffhub/:path*",
-      permanent: true,
-      source: "/diffhub/diffhub/:path*",
-    },
-  ]);
+  expect(at("/diffhub/diffhub/cmux-git-diff")).toBe("/diffhub/cmux-git-diff");
+  expect(at("/diffhub/diffhub")).toBe("/diffhub");
+  // Real pages on the canonical host are left alone.
+  expect(at("/diffhub/cmux-git-diff")).toBeUndefined();
+  expect(at("/diffhub")).toBeUndefined();
 });
