@@ -66,7 +66,7 @@ const nextConfig = {
     // overwrote all three shareable-asset rules below and every one of them
     // served `same-origin`, which is the opposite of what they were added for:
     // a card image an unfurler cannot fetch cross-origin is a blank card.
-    const shareable = ["/opengraph-image.png", "/twitter-image.png", "/web-app-manifest-:size.png"];
+    const shareable = ["/opengraph-image.png", "/web-app-manifest-:size.png"];
     return [
       {
         headers: securityHeaders,
