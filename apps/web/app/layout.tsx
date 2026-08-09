@@ -43,9 +43,28 @@ export const metadata: Metadata = {
   creator: "Matthew Blode",
   description: siteConfig.description,
   keywords: ["cmux git diff", "cmux diff viewer", "git diff viewer", "cmux", "DiffHub"],
+  // The zone URL, basePath included: Next resolves a relative og:image against
+  // this, so a bare origin would point the card at blode.co/opengraph-image.png.
   metadataBase: new URL(siteConfig.url),
   openGraph: {
     description: siteConfig.description,
+    /**
+     * Load-bearing, and the card 404s without it. Do not delete as redundant.
+     *
+     * The card images live in `public/`, not `app/`. As `app/opengraph-image.png`
+     * they were a file-convention route, and that convention is the one form
+     * Next basePath-prefixes itself: the loader builds `/diffhub/opengraph-image.png`,
+     * then `resolveUrl` joins `metadataBase.pathname` onto it again and emits
+     * `/diffhub/diffhub/opengraph-image.png`, which 404s. Verified by building
+     * with this block removed. That is how glide's share card broke in production.
+     *
+     * Note the asymmetry: `opengraph-image.tsx` (allmd, commandment, rubber-duck)
+     * emits an unprefixed path and resolves correctly. Only the static-file form
+     * doubles. Rule 11 in zone-conventions.md describes the `.tsx` behaviour.
+     *
+     * A `public/` asset is served under the basePath and is not a metadata route,
+     * so this explicit URL is resolved once and lands on a real file.
+     */
     images: [
       {
         alt: siteTitle,
