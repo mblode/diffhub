@@ -51,8 +51,13 @@ export const metadata: Metadata = {
   },
   // Bare: the root layout's `title.template` appends " | DiffHub".
   title,
+  // Same mechanism as `openGraph` above: declaring `twitter` replaces the
+  // layout's block wholesale, so `creator` has to be restated here or the card
+  // credits nobody. That is how it went missing along with the image and the
+  // siteName.
   twitter: {
     card: "summary_large_image",
+    creator: "@mattblode",
     description,
     images: [cardImage],
     title: `${title} | ${siteConfig.name}`,

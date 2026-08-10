@@ -66,17 +66,22 @@ const nextConfig = {
     // overwrote all three shareable-asset rules below and every one of them
     // served `same-origin`, which is the opposite of what they were added for:
     // a card image an unfurler cannot fetch cross-origin is a blank card.
+    //
+    // ":path*", not "(.*)": under a basePath the latter compiles to
+    // "/diffhub/(.*)", which needs at least one segment and so skipped the
+    // landing page itself. blode.co/diffhub shipped with no headers at all
+    // while every inner route had them, which no root-only check can see.
+    //
+    // The overrides set only the key they change and inherit the rest from
+    // the catch-all, rather than re-spreading every header to move one.
     const shareable = ["/opengraph-image.png", "/web-app-manifest-:size.png"];
     return [
       {
         headers: securityHeaders,
-        source: "/(.*)",
+        source: "/:path*",
       },
       ...shareable.map((source) => ({
-        headers: [
-          ...securityHeaders.filter((h) => h.key !== "Cross-Origin-Resource-Policy"),
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        ],
+        headers: [{ key: "Cross-Origin-Resource-Policy", value: "cross-origin" }],
         source,
       })),
     ];
