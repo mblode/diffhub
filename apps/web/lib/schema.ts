@@ -84,14 +84,18 @@ export const siteGraph = {
       isAccessibleForFree: true,
       isPartOf: { "@id": schemaId.website },
       name: siteConfig.name,
+      image: `${siteConfig.url}/opengraph-image`,
       offers: {
         "@type": "Offer",
-        price: "0",
+        availability: "https://schema.org/InStock",
+        // Numeric 0 matches Google's SoftwareApplication example. String "0"
+        // is schema.org-legal but Semrush Site Audit flags it as invalid markup.
+        price: 0,
         priceCurrency: "USD",
       },
       operatingSystem: "macOS, Linux, Windows",
       publisher: { "@id": schemaId.organization },
-      softwareVersion: process.env.DIFFHUB_VERSION,
+      ...(process.env.DIFFHUB_VERSION ? { softwareVersion: process.env.DIFFHUB_VERSION } : {}),
       url: siteConfig.url,
     },
     breadcrumbGraph(),
