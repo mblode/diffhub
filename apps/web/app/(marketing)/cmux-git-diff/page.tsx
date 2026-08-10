@@ -34,7 +34,9 @@ const description =
 // into it, so everything the card needs has to be repeated: the image, and the
 // siteName. Miss the latter and this page's card says who made it nowhere,
 // while the zone root says it correctly. zone-conventions.md Rule 9.
-const cardImage = "/opengraph-image.png";
+// Extensionless: the card is `app/opengraph-image.tsx`. Path without
+// `/diffhub`: `metadataBase` already carries the zone.
+const cardImage = "/opengraph-image";
 
 export const metadata: Metadata = {
   alternates: { canonical: url },

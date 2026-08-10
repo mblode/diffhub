@@ -74,7 +74,7 @@ const nextConfig = {
     //
     // The overrides set only the key they change and inherit the rest from
     // the catch-all, rather than re-spreading every header to move one.
-    const shareable = ["/opengraph-image.png", "/web-app-manifest-:size.png"];
+    const shareable = ["/opengraph-image", "/web-app-manifest-:size.png"];
     return [
       {
         headers: securityHeaders,
