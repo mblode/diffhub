@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AuthorByline } from "@/components/shared/author-byline";
+import { FaqSection } from "@/components/shared/faq-section";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { CopyButton } from "@/components/ui/copy-button";
+import { CHANGELOGS, firstDate, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
+import type { Faq } from "@/lib/faq";
 import { schemaId, zoneGraph } from "@/lib/schema";
 
 /**
@@ -73,20 +77,44 @@ export const metadata: Metadata = {
  * `updatedAt` is derived from the changelog rather than typed, so the visible
  * entries and the machine-readable date cannot drift. Add an entry or the date
  * does not move.
+ *
+ * The entries live in `lib/changelog.ts` because `app/sitemap.ts` needs the
+ * same dates and must not import a page module to get them.
  */
-const CHANGELOG = [
+const CHANGELOG = CHANGELOGS[PATH];
+
+const publishedAt = firstDate(CHANGELOG) || CHECKED;
+const updatedAt = latestDate(CHANGELOG) || publishedAt;
+
+/**
+ * Questions the page's own H2s do not already answer. An FAQ entry that
+ * restates a heading puts two chunks of the page in competition for the same
+ * extraction, and the shorter one usually wins, which is the wrong one.
+ *
+ * The same rule applies across pages, which is why "do you need cmux for this"
+ * lives on the landing page and not here. Three entries that are only asked of
+ * this page beat five where two are also asked somewhere else.
+ *
+ * This array is read twice, by `<FaqSection>` and by `zoneGraph({ faqs })`.
+ * Backticks become `<code>` in the markup and are stripped for the schema; see
+ * `lib/faq.ts`.
+ */
+const faqs: Faq[] = [
   {
-    change:
-      "First published. Competitor claims quoted from hunk.dev, github.com/umputun/revdiff and the two cmux issues, all checked on this date.",
-    date: "2026-08-10",
+    answer:
+      "No. hunk, revdiff, `cmux diff` and DiffHub all show you a diff and let you annotate it. If you want findings generated for you, that is a different category of tool, and CodeRabbit or Greptile is the thing you are describing.",
+    question: "Do any of these tools review the code for you?",
+  },
+  {
+    answer: `revdiff, hunk and DiffHub are MIT licensed and free. \`cmux diff\` ships with cmux. \`git diff\` is git. Licences read from the projects' own pages on ${CHECKED}.`,
+    question: "Are these tools free?",
+  },
+  {
+    answer:
+      "Tests tell you the code does what the tests say. They do not tell you the agent touched forty files where three would have done, or that it deleted a check it could not satisfy. Read the diff.",
+    question: "Should you review agent-written code if the tests pass?",
   },
 ];
-
-const publishedAt = CHANGELOG.at(-1)?.date ?? CHECKED;
-const updatedAt =
-  CHANGELOG.map((entry) => entry.date)
-    .toSorted()
-    .at(-1) ?? publishedAt;
 
 /**
  * One script, one `@graph`. The breadcrumb starts at the blode.co root, not at
@@ -100,6 +128,7 @@ const updatedAt =
  * a slot is exactly what the spec disqualifies.
  */
 const pageJsonLd = zoneGraph({
+  faqs,
   nodes: [
     {
       "@type": ["TechArticle", "LearningResource"],
@@ -116,7 +145,9 @@ const pageJsonLd = zoneGraph({
       url,
     },
   ],
+  page: { description, name: title, url },
   trail: [{ name: title, url }],
+  updatedAt,
 });
 
 /** Every value carries a unit and a source. No row exists without both. */
@@ -237,8 +268,11 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             {title}
           </h1>
 
-          {/* The answer block. Nothing precedes it, because the first
-              extractable passage on the page has to be the answer. */}
+          <AuthorByline updated={updatedAt} />
+
+          {/* The answer block. No prose precedes it, because the first
+              extractable passage on the page has to be the answer. The byline
+              above is a named person and a date, not a passage. */}
           <p className="mt-6 text-pretty text-lg text-muted-foreground">
             Reviewing code an AI agent wrote is a volume problem before it&rsquo;s a comprehension
             problem. The tools built for it split on one axis, which is where you read the diff:{" "}
@@ -295,7 +329,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
 
           <h2 className={heading}>
             What makes reviewing agent-written code different from reviewing a teammate&rsquo;s pull
-            request
+            request?
           </h2>
           <p className={body}>
             Reviewing agent-written code differs from reviewing a colleague&rsquo;s pull request in
@@ -321,7 +355,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             {CHECKED}.
           </p>
 
-          <h2 className={heading}>Should you read the diff in the terminal or the browser</h2>
+          <h2 className={heading}>Should you read the diff in the terminal or the browser?</h2>
           <p className={body}>
             Read the diff wherever you are going to act on it. Four of the five options below are
             terminal-shaped and one is not, and that single difference matters more than any
@@ -377,7 +411,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             pages, read {CHECKED}.
           </p>
 
-          <h2 className={heading}>How to hand review comments back to the agent</h2>
+          <h2 className={heading}>How do you hand review comments back to the agent?</h2>
           <p className={body}>
             Handing review comments back to the agent works the same way in all three tools: you
             annotate lines, then export the annotations as text the agent can act on. This is not a
@@ -405,7 +439,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             into the agent that wrote the code.
           </p>
 
-          <h2 className={heading}>What DiffHub measures and what it refuses to render</h2>
+          <h2 className={heading}>What does DiffHub measure, and what does it refuse to render?</h2>
           <p className={body}>
             DiffHub refuses to render a file inline once it crosses either of two thresholds: 500
             changed lines, or 500,000 bytes of patch. Both live in{" "}
@@ -429,7 +463,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             <CopyButton content="npx diffhub@latest cmux" />
           </code>
 
-          <h2 className={heading}>When DiffHub is the wrong answer</h2>
+          <h2 className={heading}>When is DiffHub the wrong answer?</h2>
           <p className={body}>
             DiffHub is the wrong answer in five specific cases, and they are worth stating plainly
             because a tool with no stated limits is a tool nobody has used in anger.
@@ -440,6 +474,16 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             ))}
           </ul>
 
+          <h2 className={heading}>What else do people ask about reviewing AI-generated code?</h2>
+          <FaqSection
+            answerClassName={body}
+            faqs={faqs}
+            questionClassName="mt-8 font-medium text-lg tracking-tight"
+          />
+
+          {/* Not a question, on purpose. "What changed on this page, and when?"
+              over a one-entry list is the filled-in-template reading the header
+              comment says this page must not have. Item 4's exemption. */}
           <h2 className={heading}>Changelog</h2>
           <ul className={`${body} space-y-2`}>
             {CHANGELOG.map((entry) => (
@@ -451,14 +495,10 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
               </li>
             ))}
           </ul>
-          <p className={body}>
-            Maintained by{" "}
-            <a className={link} href="https://blode.co" rel="noopener noreferrer" target="_blank">
-              Matthew Blode
-            </a>
-            , who wrote DiffHub. Published <time dateTime={publishedAt}>{publishedAt}</time>, last
-            substantively revised <time dateTime={updatedAt}>{updatedAt}</time>.
-          </p>
+          {/* The author and the revision date used to live here, at the foot of
+              the page. They are in `<AuthorByline>` under the h1 now, where a
+              reader and an extractor both meet them first. The changelog above
+              carries the publication date. */}
           <p className={body}>
             Related:{" "}
             <Link className={link} href="/cmux-git-diff">
