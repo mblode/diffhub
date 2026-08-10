@@ -38,8 +38,14 @@ test("no root-absolute URL survives the rewrite outside the zone", () => {
  * The blunt assertion above passes for any `/diffhub` prefix, so it would not
  * notice the docs head being repointed at another wrong URL. That is what the
  * bug did: it sent a docs page to the ROOT site's llms.txt, which answers 200,
- * so nothing 404s and no crawler flags it. `/diffhub/llms.txt` is the other
- * tempting target and it is a 404: only the docs path publishes these two.
+ * so nothing 404s and no crawler flags it.
+ *
+ * `/diffhub/llms.txt` is the other tempting target, and it no longer 404s:
+ * `app/llms.txt/route.ts` serves the marketing zone's own index. It is still
+ * the wrong target. That file describes the three marketing pages; a docs page
+ * has to advertise the docs index, which is what the platform publishes at
+ * `/diffhub/docs/llms.txt`. Two real files covering different content, so the
+ * rewrite stays pointed at the docs one and this test stays as it is.
  */
 test("the llms files point at the docs index", () => {
   const out = rewriteDocsHtml(FIXTURE);
