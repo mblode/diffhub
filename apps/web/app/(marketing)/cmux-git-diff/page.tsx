@@ -242,6 +242,13 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             view keeps up with you while you work.
           </p>
           <p className={body}>
+            Widen it past cmux and the field is bigger.{" "}
+            <Link className={link} href="/review-ai-generated-code">
+              How to review code an AI agent wrote
+            </Link>{" "}
+            compares these against hunk and revdiff, and says which one to pick.
+          </p>
+          <p className={body}>
             cmux will probably close that gap. Until then I&rsquo;ve got a tab open.
           </p>
         </div>

@@ -32,6 +32,12 @@ const sitemap = (): MetadataRoute.Sitemap => {
       priority: 0.8,
       url: `${siteConfig.url}/cmux-git-diff`,
     },
+    {
+      changeFrequency: "monthly",
+      lastModified,
+      priority: 0.8,
+      url: `${siteConfig.url}/review-ai-generated-code`,
+    },
     ...DOCS_PATHS.map((path) => ({
       changeFrequency: "monthly" as const,
       lastModified,
