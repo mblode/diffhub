@@ -130,49 +130,17 @@ const rewriteRootUrls = (html: string): string => {
 };
 
 /**
- * The docs platform sets `og:site_name` to the tenant's product name, so a
- * shared docs page read "DiffHub" over "DiffHub" while every other path on
- * blode.co read the person. All 33 zones are one site; the product already has
- * the `og:title` slot. See zone-conventions.md Rule 9.
- *
- * Safe here only because the upstream title already carries the product:
- * `Usage · DiffHub` over `Matthew Blode` still names the thing being shared.
- * Rule 9 is explicit that taking the product out of `site_name` before the
- * title carries it leaves a card identifying nothing. Re-check that if the
- * platform changes its title format.
- *
- * Both forms, for the same reason the URL rewrites do it: the rendered `<head>`
- * and the escaped copy React carries in the flight payload. Rewrite only the
- * first and a client-side navigation restores the old value. The patterns are
- * written against the attribute order the platform emits (`property` then
- * `content`); if that flips, this silently stops matching, which is what the
- * test below is for.
- */
-const SITE_NAME = "Matthew Blode";
-const OG_SITE_NAME_PATTERNS: readonly (readonly [RegExp, string])[] = [
-  [/(<meta[^>]+property="og:site_name"[^>]+content=")[^"]*(")/g, `$1${SITE_NAME}$2`],
-  [/(\\"property\\":\\"og:site_name\\",\\"content\\":\\")[^\\]*(\\")/g, `$1${SITE_NAME}$2`],
-];
-
-const rewriteSiteName = (html: string): string => {
-  let result = html;
-  for (const [pattern, replacement] of OG_SITE_NAME_PATTERNS) {
-    result = result.replaceAll(pattern, replacement);
-  }
-  return result;
-};
-
-/**
  * Rule 10: person-level attribution on every route. The platform emits no
  * `twitter:creator` at all, so this injects rather than rewrites, anchored on
  * the `twitter:card` tag it does emit.
  *
- * Note the polarity is the opposite of Rule 9 above. There the routes going
- * through a metadata helper were the broken ones and the bypass routes were
- * safe; here the bypass routes are the broken ones. Same two buckets, opposite
- * sides, which is why one sweep does not find both.
+ * `og:site_name` and the card image used to be patched here too. Those now
+ * come from `apps/docs/docs.json` (`seo.siteName`, `metadata.ogImage`) once
+ * the upstream tenant config is refreshed. Until that deploy lands, upstream
+ * may still emit the product name / origin-derived card; do not reintroduce
+ * the rewrite — fix the config.
  *
- * Injecting into the flight payload as well is the load-bearing half again:
+ * Injecting into the flight payload as well is the load-bearing half:
  * React re-renders the head on hydration from that tree, so a tag present only
  * in the served HTML is one Google's renderer can drop. The key is a string
  * rather than a number so it cannot collide with the platform's own indices.
@@ -201,30 +169,14 @@ const injectTwitterCreator = (html: string): string => {
     );
 };
 
-/**
- * The platform derives the card image from the ORIGIN of `seo.siteUrl`, so
- * `https://blode.co/diffhub/docs` yields `https://blode.co/opengraph-image.png`:
- * the personal site's card, on every DiffHub docs page. Both URLs answer 200,
- * so nothing 404s and no crawler flags it, which is exactly how the llms.txt
- * escape above went unnoticed.
- *
- * It is absolute rather than root-relative, so `ROOT_URL_REWRITES` cannot catch
- * it: those patterns anchor on a quote followed by `/`.
- */
-const ROOT_CARD_IMAGE = "https://blode.co/opengraph-image.png";
-const ZONE_CARD_IMAGE = `https://blode.co${basePath}/opengraph-image.png`;
-
 export const rewriteDocsHtml = (html: string): string =>
   injectTwitterCreator(
-    rewriteSiteName(
-      rewriteRootUrls(
-        html
-          .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
-          // Absolute self-references, so nothing points readers back at the origin.
-          .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
-          .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`)
-          .replaceAll(ROOT_CARD_IMAGE, ZONE_CARD_IMAGE),
-      ),
+    rewriteRootUrls(
+      html
+        .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
+        // Absolute self-references, so nothing points readers back at the origin.
+        .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
+        .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`),
     ),
   );
 

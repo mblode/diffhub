@@ -56,32 +56,25 @@ test("the llms files point at the docs index", () => {
 });
 
 /**
- * Rule 9: every blode.co path says the person, and the docs platform says the
- * tenant's product name instead. Both copies have to move, and the assertion
- * that the old value is gone is the load-bearing half: the patterns are written
- * against the attribute order the upstream emits, so if that changes they stop
- * matching and rewrite nothing at all.
+ * Rule 9 / card image now come from `apps/docs/docs.json` (`seo.siteName`,
+ * `metadata.ogImage`). The proxy must pass upstream `og:site_name` through
+ * unchanged rather than patching it.
  */
-const assertSiteNameSaysThePerson = (out: string) => {
-  expect(out).toContain('<meta property="og:site_name" content="Matthew Blode"/>');
-  expect(out).toContain('\\"property\\":\\"og:site_name\\",\\"content\\":\\"Matthew Blode\\"');
-  expect(out).not.toContain('content="DiffHub"');
-  expect(out).not.toContain('\\"og:site_name\\",\\"content\\":\\"DiffHub\\"');
-
-  // The product still has to be named somewhere on the card, or swapping
-  // site_name leaves it identifying nothing. Upstream puts it in the title.
-  expect(out).toMatch(/<meta property="og:title" content="[^"]*DiffHub"/);
-};
-
-test("og:site_name says the person, in the head and the flight payload", () => {
-  assertSiteNameSaysThePerson(rewriteDocsHtml(FIXTURE));
+test("og:site_name passes through from upstream", () => {
+  const out = rewriteDocsHtml(FIXTURE);
+  const head = [
+    ...FIXTURE.matchAll(/<meta[^>]+property="og:site_name"[^>]+content="([^"]*)"/g),
+  ].map((m) => m[1]);
+  const outHead = [...out.matchAll(/<meta[^>]+property="og:site_name"[^>]+content="([^"]*)"/g)].map(
+    (m) => m[1],
+  );
+  expect(outHead).toEqual(head);
 });
 
 /**
  * Rule 10. The platform emits no `twitter:creator`, so this is an injection,
- * and both copies matter for the same reason the site_name rewrite needs both.
- * Anchored on `twitter:card`, so the assertion that the count is exactly one
- * is what catches the anchor moving or the guard failing.
+ * and both copies matter. Anchored on `twitter:card`, so the assertion that the
+ * count is exactly one is what catches the anchor moving or the guard failing.
  */
 const assertCreatorInjected = (out: string) => {
   expect(out).toContain('<meta name="twitter:creator" content="@mattblode"/>');
@@ -100,19 +93,19 @@ test("injecting twitter:creator is idempotent", () => {
 });
 
 /**
- * The platform builds the card image from the ORIGIN of `seo.siteUrl`, so every
- * docs page advertised the personal site's card rather than this zone's. Both
- * URLs answer 200, so only a value check catches it.
+ * Card image rewrite retired: `metadata.ogImage` in docs.json owns the zone
+ * product card. The proxy must not retarget absolute card URLs.
  */
-test("the card image is the zone's, not the root site's", () => {
-  const out = rewriteDocsHtml(FIXTURE);
-
-  expect(out).not.toContain('content="https://blode.co/opengraph-image.png"');
-  for (const property of ["og:image", "twitter:image"]) {
-    expect(out).toContain(
-      `<meta ${property.startsWith("og") ? "property" : "name"}="${property}" content="https://blode.co/diffhub/opengraph-image.png"/>`,
-    );
-  }
+test("the proxy does not rewrite absolute card image URLs", () => {
+  const seeded = FIXTURE.includes("https://blode.co/opengraph-image.png")
+    ? FIXTURE
+    : FIXTURE.replace(
+        "</head>",
+        '<meta property="og:image" content="https://blode.co/opengraph-image.png"/></head>',
+      );
+  const out = rewriteDocsHtml(seeded);
+  expect(out).toContain("https://blode.co/opengraph-image.png");
+  expect(out).not.toContain("https://blode.co/diffhub/opengraph-image");
 });
 
 test.runIf(process.env.DOCS_PROXY_LIVE)(
@@ -122,9 +115,15 @@ test.runIf(process.env.DOCS_PROXY_LIVE)(
     expect(response.ok).toBe(true);
     const html = await response.text();
     const out = rewriteDocsHtml(html);
-    assertSiteNameSaysThePerson(out);
     assertCreatorInjected(out);
     assertNothingEscapesTheZone(html);
+    const upstream = [
+      ...html.matchAll(/<meta[^>]+property="og:site_name"[^>]+content="([^"]*)"/g),
+    ].map((m) => m[1]);
+    const rewritten = [
+      ...out.matchAll(/<meta[^>]+property="og:site_name"[^>]+content="([^"]*)"/g),
+    ].map((m) => m[1]);
+    expect(rewritten).toEqual(upstream);
   },
   30_000,
 );
