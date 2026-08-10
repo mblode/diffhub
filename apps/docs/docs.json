@@ -2,7 +2,11 @@
   "$schema": "https://blode.md/docs.json",
   "name": "DiffHub",
   "seo": {
-    "siteUrl": "https://blode.co/diffhub/docs"
+    "siteUrl": "https://blode.co/diffhub/docs",
+    "siteName": "Matthew Blode"
+  },
+  "metadata": {
+    "ogImage": "https://blode.co/diffhub/opengraph-image"
   },
   "slug": "diffhub",
   "description": "Git diff viewer for cmux: review your branch against the detected base branch",
