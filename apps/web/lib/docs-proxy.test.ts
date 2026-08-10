@@ -55,6 +55,26 @@ test("the llms files point at the docs index", () => {
   }
 });
 
+/**
+ * Rule 9: every blode.co path says the person, and the docs platform says the
+ * tenant's product name instead. Both copies have to move, and the assertion
+ * that the old value is gone is the load-bearing half: the patterns are written
+ * against the attribute order the upstream emits, so if that changes they stop
+ * matching and rewrite nothing at all.
+ */
+test("og:site_name says the person, in the head and the flight payload", () => {
+  const out = rewriteDocsHtml(FIXTURE);
+
+  expect(out).toContain('<meta property="og:site_name" content="Matthew Blode"/>');
+  expect(out).toContain('\\"property\\":\\"og:site_name\\",\\"content\\":\\"Matthew Blode\\"');
+  expect(out).not.toContain('content="DiffHub"');
+  expect(out).not.toContain('\\"og:site_name\\",\\"content\\":\\"DiffHub\\"');
+
+  // The product still has to be named somewhere on the card, or swapping
+  // site_name leaves it identifying nothing. Upstream puts it in the title.
+  expect(out).toMatch(/<meta property="og:title" content="[^"]*DiffHub"/);
+});
+
 test.runIf(process.env.DOCS_PROXY_LIVE)(
   "the live docs origin still rewrites clean",
   async () => {

@@ -31,7 +31,9 @@ const description =
   "cmux has its own git diff viewer, and there's git diff in a pane, and there's a browser split that refreshes while you work. What each one is good for.";
 
 // Declaring `openGraph` here replaces the layout's block rather than merging
-// into it, so the card image has to be repeated or this page ships without one.
+// into it, so everything the card needs has to be repeated: the image, and the
+// siteName. Miss the latter and this page's card says who made it nowhere,
+// while the zone root says it correctly. zone-conventions.md Rule 9.
 const cardImage = "/opengraph-image.png";
 
 export const metadata: Metadata = {
@@ -40,6 +42,9 @@ export const metadata: Metadata = {
   openGraph: {
     description,
     images: [{ alt: title, height: 630, url: cardImage, width: 1200 }],
+    // The title carries "| DiffHub", so the card still names the product with
+    // the person in siteName. Rule 9 warns about doing this the other way.
+    siteName: "Matthew Blode",
     title: `${title} | ${siteConfig.name}`,
     type: "article",
     url,

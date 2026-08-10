@@ -129,13 +129,48 @@ const rewriteRootUrls = (html: string): string => {
   return result;
 };
 
+/**
+ * The docs platform sets `og:site_name` to the tenant's product name, so a
+ * shared docs page read "DiffHub" over "DiffHub" while every other path on
+ * blode.co read the person. All 33 zones are one site; the product already has
+ * the `og:title` slot. See zone-conventions.md Rule 9.
+ *
+ * Safe here only because the upstream title already carries the product:
+ * `Usage · DiffHub` over `Matthew Blode` still names the thing being shared.
+ * Rule 9 is explicit that taking the product out of `site_name` before the
+ * title carries it leaves a card identifying nothing. Re-check that if the
+ * platform changes its title format.
+ *
+ * Both forms, for the same reason the URL rewrites do it: the rendered `<head>`
+ * and the escaped copy React carries in the flight payload. Rewrite only the
+ * first and a client-side navigation restores the old value. The patterns are
+ * written against the attribute order the platform emits (`property` then
+ * `content`); if that flips, this silently stops matching, which is what the
+ * test below is for.
+ */
+const SITE_NAME = "Matthew Blode";
+const OG_SITE_NAME_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/(<meta[^>]+property="og:site_name"[^>]+content=")[^"]*(")/g, `$1${SITE_NAME}$2`],
+  [/(\\"property\\":\\"og:site_name\\",\\"content\\":\\")[^\\]*(\\")/g, `$1${SITE_NAME}$2`],
+];
+
+const rewriteSiteName = (html: string): string => {
+  let result = html;
+  for (const [pattern, replacement] of OG_SITE_NAME_PATTERNS) {
+    result = result.replaceAll(pattern, replacement);
+  }
+  return result;
+};
+
 export const rewriteDocsHtml = (html: string): string =>
-  rewriteRootUrls(
-    html
-      .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
-      // Absolute self-references, so nothing points readers back at the origin.
-      .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
-      .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`),
+  rewriteSiteName(
+    rewriteRootUrls(
+      html
+        .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
+        // Absolute self-references, so nothing points readers back at the origin.
+        .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
+        .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`),
+    ),
   );
 
 const rewriteLocation = (location: string): string => {
