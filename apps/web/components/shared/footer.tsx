@@ -52,13 +52,6 @@ export const Footer = (): React.JSX.Element => (
       ) : null}
       <a
         className="text-muted-foreground transition-colors hover:text-foreground"
-        href="https://blode.co/projects"
-      >
-        All projects
-      </a>
-      <span aria-hidden="true">·</span>
-      <a
-        className="text-muted-foreground transition-colors hover:text-foreground"
         href={siteConfig.links.github}
         rel="noopener noreferrer"
         target="_blank"
