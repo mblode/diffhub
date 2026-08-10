@@ -43,41 +43,16 @@ export const metadata: Metadata = {
   creator: "Matthew Blode",
   description: siteConfig.description,
   keywords: ["cmux git diff", "cmux diff viewer", "git diff viewer", "cmux", "DiffHub"],
-  // The zone URL, basePath included: Next resolves a relative og:image against
-  // this, so a bare origin would point the card at blode.co/opengraph-image.png.
+  // The zone URL, not the bare origin (Rule 11). Only correct because the card
+  // is a generated `opengraph-image.tsx` route: Next does not prefix those with
+  // `basePath`, so `metadataBase` supplies the prefix exactly once. Against the
+  // static PNG this replaced, the two would have stacked into
+  // `/diffhub/diffhub/…`.
   metadataBase: new URL(siteConfig.url),
+  // No `images` here: `app/opengraph-image.tsx` is the card. Next reuses it for
+  // `twitter:image` too when there is no `twitter-image` file.
   openGraph: {
     description: siteConfig.description,
-    /**
-     * Load-bearing. Do not delete as redundant next to the same-named file.
-     *
-     * The card images live in `public/`, not `app/`. As `app/opengraph-image.png`
-     * they were a file-convention route, and that convention is the one form
-     * Next basePath-prefixes itself: the loader builds `/diffhub/opengraph-image.png`,
-     * then `resolveUrl` joins `metadataBase.pathname` onto it again and emits
-     * `/diffhub/diffhub/opengraph-image.png`. Verified by building with this
-     * block removed. That doubling is how glide's card broke in production.
-     *
-     * Here it degraded rather than broke: the doubled-basePath healing rules in
-     * `next.config.js` 308 it onto the right path. But an og:image behind a
-     * redirect is at the mercy of whether a given unfurler follows one, so the
-     * card should be a direct 200 and not depend on those rules staying.
-     *
-     * Note the asymmetry: `opengraph-image.tsx` (allmd, commandment, rubber-duck)
-     * emits an unprefixed path and resolves correctly. Only the static-file form
-     * doubles. Rule 11 in zone-conventions.md describes the `.tsx` behaviour.
-     *
-     * A `public/` asset is served under the basePath and is not a metadata route,
-     * so this explicit URL is resolved once and lands on a real file.
-     */
-    images: [
-      {
-        alt: siteTitle,
-        height: 630,
-        url: "/opengraph-image.png",
-        width: 1200,
-      },
-    ],
     // Every zone is a path on blode.co, so the site is the person. The product
     // name already has the og:title slot; repeating it here would spend the one
     // field in the card that could say who made the thing.
@@ -94,7 +69,6 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     creator: "@mattblode",
     description: siteConfig.description,
-    images: ["/opengraph-image.png"],
     title: siteTitle,
   },
   verification: {
