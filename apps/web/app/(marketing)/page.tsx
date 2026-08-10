@@ -339,7 +339,14 @@ export default function HomePage(): React.JSX.Element {
                 >
                   How to view a git diff in cmux
                 </Link>{" "}
-                covers where each one fits.
+                covers where each one fits, and{" "}
+                <Link
+                  className="text-link transition-colors hover:text-link/90"
+                  href="/review-ai-generated-code"
+                >
+                  how to review code an AI agent wrote
+                </Link>{" "}
+                covers the wider field.
               </p>
             </motion.div>
           </div>
