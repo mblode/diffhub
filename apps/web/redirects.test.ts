@@ -49,12 +49,16 @@ test("the vanity host redirects onto the canonical zone path", async () => {
   expect(at("/")).toBe("https://blode.co/diffhub");
 });
 
-test("doubled paths already crawled heal to the canonical zone path", async () => {
+test("doubled paths fall through to the 404 instead of redirecting", async () => {
   const at = await resolver("blode.co");
 
-  expect(at("/diffhub/diffhub/cmux-git-diff")).toBe("/diffhub/cmux-git-diff");
-  expect(at("/diffhub/diffhub")).toBe("/diffhub");
-  // Real pages on the canonical host are left alone.
+  // A rule stripping one `/diffhub` makes every repeat depth resolve, so the
+  // crawler gets an unbounded URL space and a 308 chain rather than a dead
+  // end. These paths must reach no rule at all.
+  expect(at("/diffhub/diffhub")).toBeUndefined();
+  expect(at("/diffhub/diffhub/cmux-git-diff")).toBeUndefined();
+  expect(at("/diffhub/diffhub/diffhub/diffhub")).toBeUndefined();
+  // Real pages on the canonical host are left alone too.
   expect(at("/diffhub/cmux-git-diff")).toBeUndefined();
   expect(at("/diffhub")).toBeUndefined();
 });
