@@ -162,14 +162,69 @@ const rewriteSiteName = (html: string): string => {
   return result;
 };
 
+/**
+ * Rule 10: person-level attribution on every route. The platform emits no
+ * `twitter:creator` at all, so this injects rather than rewrites, anchored on
+ * the `twitter:card` tag it does emit.
+ *
+ * Note the polarity is the opposite of Rule 9 above. There the routes going
+ * through a metadata helper were the broken ones and the bypass routes were
+ * safe; here the bypass routes are the broken ones. Same two buckets, opposite
+ * sides, which is why one sweep does not find both.
+ *
+ * Injecting into the flight payload as well is the load-bearing half again:
+ * React re-renders the head on hydration from that tree, so a tag present only
+ * in the served HTML is one Google's renderer can drop. The key is a string
+ * rather than a number so it cannot collide with the platform's own indices.
+ *
+ * Guarded on the tag being absent, so this becomes a no-op rather than a
+ * duplicate if blode.md ever starts emitting one itself.
+ */
+const TWITTER_CREATOR = "@mattblode";
+const TWITTER_CARD_HEAD = /<meta name="twitter:card"[^>]*\/>/;
+const TWITTER_CARD_FLIGHT =
+  /\[\\"\$\\",\\"meta\\",\\"[^\\]*\\",\{\\"name\\":\\"twitter:card\\",\\"content\\":\\"[^\\]*\\"\}\]/;
+
+const injectTwitterCreator = (html: string): string => {
+  if (html.includes("twitter:creator")) {
+    return html;
+  }
+  return html
+    .replace(
+      TWITTER_CARD_HEAD,
+      (tag) => `${tag}<meta name="twitter:creator" content="${TWITTER_CREATOR}"/>`,
+    )
+    .replace(
+      TWITTER_CARD_FLIGHT,
+      (node) =>
+        `${node},[\\"$\\",\\"meta\\",\\"zone-twitter-creator\\",{\\"name\\":\\"twitter:creator\\",\\"content\\":\\"${TWITTER_CREATOR}\\"}]`,
+    );
+};
+
+/**
+ * The platform derives the card image from the ORIGIN of `seo.siteUrl`, so
+ * `https://blode.co/diffhub/docs` yields `https://blode.co/opengraph-image.png`:
+ * the personal site's card, on every DiffHub docs page. Both URLs answer 200,
+ * so nothing 404s and no crawler flags it, which is exactly how the llms.txt
+ * escape above went unnoticed.
+ *
+ * It is absolute rather than root-relative, so `ROOT_URL_REWRITES` cannot catch
+ * it: those patterns anchor on a quote followed by `/`.
+ */
+const ROOT_CARD_IMAGE = "https://blode.co/opengraph-image.png";
+const ZONE_CARD_IMAGE = `https://blode.co${basePath}/opengraph-image.png`;
+
 export const rewriteDocsHtml = (html: string): string =>
-  rewriteSiteName(
-    rewriteRootUrls(
-      html
-        .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
-        // Absolute self-references, so nothing points readers back at the origin.
-        .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
-        .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`),
+  injectTwitterCreator(
+    rewriteSiteName(
+      rewriteRootUrls(
+        html
+          .replaceAll(ASSET_URL_PATTERN, `$1${PUBLIC_ASSET_PREFIX}`)
+          // Absolute self-references, so nothing points readers back at the origin.
+          .replaceAll(`${DOCS_ORIGIN}/docs`, `https://blode.co${PUBLIC_DOCS_PATH}`)
+          .replaceAll(DOCS_ORIGIN, `https://blode.co${PUBLIC_DOCS_PATH}`)
+          .replaceAll(ROOT_CARD_IMAGE, ZONE_CARD_IMAGE),
+      ),
     ),
   );
 
