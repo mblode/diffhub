@@ -121,6 +121,23 @@ export default function HomePage(): React.JSX.Element {
                 duration: 0.65,
                 ease: [0.25, 1, 0.5, 1],
               }}
+              /*
+                griffo defaults this to true, and its wrapper style is
+                `visibility: isReady || !waitForFonts ? "visible" : "hidden"`
+                (dist/motion.js:2007) with `isReady` starting false and only
+                flipping in a layout effect after document.fonts.ready. So the
+                default shipped an inline `visibility: hidden` on the h1 in the
+                server HTML, on the one element the rest of this page supports.
+                Anything reading rendered text without waiting on font loading
+                saw a hidden heading.
+
+                Turning it off drops only the pre-split hide; the split still
+                runs in the layout effect and the stagger is unchanged. If a
+                cold font cache ever makes the split visibly reflow, the other
+                fix is `style={{ visibility: "visible" }}`, which wins because
+                userStyle is spread after visibility at that same line.
+              */
+              waitForFonts={false}
             >
               <span>Review your git diff in cmux</span>
             </SplitText>
