@@ -67,6 +67,22 @@ const getForwardHeaders = (request: Request): Headers => {
  * makes the browser fail to decode an otherwise healthy 200. The upstream Link
  * header advertises preloads at un-prefixed `/_next/...` paths that do not
  * exist here. Neither survives the hop.
+ *
+ * No `vary: accept-encoding` here, and that is not an oversight. These routes
+ * answer with `vary: rsc, next-router-state-tree, ...`, Next's own list, which
+ * omits accept-encoding and cannot be added to from a route handler. It was
+ * raised as a risk that a br variant could be served to Bingbot or an AI
+ * crawler that does not advertise br. Measured against production on
+ * 2026-08-10, on cache HITs, all three docs routes: a br client gets br, a
+ * gzip-only client gets gzip, and a client sending no accept-encoding at all
+ * gets identity HTML. Nothing is mis-served.
+ *
+ * The reason is above: deleting content-encoding means this origin always
+ * returns identity bytes, so compression is entirely Vercel's edge, which
+ * negotiates per request and keys its own cache on encoding rather than on
+ * this header. Re-measure before acting on a `vary` audit finding for these
+ * routes, because the header is genuinely incomplete and the behaviour is
+ * still correct.
  */
 const normaliseHeaders = (source: Headers, ok: boolean): Headers => {
   const headers = new Headers(source);
