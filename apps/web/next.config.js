@@ -128,20 +128,14 @@ const nextConfig = {
         permanent: true,
         source: "/:path*",
       },
-      // Heal doubled-basePath URLs already produced by the old vanity rules
-      // (or typed by hand). Same on every host, including blode.co.
-      {
-        basePath: false,
-        destination: basePath,
-        permanent: true,
-        source: `${basePath}${basePath}`,
-      },
-      {
-        basePath: false,
-        destination: `${basePath}/:path*`,
-        permanent: true,
-        source: `${basePath}${basePath}/:path*`,
-      },
+      // Doubled-basePath URLs are deliberately NOT healed. A rule that strips
+      // one `/diffhub` turns every repeat depth into a live URL, so
+      // `/diffhub/diffhub/diffhub/...` answers a 308 chain down to the landing
+      // page instead of 404ing: an unbounded URL space for a crawler to walk,
+      // and chains longer than five hops that Google gives up on. The old
+      // vanity rules that minted those URLs are fixed above, so the pages
+      // never existed. Falling through to the 404 (which ships `noindex`) is
+      // the terminal signal, and matches the other blode.co zones.
     ];
   },
   transpilePackages: ["@diffhub/diff-core"],
