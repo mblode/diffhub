@@ -26,7 +26,7 @@ const glideMono = localFont({
 
 // `Product: what it does`, under 60 characters so the SERP does not truncate
 // it. Colon, never a pipe or an em dash.
-const siteTitle = `${siteConfig.name}: cmux git diff viewer`;
+const siteTitle = `${siteConfig.name}: cmux git diff viewer for agent code review`;
 
 export const viewport: Viewport = {
   width: "device-width",
