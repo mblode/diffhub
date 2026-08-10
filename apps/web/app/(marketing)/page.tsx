@@ -16,11 +16,13 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { DemoLauncher } from "@/components/shared/demo-launcher";
+import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { asset, siteConfig } from "@/lib/config";
+import { zoneGraph } from "@/lib/schema";
 
 const blurUp = {
   animate: { filter: "blur(0px)", opacity: 1, y: 0 },
@@ -94,9 +96,14 @@ export default function HomePage(): React.JSX.Element {
   return (
     <MotionConfig reducedMotion="user">
       <div>
-        {/* Root page only, and matched word for word by the BreadcrumbList in
-            lib/schema.ts. Aligned to the navbar's container so the trail sits
-            under the wordmark. */}
+        {/* Moved here from app/layout.tsx, which emitted it on every route and
+            so gave every inner page a second BreadcrumbList under the same
+            `@id` as its own. The zone root's trail ends at the product, so it
+            passes no `trail`. See lib/schema.ts. */}
+        <JsonLd data={zoneGraph()} />
+        {/* Matched word for word by the BreadcrumbList `zoneGraph` emits above.
+            Aligned to the navbar's container so the trail sits under the
+            wordmark. */}
         <div className="mx-auto max-w-4xl px-6 pt-6">
           <ZoneBreadcrumb product="DiffHub" />
         </div>

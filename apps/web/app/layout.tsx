@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
-import { JsonLd } from "@/components/shared/json-ld";
 import { siteConfig } from "@/lib/config";
-import { siteGraph } from "@/lib/schema";
 
 import "./globals.css";
 
@@ -89,10 +87,12 @@ export default function RootLayout({
       <head>
         <link href={process.env.NEXT_PUBLIC_POSTHOG_HOST} rel="preconnect" />
       </head>
-      <body className="flex min-h-screen flex-col">
-        <JsonLd data={siteGraph} />
-        {children}
-      </body>
+      {/* No JSON-LD here. A layout runs on every route and cannot know the
+          page's breadcrumb trail, so emitting the graph from here produced a
+          second `BreadcrumbList` on every inner page, sharing one `@id` with
+          the page's own and disagreeing with it. Pages emit `zoneGraph()`
+          instead: one script, one graph, one trail. See lib/schema.ts. */}
+      <body className="flex min-h-screen flex-col">{children}</body>
     </html>
   );
 }

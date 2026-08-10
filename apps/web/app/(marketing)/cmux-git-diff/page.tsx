@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { JsonLd } from "@/components/shared/json-ld";
+import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { CopyButton } from "@/components/ui/copy-button";
 import { siteConfig } from "@/lib/config";
-import { breadcrumbGraph, schemaId } from "@/lib/schema";
+import { schemaId, zoneGraph } from "@/lib/schema";
 
 /**
  * Deliberately a Server Component. The homepage is `"use client"` for its
@@ -74,9 +75,8 @@ export const metadata: Metadata = {
  * The breadcrumb starts at the blode.co root, not at this zone. A trail
  * beginning at blode.co/diffhub tells crawlers the zone is its own site.
  */
-const pageJsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
+const pageJsonLd = zoneGraph({
+  nodes: [
     {
       "@type": "TechArticle",
       author: { "@id": schemaId.person },
@@ -87,9 +87,9 @@ const pageJsonLd = {
       publisher: { "@id": schemaId.organization },
       url,
     },
-    breadcrumbGraph([{ name: title, url }]),
   ],
-};
+  trail: [{ name: title, url }],
+});
 
 const alternatives = [
   {
@@ -125,13 +125,10 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
 
       <article className="@container py-16 sm:py-24">
         <div className="mx-auto max-w-3xl px-6">
-          <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-            <Link className="transition-colors hover:text-foreground" href="/">
-              DiffHub
-            </Link>
-            <span aria-hidden="true"> / </span>
-            <span aria-current="page">Git diff in cmux</span>
-          </nav>
+          {/* `title`, not the old short "Git diff in cmux". The visible leaf
+              has to be the same string the JSON-LD declares, and those two
+              disagreed here. zone-conventions.md Rule 4. */}
+          <ZoneBreadcrumb page={title} product="DiffHub" />
 
           <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
             {title}

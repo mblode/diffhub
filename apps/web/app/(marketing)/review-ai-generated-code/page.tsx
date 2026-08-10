@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { JsonLd } from "@/components/shared/json-ld";
+import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { CopyButton } from "@/components/ui/copy-button";
 import { siteConfig } from "@/lib/config";
-import { breadcrumbGraph, schemaId } from "@/lib/schema";
+import { schemaId, zoneGraph } from "@/lib/schema";
 
 /**
  * Deliberately a Server Component, for the same reason as `cmux-git-diff`: the
@@ -98,9 +99,8 @@ const updatedAt =
  * would be a Wikidata URI for code review, and inventing an identifier to fill
  * a slot is exactly what the spec disqualifies.
  */
-const pageJsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
+const pageJsonLd = zoneGraph({
+  nodes: [
     {
       "@type": ["TechArticle", "LearningResource"],
       author: { "@id": schemaId.person },
@@ -115,9 +115,9 @@ const pageJsonLd = {
         "Choosing where to read a git diff when reviewing code written by an AI coding agent",
       url,
     },
-    breadcrumbGraph([{ name: title, url }]),
   ],
-};
+  trail: [{ name: title, url }],
+});
 
 /** Every value carries a unit and a source. No row exists without both. */
 const facts = [
@@ -228,17 +228,10 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
 
       <article className="@container py-16 sm:py-24">
         <div className="mx-auto max-w-3xl px-6">
-          <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-            <Link className="transition-colors hover:text-foreground" href="/">
-              DiffHub
-            </Link>
-            <span aria-hidden="true"> / </span>
-            {/* Verbatim the same string as the breadcrumb's last `name` in the
-                JSON-LD below. Google treats a mismatch between the visible
-                trail and the marked-up one as a markup error, so the two are
-                one value. zone-conventions.md Rule 4. */}
-            <span aria-current="page">{title}</span>
-          </nav>
+          {/* Every crumb `zoneGraph` declares is rendered here, `title`
+              included. A short hand-rolled trail is what produced the phantom
+              "Projects" finding. zone-conventions.md Rule 4. */}
+          <ZoneBreadcrumb page={title} product="DiffHub" />
 
           <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
             {title}

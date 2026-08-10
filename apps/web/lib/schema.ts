@@ -57,47 +57,79 @@ export const breadcrumbGraph = (trail: { name: string; url: string }[] = []) => 
   ],
 });
 
-export const siteGraph = {
+/**
+ * The zone's own nodes, without the breadcrumb. Composed by `zoneGraph` below
+ * rather than emitted directly, because the breadcrumb has to know the page.
+ */
+const zoneNodes = [
+  {
+    "@id": schemaId.webPage,
+    "@type": "WebPage",
+    about: { "@id": schemaId.software },
+    breadcrumb: { "@id": schemaId.breadcrumb },
+    description: siteConfig.description,
+    inLanguage: "en-US",
+    isPartOf: { "@id": schemaId.website },
+    name: siteConfig.name,
+    url: siteConfig.url,
+  },
+  {
+    "@id": schemaId.software,
+    "@type": "SoftwareApplication",
+    applicationCategory: "DeveloperApplication",
+    author: { "@id": schemaId.person },
+    description: siteConfig.description,
+    downloadUrl: siteConfig.links.npm,
+    // No aggregateRating: there are no ratings to report, and inventing them
+    // is exactly the mismatch Google treats as spam. This costs the rich
+    // result and keeps the entity data honest.
+    isAccessibleForFree: true,
+    isPartOf: { "@id": schemaId.website },
+    name: siteConfig.name,
+    image: `${siteConfig.url}/opengraph-image`,
+    offers: {
+      "@type": "Offer",
+      availability: "https://schema.org/InStock",
+      // Numeric 0 matches Google's SoftwareApplication example. String "0"
+      // is schema.org-legal but Semrush Site Audit flags it as invalid markup.
+      price: 0,
+      priceCurrency: "USD",
+    },
+    operatingSystem: "macOS, Linux, Windows",
+    publisher: { "@id": schemaId.organization },
+    ...(process.env.DIFFHUB_VERSION ? { softwareVersion: process.env.DIFFHUB_VERSION } : {}),
+    url: siteConfig.url,
+  },
+];
+
+/**
+ * The single `@graph` for one page. Emitted by the page, never by a layout.
+ *
+ * It used to be a `siteGraph` constant rendered from `app/layout.tsx`, which
+ * ran on every route and carried a three-item breadcrumb at
+ * `schemaId.breadcrumb`. Inner pages then rendered a second script whose
+ * four-item trail claimed the same `@id`. That is two `BreadcrumbList` nodes
+ * per inner page with one identifier and conflicting contents, which is a data
+ * error rather than a second trail, and it broke Rule 3 ("one `@graph`, not N
+ * scripts") on every route except the zone root.
+ *
+ * A layout cannot know the page's trail, so the emission has to live where the
+ * trail is known. Pages pass their own nodes in `nodes` and their leaf crumb in
+ * `trail`.
+ *
+ * The visible trail has to carry every name this declares. `check-schema`
+ * compares them, and the phantom "Projects" crumb was exactly this: inner pages
+ * rendered a short "DiffHub / page" nav while the markup declared Matthew
+ * Blode, Projects and DiffHub above it. Use `ZoneBreadcrumb` with its `page`
+ * prop and the two cannot drift.
+ */
+export const zoneGraph = ({
+  nodes = [],
+  trail = [],
+}: {
+  nodes?: unknown[];
+  trail?: { name: string; url: string }[];
+} = {}) => ({
   "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@id": schemaId.webPage,
-      "@type": "WebPage",
-      about: { "@id": schemaId.software },
-      breadcrumb: { "@id": schemaId.breadcrumb },
-      description: siteConfig.description,
-      inLanguage: "en-US",
-      isPartOf: { "@id": schemaId.website },
-      name: siteConfig.name,
-      url: siteConfig.url,
-    },
-    {
-      "@id": schemaId.software,
-      "@type": "SoftwareApplication",
-      applicationCategory: "DeveloperApplication",
-      author: { "@id": schemaId.person },
-      description: siteConfig.description,
-      downloadUrl: siteConfig.links.npm,
-      // No aggregateRating: there are no ratings to report, and inventing them
-      // is exactly the mismatch Google treats as spam. This costs the rich
-      // result and keeps the entity data honest.
-      isAccessibleForFree: true,
-      isPartOf: { "@id": schemaId.website },
-      name: siteConfig.name,
-      image: `${siteConfig.url}/opengraph-image`,
-      offers: {
-        "@type": "Offer",
-        availability: "https://schema.org/InStock",
-        // Numeric 0 matches Google's SoftwareApplication example. String "0"
-        // is schema.org-legal but Semrush Site Audit flags it as invalid markup.
-        price: 0,
-        priceCurrency: "USD",
-      },
-      operatingSystem: "macOS, Linux, Windows",
-      publisher: { "@id": schemaId.organization },
-      ...(process.env.DIFFHUB_VERSION ? { softwareVersion: process.env.DIFFHUB_VERSION } : {}),
-      url: siteConfig.url,
-    },
-    breadcrumbGraph(),
-  ],
-};
+  "@graph": [...zoneNodes, breadcrumbGraph(trail), ...nodes],
+});

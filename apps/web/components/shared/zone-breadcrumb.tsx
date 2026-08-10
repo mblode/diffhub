@@ -9,7 +9,15 @@
  * 2. Plain `<a>` via `BreadcrumbLink`, never `next/link`.
  * 3. Visible trail matches `BreadcrumbList`: Matthew Blode → Projects → product.
  *
- * Root page only. Inner pages have their own navigation.
+ * Inner pages too, via `page`. This used to say "root page only. Inner pages
+ * have their own navigation", and that sentence was the bug: inner pages
+ * hand-rolled a "DiffHub / this page" nav while `zoneGraph` declared Matthew
+ * Blode and Projects above it. `check-schema` reads every crumb name out of the
+ * JSON-LD and looks for it in the rendered text, so "Projects" was reported as
+ * a crumb not in the DOM on every inner route. Pass `page` and constraint 3
+ * holds by construction.
+ *
+ * `page` must be the same string the page puts in `zoneGraph`'s `trail`.
  */
 
 import {
@@ -20,11 +28,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { siteConfig } from "@/lib/config";
 
 const HOME = "https://blode.co";
 const PROJECTS = `${HOME}/projects`;
 
-export const ZoneBreadcrumb = ({ product }: { product: string }) => (
+export const ZoneBreadcrumb = ({ page, product }: { page?: string; product: string }) => (
   <Breadcrumb aria-label="Breadcrumb">
     <BreadcrumbList>
       <BreadcrumbItem>
@@ -38,8 +47,20 @@ export const ZoneBreadcrumb = ({ product }: { product: string }) => (
       </BreadcrumbItem>
       <BreadcrumbSeparator />
       <BreadcrumbItem>
-        <BreadcrumbPage>{product}</BreadcrumbPage>
+        {page ? (
+          <BreadcrumbLink href={siteConfig.url}>{product}</BreadcrumbLink>
+        ) : (
+          <BreadcrumbPage>{product}</BreadcrumbPage>
+        )}
       </BreadcrumbItem>
+      {page ? (
+        <>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{page}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </>
+      ) : null}
     </BreadcrumbList>
   </Breadcrumb>
 );
