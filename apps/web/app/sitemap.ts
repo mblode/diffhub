@@ -25,8 +25,16 @@ const DOCS_PATHS = ["/docs", "/docs/usage", "/docs/features/diff-views", "/docs/
  */
 const DOCS_UPDATED = "2026-07-29";
 
-/** Date-only strings parse as UTC midnight. The `T00:00:00` form is local, and drifts. */
-const on = (date: string) => new Date(date);
+/**
+ * Date-only strings parse as UTC midnight. The `T00:00:00` form is local, and
+ * drifts.
+ *
+ * An empty string means the changelog was empty, and `new Date("")` is an
+ * Invalid Date that fails serialisation, so drop `lastModified` for that URL
+ * instead. Omitting the field is legal in the sitemap protocol; emitting a
+ * broken one is not.
+ */
+const on = (date: string) => (date ? new Date(date) : undefined);
 
 const sitemap = (): MetadataRoute.Sitemap => [
   {

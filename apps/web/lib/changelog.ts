@@ -20,18 +20,35 @@ export interface ChangelogEntry {
   date: string;
 }
 
-/** The oldest entry, which is the last one under newest-first ordering. */
-export const firstDate = (entries: readonly ChangelogEntry[]): string => entries.at(-1)?.date ?? "";
+/**
+ * Both ends come off one sorted list, so neither depends on how the entries
+ * happen to be ordered in the source. `latestDate` used to sort while
+ * `firstDate` read `.at(-1)` and trusted newest-first: appending a new entry to
+ * the bottom, which is the natural way to edit a changelog, would then hand
+ * `datePublished` the newest date and claim the page was first published on the
+ * day it was last edited.
+ *
+ * An empty changelog yields `""`. Callers that build a `Date` have to treat
+ * that as "no date" rather than passing it to `new Date`, which returns an
+ * Invalid Date and fails sitemap serialisation.
+ */
+const dates = (entries: readonly ChangelogEntry[]): string[] =>
+  entries.map((entry) => entry.date).toSorted();
 
-/** Sorted rather than assumed, so a misfiled entry cannot move the date backwards. */
+/** The oldest entry's date, whatever order the entries are written in. */
+export const firstDate = (entries: readonly ChangelogEntry[]): string => dates(entries)[0] ?? "";
+
+/** The newest entry's date, whatever order the entries are written in. */
 export const latestDate = (entries: readonly ChangelogEntry[]): string =>
-  entries
-    .map((entry) => entry.date)
-    .toSorted()
-    .at(-1) ?? firstDate(entries);
+  dates(entries).at(-1) ?? "";
 
 export const CHANGELOGS = {
   "/": [
+    {
+      change:
+        "Cut the page roughly in half: the feature grid, the keyboard shortcuts, the pain list and the tool comparison all restated something already on the page or on one of the two guides. The comparison now lives only on those guides.",
+      date: "2026-08-11",
+    },
     {
       change:
         "Added a comparison against cmux diff, hunk and revdiff, a table of facts you can check before installing, and an FAQ.",

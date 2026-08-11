@@ -15,11 +15,17 @@ import { siteConfig } from "@/lib/config";
  * assertion is still correct and should stay.
  */
 
-const PAGES = [
+/**
+ * `path` is keyed to `CHANGELOGS` rather than written free-hand, so a page
+ * added here without a changelog entry fails `tsc` instead of building a route
+ * that throws. The alternative was a `keyof typeof` assertion at the lookup,
+ * which silences exactly the error worth keeping.
+ */
+const PAGES: { path: keyof typeof CHANGELOGS; summary: string; title: string }[] = [
   {
-    path: "",
+    path: "/",
     summary:
-      "The product. What DiffHub is, how it compares with cmux diff, git diff and hunk, what you can check before installing, and the install command.",
+      "The product. What DiffHub is, what you can check before installing, and the install command. The tool comparisons live on the two pages below.",
     title: "DiffHub, a git diff viewer for cmux",
   },
   {
@@ -45,8 +51,10 @@ const DOCS = [
 
 const body = () => {
   const pages = PAGES.map((page) => {
-    const url = `${siteConfig.url}${page.path}`;
-    const updated = latestDate(CHANGELOGS[(page.path || "/") as keyof typeof CHANGELOGS]);
+    // The zone root is "/" as a changelog key but an empty suffix in a URL:
+    // siteConfig.url already ends without a slash.
+    const url = `${siteConfig.url}${page.path === "/" ? "" : page.path}`;
+    const updated = latestDate(CHANGELOGS[page.path]);
     return `- [${page.title}](${url}): ${page.summary} Last updated ${updated}.`;
   });
 
