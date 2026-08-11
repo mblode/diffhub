@@ -17,11 +17,21 @@ import { cn } from "@/lib/utils";
 interface AuthorBylineProps {
   /** Placement only. The prose pages leave it left; the centred hero passes justify-center. */
   className?: string;
+  /**
+   * Off by default. "Author of DiffHub" is a disclosure on the two guide pages,
+   * which weigh DiffHub against other people's tools. On diffhub.co it restates
+   * the domain, so the landing page omits it.
+   */
+  credential?: boolean;
   /** ISO date-only. Rendered as the visible stamp and the `datetime` attribute. */
   updated: string;
 }
 
-export const AuthorByline = ({ className, updated }: AuthorBylineProps): React.JSX.Element => (
+export const AuthorByline = ({
+  className,
+  credential = false,
+  updated,
+}: AuthorBylineProps): React.JSX.Element => (
   <div
     className={cn(
       "mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-sm",
@@ -42,11 +52,15 @@ export const AuthorByline = ({ className, updated }: AuthorBylineProps): React.J
       <img alt="" className="rounded-full" height={24} src={asset("/avatar-sm.png")} width={24} />
       <span className="font-medium text-foreground">Matthew Blode</span>
     </a>
-    <span aria-hidden="true" className="text-muted-foreground/30">
-      ·
-    </span>
-    {/* The credential, kept to what is checkable: he wrote the thing. */}
-    <span>Author of DiffHub</span>
+    {credential ? (
+      <>
+        <span aria-hidden="true" className="text-muted-foreground/30">
+          ·
+        </span>
+        {/* Kept to what is checkable: he wrote the thing. */}
+        <span>Author of DiffHub</span>
+      </>
+    ) : null}
     <span aria-hidden="true" className="text-muted-foreground/30">
       ·
     </span>

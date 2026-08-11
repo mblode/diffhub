@@ -102,16 +102,16 @@ const updatedAt = latestDate(CHANGELOG) || publishedAt;
 const faqs: Faq[] = [
   {
     answer:
-      "No. hunk, revdiff, `cmux diff` and DiffHub all show you a diff and let you annotate it. If you want findings generated for you, that is a different category of tool, and CodeRabbit or Greptile is the thing you are describing.",
+      "No. hunk, revdiff, `cmux diff` and DiffHub all show you a diff and let you annotate it. If you want findings generated for you, that’s a different category, and you’re describing CodeRabbit or Greptile.",
     question: "Do any of these tools review the code for you?",
   },
   {
-    answer: `revdiff, hunk and DiffHub are MIT licensed and free. \`cmux diff\` ships with cmux. \`git diff\` is git. Licences read from the projects' own pages on ${CHECKED}.`,
+    answer: `revdiff, hunk and DiffHub are MIT licensed and free. \`cmux diff\` ships with cmux. \`git diff\` is git. Licences read from the projects’ own pages on ${CHECKED}.`,
     question: "Are these tools free?",
   },
   {
     answer:
-      "Tests tell you the code does what the tests say. They do not tell you the agent touched forty files where three would have done, or that it deleted a check it could not satisfy. Read the diff.",
+      "Tests tell you the code does what the tests say. They don’t tell you the agent touched forty files where three would’ve done, or that it deleted a check it couldn’t satisfy. Read the diff.",
     question: "Should you review agent-written code if the tests pass?",
   },
 ];
@@ -250,7 +250,10 @@ Please address the following:
 const link = "text-link transition-colors hover:text-link/90";
 const body = "mt-4 text-pretty text-muted-foreground";
 const heading = "mt-16 text-2xl font-medium tracking-tight";
-const cell = "border-border/60 border-b py-3 pr-6 align-top";
+// pr-3 below sm: at 390px the 4-column tables overflowed their container by
+// ~40px and scrolled with no affordance, which hid the last column entirely.
+// Tightening the gutter removes the overflow rather than hinting at it.
+const cell = "border-border/60 border-b py-3 pr-2 align-top sm:pr-6";
 
 export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
   return (
@@ -268,7 +271,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             {title}
           </h1>
 
-          <AuthorByline updated={updatedAt} />
+          <AuthorByline credential updated={updatedAt} />
 
           {/* The answer block. No prose precedes it, because the first
               extractable passage on the page has to be the answer. The byline
@@ -495,10 +498,6 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
               </li>
             ))}
           </ul>
-          {/* The author and the revision date used to live here, at the foot of
-              the page. They are in `<AuthorByline>` under the h1 now, where a
-              reader and an extractor both meet them first. The changelog above
-              carries the publication date. */}
           <p className={body}>
             Related:{" "}
             <Link className={link} href="/cmux-git-diff">

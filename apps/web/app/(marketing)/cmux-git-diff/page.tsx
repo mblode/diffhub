@@ -8,6 +8,7 @@ import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { CopyButton } from "@/components/ui/copy-button";
 import { CHANGELOGS, firstDate, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
+import { REPO } from "@/lib/facts";
 import type { Faq } from "@/lib/faq";
 import { schemaId, zoneGraph } from "@/lib/schema";
 
@@ -81,16 +82,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * One script, one `@graph`. Two separate `ld+json` blocks describe two
- * unrelated things: the article and the trail cannot be merged into a single
- * entity unless a crawler sees them in the same graph.
- *
- * The breadcrumb starts at the blode.co root, not at this zone. A trail
- * beginning at blode.co/diffhub tells crawlers the zone is its own site.
+ * Read twice, by `<FaqSection>` for the markup and by `zoneGraph({ faqs })` for
+ * `acceptedAnswer`. One array, so the two cannot disagree. Backticks become
+ * `<code>` in the answers and are stripped for the schema; see `lib/faq.ts`.
  */
 const faqs: Faq[] = [
   {
-    answer: `Not yet. Live reload is cmux issue #7101, and opening the viewer in a pane you choose is #7102. Both were still open on ${CHECKED}.`,
+    answer: `Not yet. Live reload is cmux issue #7101, and choosing the pane it opens in is #7102. Both were still open on ${CHECKED}.`,
     question: "Does cmux diff refresh automatically while you edit?",
   },
   {
@@ -100,18 +98,26 @@ const faqs: Faq[] = [
   },
   {
     answer:
-      "Two dots compares the two branch tips. Three dots compares from the merge base, so you see what your branch introduced rather than everything that has landed on main since you started. Three dots is almost always the one you want.",
+      "Two dots compares the two branch tips. Three dots compares from the merge base, so you see what your branch introduced, not everything that’s landed on main since. Three dots is almost always the one you want.",
     // Plain text, no backticks. Only answers are parsed for inline code, and
     // schema.org types Question.name as plain text too, so a backtick in a
     // question renders as a literal backtick in both places.
     question: "What is the difference between two dots and three dots in git diff?",
   },
   {
-    answer: `Yes. \`git diff main...HEAD\` in a pane costs nothing, and \`cmux diff\` ships with cmux itself from ${CMUX_VERSION} onwards. Neither needs an install.`,
+    answer: `Yes. \`git diff main...HEAD\` in a pane costs nothing, and \`cmux diff\` ships with cmux from ${CMUX_VERSION} on. Neither needs an install.`,
     question: "Can you review a branch in cmux without installing anything?",
   },
 ];
 
+/**
+ * One script, one `@graph`. Two separate `ld+json` blocks describe two
+ * unrelated things: the article and the trail cannot be merged into a single
+ * entity unless a crawler sees them in the same graph.
+ *
+ * The breadcrumb starts at the blode.co root, not at this zone. A trail
+ * beginning at blode.co/diffhub tells crawlers the zone is its own site.
+ */
 const pageJsonLd = zoneGraph({
   faqs,
   nodes: [
@@ -178,14 +184,18 @@ const alternatives = [
     language: "TypeScript",
     name: "DiffHub",
     note: "A browser split that refreshes while you keep editing",
-    stars: "19",
+    // Shared with the landing page's facts table: one number, one source.
+    stars: REPO.stars,
   },
 ];
 
 const link = "text-link transition-colors hover:text-link/90";
 const body = "mt-4 text-pretty text-muted-foreground";
 const heading = "mt-16 text-2xl font-medium tracking-tight";
-const cell = "border-border/60 border-b py-3 pr-6 align-top";
+// pr-3 below sm: at 390px the 4-column tables overflowed their container by
+// ~40px and scrolled with no affordance, which hid the last column entirely.
+// Tightening the gutter removes the overflow rather than hinting at it.
+const cell = "border-border/60 border-b py-3 pr-2 align-top sm:pr-6";
 
 export default function CmuxGitDiffPage(): React.JSX.Element {
   return (
@@ -203,11 +213,9 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             {title}
           </h1>
 
-          <AuthorByline updated={updatedAt} />
+          <AuthorByline credential updated={updatedAt} />
 
-          {/* The answer block: the first extractable passage answers the h1.
-              The "I'd already built one" line is the better sentence but the
-              worse opener, so it now opens the first section instead. */}
+          {/* The answer block: the first extractable passage answers the h1. */}
           <p className="mt-6 text-pretty text-lg text-muted-foreground">
             There are three ways to read a branch diff in cmux. Run{" "}
             <code className="font-mono text-sm">cmux diff</code> for the built-in viewer,{" "}
@@ -301,9 +309,9 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
 
           <h2 className={heading}>What are the alternatives to cmux diff?</h2>
           <p className={body}>
-            A few people have built for this, and they make different trade-offs. Star counts are
-            the crudest possible signal, and they are here anyway, because they are the one number
-            on this table you can check in a click.
+            A few people have built for this, and they make different trade-offs. Star counts are a
+            crude signal, and they&rsquo;re here anyway: they&rsquo;re the one number on this table
+            you can check in a click.
           </p>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full text-left text-sm">
