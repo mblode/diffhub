@@ -34,5 +34,11 @@ jobs:
       - name: Type check
         run: npm run check-types
 
+      # The schema tests guard a contract a human cannot eyeball: unique and
+      # resolvable JSON-LD ids, and FAQ answers matching the rendered ones.
+      # Unrun, they are documentation.
+      - name: Test
+        run: npm run test
+
       - name: Build
         run: npm run build

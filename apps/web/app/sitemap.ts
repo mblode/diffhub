@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { CHANGELOGS, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
 
 /**
@@ -16,35 +17,50 @@ import { siteConfig } from "@/lib/config";
  */
 const DOCS_PATHS = ["/docs", "/docs/usage", "/docs/features/diff-views", "/docs/features/comments"];
 
-const sitemap = (): MetadataRoute.Sitemap => {
-  const lastModified = new Date();
+/**
+ * Hand-maintained alongside `DOCS_PATHS`, for the same reason: the content is
+ * in `apps/docs` and this app cannot see it. A date that is stale but true
+ * beats the `new Date()` this file used to hand every URL, which told Google
+ * the whole site changed on every crawl and trains it to ignore `lastmod`.
+ */
+const DOCS_UPDATED = "2026-07-29";
 
-  return [
-    {
-      changeFrequency: "weekly",
-      lastModified,
-      priority: 1,
-      url: siteConfig.url,
-    },
-    {
-      changeFrequency: "monthly",
-      lastModified,
-      priority: 0.8,
-      url: `${siteConfig.url}/cmux-git-diff`,
-    },
-    {
-      changeFrequency: "monthly",
-      lastModified,
-      priority: 0.8,
-      url: `${siteConfig.url}/review-ai-generated-code`,
-    },
-    ...DOCS_PATHS.map((path) => ({
-      changeFrequency: "monthly" as const,
-      lastModified,
-      priority: 0.8,
-      url: `${siteConfig.url}${path}`,
-    })),
-  ];
-};
+/**
+ * Date-only strings parse as UTC midnight. The `T00:00:00` form is local, and
+ * drifts.
+ *
+ * An empty string means the changelog was empty, and `new Date("")` is an
+ * Invalid Date that fails serialisation, so drop `lastModified` for that URL
+ * instead. Omitting the field is legal in the sitemap protocol; emitting a
+ * broken one is not.
+ */
+const on = (date: string) => (date ? new Date(date) : undefined);
+
+const sitemap = (): MetadataRoute.Sitemap => [
+  {
+    changeFrequency: "weekly",
+    lastModified: on(latestDate(CHANGELOGS["/"])),
+    priority: 1,
+    url: siteConfig.url,
+  },
+  {
+    changeFrequency: "monthly",
+    lastModified: on(latestDate(CHANGELOGS["/cmux-git-diff"])),
+    priority: 0.8,
+    url: `${siteConfig.url}/cmux-git-diff`,
+  },
+  {
+    changeFrequency: "monthly",
+    lastModified: on(latestDate(CHANGELOGS["/review-ai-generated-code"])),
+    priority: 0.8,
+    url: `${siteConfig.url}/review-ai-generated-code`,
+  },
+  ...DOCS_PATHS.map((path) => ({
+    changeFrequency: "monthly" as const,
+    lastModified: on(DOCS_UPDATED),
+    priority: 0.8,
+    url: `${siteConfig.url}${path}`,
+  })),
+];
 
 export default sitemap;

@@ -38,19 +38,22 @@ export const Navbar = () => {
       >
         <div className="mx-auto max-w-4xl px-6">
           <div className="relative flex items-center justify-between py-4">
-            <Link className="flex items-center gap-2 font-semibold tracking-[-0.02em]" href="/">
+            <Link
+              className="relative flex items-center gap-2 font-semibold tracking-[-0.02em] after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-['']"
+              href="/"
+            >
               DiffHub
             </Link>
 
             <div className="flex items-center gap-4">
               <Link
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
                 href="/cmux-git-diff"
               >
                 Guide
               </Link>
               <a
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
                 href={siteConfig.links.docs}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -58,6 +61,7 @@ export const Navbar = () => {
                 Docs
               </a>
               <Button
+                className="relative after:absolute after:-inset-y-2 after:content-['']"
                 render={
                   <a href={siteConfig.links.github} rel="noopener noreferrer" target="_blank" />
                 }
