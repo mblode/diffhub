@@ -1,14 +1,17 @@
 // Client-safe catalog of syntax themes the diff viewer can render with.
 //
-// The list is the 4 Pierre themes (shipped by @pierre/diffs) followed by the
-// 65 Shiki bundled themes. Regenerate the bundled portion with:
+// The list is the 2 Linear themes (vendored, see ./register-linear-themes), the
+// 4 Pierre themes (shipped by @pierre/diffs), then the 65 Shiki bundled themes.
+// Regenerate the bundled portion with:
 //
 //   node -e "import('shiki').then(s=>process.stdout.write(JSON.stringify(s.bundledThemesInfo.map(t=>({id:t.id,name:t.displayName,type:t.type})))))"
 //
 // Theme ids are passed straight into CodeView's `options.theme` ({ light, dark }).
 // They resolve lazily on the main thread via @pierre/diffs' getSharedHighlighter
 // → getResolvedOrResolveTheme → shiki `bundledThemes[id]`, so no preload step is
-// needed — selecting a new id re-renders with it on the next paint.
+// needed — selecting a new id re-renders with it on the next paint. The Linear
+// ids are the exception: they are not in anyone's bundle, so they only resolve
+// once `registerLinearThemes()` has handed the resolver a loader for them.
 
 export interface DiffThemeInfo {
   id: string;
@@ -16,10 +19,16 @@ export interface DiffThemeInfo {
   type: "light" | "dark";
 }
 
-export const DEFAULT_LIGHT_THEME = "pierre-light-soft";
-export const DEFAULT_DARK_THEME = "pierre-dark-soft";
+export const LINEAR_LIGHT_THEME_ID = "linear-light";
+export const LINEAR_DARK_THEME_ID = "linear-dark";
+
+export const DEFAULT_LIGHT_THEME = LINEAR_LIGHT_THEME_ID;
+export const DEFAULT_DARK_THEME = LINEAR_DARK_THEME_ID;
 
 export const DIFF_THEMES: readonly DiffThemeInfo[] = [
+  // Linear themes (vendored from github.com/mblode/linear-theme).
+  { id: LINEAR_LIGHT_THEME_ID, name: "Linear Light", type: "light" },
+  { id: LINEAR_DARK_THEME_ID, name: "Linear Dark", type: "dark" },
   // Pierre themes (provided by @pierre/diffs, not Shiki's bundle).
   { id: "pierre-light", name: "Pierre Light", type: "light" },
   { id: "pierre-light-soft", name: "Pierre Light Soft", type: "light" },
@@ -107,7 +116,7 @@ const LIGHT_THEME_IDS = new Set(DIFF_THEMES.filter((t) => t.type === "light").ma
 const DARK_THEME_IDS = new Set(DIFF_THEMES.filter((t) => t.type === "dark").map((t) => t.id));
 
 /**
- * Validate a persisted theme selection, falling back to the github defaults for
+ * Validate a persisted theme selection, falling back to the default pair for
  * any id that is not a known light/dark theme. Keeps a corrupt localStorage
  * value from feeding an unresolvable id into CodeView.
  */

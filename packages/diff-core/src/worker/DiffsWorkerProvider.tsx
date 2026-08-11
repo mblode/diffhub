@@ -4,6 +4,11 @@ import { WorkerPoolContextProvider } from "@pierre/diffs/react";
 import type { WorkerInitializationRenderOptions, WorkerPoolOptions } from "@pierre/diffs/react";
 import { useMemo } from "react";
 import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from "../themes/diff-themes";
+import { registerLinearThemes } from "../themes/register-linear-themes";
+
+// The default pair is Linear, which no bundle carries. Register before the
+// pool initialises with it, and before any CodeView below asks to resolve it.
+registerLinearThemes();
 
 interface DiffsWorkerProviderProps {
   children: React.ReactNode;
