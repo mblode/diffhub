@@ -93,7 +93,9 @@
   --muted-foreground: #26251eae;
   --accent: #eceae5;
   --accent-foreground: #26251e;
-  --link: #f54e00bf;
+  /* Darkened from the display orange so links and small accent text clear AA
+     on both the paper and secondary surfaces. */
+  --link: #b83a00;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #26251e0a;
   --input: #26251e0a;
@@ -239,10 +241,6 @@
       transform: none !important;
       animation: none !important;
     }
-  }
-
-  .hero-glow {
-    background: radial-gradient(ellipse 80% 60% at 50% 40%, #26251e0d, transparent);
   }
 
   .bg-card {

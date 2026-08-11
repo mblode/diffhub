@@ -1,5 +1,6 @@
 import type { Faq } from "@/lib/faq";
 import { answerSegments } from "@/lib/faq";
+import { cn } from "@/lib/utils";
 
 /**
  * Question headings and answers, from the same array `zoneGraph({ faqs })`
@@ -26,18 +27,22 @@ import { answerSegments } from "@/lib/faq";
 
 interface FaqSectionProps {
   answerClassName: string;
+  className?: string;
   faqs: readonly Faq[];
+  itemClassName?: string;
   questionClassName: string;
 }
 
 export const FaqSection = ({
   answerClassName,
+  className,
   faqs,
+  itemClassName,
   questionClassName,
 }: FaqSectionProps): React.JSX.Element => (
-  <div>
+  <div className={className}>
     {faqs.map((faq) => (
-      <div key={faq.question}>
+      <div className={cn(itemClassName)} key={faq.question}>
         <h3 className={questionClassName}>{faq.question}</h3>
         <p className={answerClassName}>
           {answerSegments(faq.answer).map((segment) =>

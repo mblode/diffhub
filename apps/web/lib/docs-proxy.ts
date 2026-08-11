@@ -21,22 +21,26 @@ const PUBLIC_DOCS_PATH = `${basePath}/docs`;
  * blode.co already forwards to us, and map them back on the way out. A plain
  * rewrite cannot do this: it has no access to the response body.
  *
- * The segment is the platform's Next.js `assetPrefix`, so it tracks blode.md
- * rather than anything in this repo. It moved from `/_next` to `/_docs` once,
- * silently, and every docs page lost its CSS and JS until this caught up. If
- * the docs render unstyled again, check what the upstream HTML actually asks
- * for before looking anywhere else.
+ * The upstream prefix tracks blode.md rather than anything in this repo. It
+ * moved once, silently, and every docs page lost its CSS and JS until this
+ * caught up. If the docs render unstyled again, check what the upstream HTML
+ * actually asks for before looking anywhere else.
+ *
+ * `_next` must not survive into the public URL. Vercel resolves that segment
+ * against this app's own build output before the request reaches this route,
+ * even when it appears below `/docs`. The neutral `_chunks` segment keeps the
+ * request routable and also retires the old immutable cache key.
  */
-const ASSET_SEGMENT = "_docs";
-const UPSTREAM_ASSET_PREFIX = `/${ASSET_SEGMENT}/`;
-const PUBLIC_ASSET_PREFIX = `${PUBLIC_DOCS_PATH}${UPSTREAM_ASSET_PREFIX}`;
+const UPSTREAM_ASSET_PREFIX = "/_docs/_next/";
+const PUBLIC_ASSET_SEGMENT = "_chunks";
+const PUBLIC_ASSET_PREFIX = `${PUBLIC_DOCS_PATH}/${PUBLIC_ASSET_SEGMENT}/`;
 
-const isAssetSlug = (slug: string[]): boolean => slug[0] === ASSET_SEGMENT;
+const isAssetSlug = (slug: string[]): boolean => slug[0] === PUBLIC_ASSET_SEGMENT;
 
 /** Map a public path onto the path the docs origin actually serves. */
 export const toUpstreamPath = (slug: string[]): string => {
   if (isAssetSlug(slug)) {
-    return `/${slug.join("/")}`;
+    return `${UPSTREAM_ASSET_PREFIX}${slug.slice(1).join("/")}`;
   }
   return slug.length ? `/docs/${slug.join("/")}` : "/docs";
 };
@@ -84,12 +88,12 @@ const getForwardHeaders = (request: Request): Headers => {
  * routes, because the header is genuinely incomplete and the behaviour is
  * still correct.
  */
-const normaliseHeaders = (source: Headers, ok: boolean): Headers => {
+const normaliseHeaders = (source: Headers, ok: boolean, cacheable: boolean): Headers => {
   const headers = new Headers(source);
   for (const header of ["content-encoding", "content-length", "link"]) {
     headers.delete(header);
   }
-  if (!ok) {
+  if (!(ok && cacheable)) {
     // Never let a transient upstream failure get pinned at the edge.
     for (const header of ["cdn-cache-control", "vercel-cdn-cache-control"]) {
       headers.delete(header);
@@ -219,7 +223,7 @@ export const proxyDocsRequest = async (request: Request, slug: string[]): Promis
     redirect: "manual",
   });
 
-  const headers = normaliseHeaders(response.headers, response.ok);
+  const headers = normaliseHeaders(response.headers, response.ok, request.method === "GET");
 
   const location = response.headers.get("location");
   if (location) {
