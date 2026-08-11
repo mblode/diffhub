@@ -223,7 +223,13 @@ export const proxyDocsRequest = async (request: Request, slug: string[]): Promis
     redirect: "manual",
   });
 
-  const headers = normaliseHeaders(response.headers, response.ok, request.method === "GET");
+  // Rewritten HTML embeds the current public asset prefix, so it must never
+  // outlive a deployment. Only immutable chunk requests keep upstream caching.
+  const headers = normaliseHeaders(
+    response.headers,
+    response.ok,
+    request.method === "GET" && isAssetSlug(slug),
+  );
 
   const location = response.headers.get("location");
   if (location) {

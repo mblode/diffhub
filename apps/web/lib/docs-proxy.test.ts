@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
-import { rewriteDocsHtml, toUpstreamPath } from "./docs-proxy";
+import { proxyDocsRequest, rewriteDocsHtml, toUpstreamPath } from "./docs-proxy";
 
 /**
  * `docs-proxy.fixture.html` is a snapshot of https://diffhub.blode.md/docs taken
@@ -18,6 +18,10 @@ import { rewriteDocsHtml, toUpstreamPath } from "./docs-proxy";
  *   DOCS_PROXY_LIVE=1 npm run test --workspace @diffhub/web
  */
 const FIXTURE = readFileSync(path.join(import.meta.dirname, "docs-proxy.fixture.html"), "utf-8");
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /** Root-absolute `href`/`src` values, including the escaped flight-payload form. */
 const rootAbsoluteUrls = (html: string): string[] =>
@@ -71,6 +75,50 @@ test("asset URLs round-trip through a routable public segment", () => {
 
   const slug = (publicUrl as string).replace("/diffhub/docs/", "").split("/");
   expect(toUpstreamPath(slug)).toBe(`/_docs/_next/${slug.slice(1).join("/")}`);
+});
+
+test("docs HTML cannot remain cached across deployments", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(FIXTURE, {
+          headers: {
+            "cdn-cache-control": "public, s-maxage=3600",
+            "content-type": "text/html",
+          },
+        }),
+      ),
+    ),
+  );
+
+  const response = await proxyDocsRequest(new Request("https://blode.co/diffhub/docs"), []);
+
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("cdn-cache-control")).toBeNull();
+});
+
+test("immutable docs chunks retain upstream caching", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        new Response("body {}", {
+          headers: {
+            "cache-control": "public, max-age=31536000, immutable",
+            "content-type": "text/css",
+          },
+        }),
+      ),
+    ),
+  );
+
+  const response = await proxyDocsRequest(
+    new Request("https://blode.co/diffhub/docs/_chunks/static/app.css"),
+    ["_chunks", "static", "app.css"],
+  );
+
+  expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
 });
 
 /**
