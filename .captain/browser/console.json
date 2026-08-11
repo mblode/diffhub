@@ -1,0 +1,31 @@
+{
+  "desktop": {
+    "heading": "Review the whole branch.Review the whole branch.",
+    "headingLines": 2,
+    "imageRight": 1784,
+    "imageWidth": 1024,
+    "overflow": false,
+    "viewport": [1665, 885]
+  },
+  "errors": [
+    "Loading the script 'https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'  'unsafe-eval'\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked.",
+    "Connecting to 'https://us.i.posthog.com/flags/?v=2&compression=base64' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.",
+    "Fetch API cannot load https://us.i.posthog.com/flags/?v=2&compression=base64. Refused to connect because it violates the document's Content Security Policy.",
+    "Connecting to 'https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.",
+    "Fetch API cannot load https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config. Refused to connect because it violates the document's Content Security Policy.",
+    "Loading the script 'https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'  'unsafe-eval'\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked.",
+    "Connecting to 'https://us.i.posthog.com/flags/?v=2&compression=base64' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.",
+    "Fetch API cannot load https://us.i.posthog.com/flags/?v=2&compression=base64. Refused to connect because it violates the document's Content Security Policy.",
+    "Connecting to 'https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.",
+    "Fetch API cannot load https://us-assets.i.posthog.com/array/phc_yYatHXysbRxjTyfmyCKSUyMSQpgepJPuxegz2HtpfX35/config. Refused to connect because it violates the document's Content Security Policy."
+  ],
+  "failedRequests": ["", "net::ERR_ABORTED", ""],
+  "mobile": {
+    "heading": "Review the whole branch.Review the whole branch.",
+    "headingLines": 2,
+    "imageRight": 552,
+    "imageWidth": 528,
+    "overflow": false,
+    "viewport": [390, 844]
+  }
+}

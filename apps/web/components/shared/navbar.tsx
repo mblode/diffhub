@@ -36,7 +36,7 @@ export const Navbar = () => {
           isScrolled && "border-border/40 border-b",
         )}
       >
-        <div className="mx-auto max-w-4xl px-6">
+        <div className="mx-auto max-w-7xl px-6">
           <div className="relative flex items-center justify-between py-4">
             <Link
               className="relative flex items-center gap-2 font-semibold tracking-[-0.02em] after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-['']"

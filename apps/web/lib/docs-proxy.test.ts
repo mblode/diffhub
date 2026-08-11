@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { expect, test } from "vitest";
 
-import { rewriteDocsHtml } from "./docs-proxy";
+import { rewriteDocsHtml, toUpstreamPath } from "./docs-proxy";
 
 /**
  * `docs-proxy.fixture.html` is a snapshot of https://diffhub.blode.md/docs taken
@@ -59,6 +59,18 @@ test("the llms files point at the docs index", () => {
     expect(out).toContain(`\\"href\\":\\"/diffhub/docs/${name}`);
     expect(out).not.toContain(`\\"href\\":\\"/${name}`);
   }
+});
+
+test("asset URLs round-trip through a routable public segment", () => {
+  const out = rewriteDocsHtml(FIXTURE);
+  const publicUrl = rootAbsoluteUrls(out).find((url) => url.includes("/_chunks/"));
+
+  expect(publicUrl).toBeDefined();
+  expect(publicUrl).not.toContain("_next");
+  expect(publicUrl).toContain("/diffhub/docs/_chunks/static/");
+
+  const slug = (publicUrl as string).replace("/diffhub/docs/", "").split("/");
+  expect(toUpstreamPath(slug)).toBe(`/_docs/_next/${slug.slice(1).join("/")}`);
 });
 
 /**

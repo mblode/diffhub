@@ -54,16 +54,17 @@ export const DemoLauncher = (): React.JSX.Element => {
       className="mx-auto flex w-full max-w-md flex-col items-center gap-2"
       onSubmit={handleSubmit}
     >
-      <div className="flex w-full items-center gap-2">
+      <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center">
         <input
           aria-label="GitHub pull request URL"
-          className="min-w-0 flex-1 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-link/60 focus:outline-none"
+          className="min-w-0 flex-1 rounded-full bg-background px-4 py-3 text-base text-foreground shadow-input outline-1 -outline-offset-1 outline-foreground/10 placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-link"
+          name="pull-request-url"
           onChange={handleChange}
           placeholder="Paste a GitHub PR URL"
           value={value}
         />
-        <Button size="lg" type="submit">
-          Open
+        <Button className="w-full sm:w-auto" size="lg" type="submit" variant="outline">
+          Open PR
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -72,7 +73,7 @@ export const DemoLauncher = (): React.JSX.Element => {
         ) : (
           <>
             Try{" "}
-            <Link className="text-link hover:text-link/90" href="/oven-sh/bun/pull/16000">
+            <Link className="text-link hover:underline" href="/oven-sh/bun/pull/16000">
               oven-sh/bun#16000
             </Link>
           </>
