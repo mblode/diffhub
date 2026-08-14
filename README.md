@@ -4,7 +4,7 @@
 
 **Review your git branch in a [cmux](https://cmux.com) browser split, with inline comments you can hand to an agent**
 
-Run one command inside any git repository and DiffHub serves a GitHub-style diff of your branch at `localhost:2047`.
+Run one command inside any git repository and DiffHub serves a GitHub-style diff of your working tree at `localhost:2047`.
 
 <p align="center">
   <a href="https://www.npmjs.com/package/diffhub">
@@ -55,7 +55,7 @@ diffhub cmux --base develop
 diffhub cmux --repo ~/Code/mblode/cmux
 ```
 
-DiffHub diffs your branch against the merge-base with the detected base branch, preferring `origin/main` so unpushed commits still show up. It watches the repository and refreshes as you work.
+The default view is `touched`: `HEAD` versus the working tree, including untracked files. Merge-base scopes (`all`, `committed`) are available from the status bar, and `--base` still selects the comparison branch, preferring `origin/main` so unpushed commits show up. A watcher marks updates available; press `r` to refresh. `diffhub cmux` uses a repo-derived port in 20000–29999 instead of 2047.
 
 ## Commands
 
@@ -85,17 +85,20 @@ DiffHub diffs your branch against the merge-base with the detected base branch, 
 
 ## Keyboard shortcuts
 
-| Key       | Action                            |
-| --------- | --------------------------------- |
-| `j` / `k` | Next / previous file              |
-| `s`       | Toggle split / stacked view       |
-| `c`       | Collapse or expand the whole file |
-| `/`       | Focus the file filter             |
-| `r`       | Refresh the diff                  |
+| Key         | Action                                      |
+| ----------- | ------------------------------------------- |
+| `j` / `k`   | Next / previous file                        |
+| `s`         | Toggle split / stacked view                 |
+| `c`         | Collapse or expand the selected file        |
+| `Shift+C`   | Collapse all files                          |
+| `Shift+E`   | Expand all files                            |
+| `/` or `t`  | Focus the file filter                       |
+| `r`         | Refresh the diff                            |
+| `F2`        | Toggle the Diff stats panel                 |
 
 ## Notes
 
-- Node.js 20.11+ or Bun 1.0.23+, and a git repository with at least one commit on the current branch.
+- Node.js 20.11+ or Bun 1.0.23+, and a git repository (`git rev-parse --show-toplevel` must succeed).
 - cmux mode expects `cmux.app` installed on macOS at `/Applications/cmux.app`.
 - Comments live in `.git/diffhub-comments.json` in the repository you are reviewing, and copy out as a markdown review prompt for a coding agent.
 
