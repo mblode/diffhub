@@ -55,8 +55,8 @@ Without it, `lib/git.ts` falls back to `process.cwd()` — the Next.js server di
 **Page-level repo resolution must use the same resolver as the server helpers.**
 `app/page.tsx`, `lib/git.ts`, and `lib/comments.ts` should all read the same configured repo path so localStorage keys, context-menu open actions, and comment storage stay aligned.
 
-**Whitespace filtering is wired through both diff routes.**
-`/api/diff` and `/api/files` both accept `ws=ignore`, and `DiffApp` is responsible for keeping the current whitespace mode in sync across file stats and the selected-file patch fetch.
+**Whitespace filtering is on the diff routes, not the UI.**
+`/api/diff` and `/api/files` both accept `ws=ignore` and pass `-w` to git. The status bar does not send that query param today.
 
 **`outputFileTracingRoot` must be the monorepo root, not the app directory.**
 `next.config.ts` sets `outputFileTracingRoot: join(import.meta.dirname, "../..")`. Using the app directory breaks module resolution for packages hoisted to the root `node_modules`. The monorepo root value causes the standalone server to land at `.next/standalone/apps/cli/server.js` — not a flat `server.js`.
@@ -75,7 +75,7 @@ The diff view targets Safari, which has no native `overflow-anchor` ([WebKit #17
 - API routes (`app/api/*/route.ts`) are server-only — no `"use client"` directive there
 - Icons come from `blode-icons-react`, not `lucide-react`
 - Comments are stored in `.git/diffhub-comments.json` (gitignored in the target repo, not this one)
-- Diff defaults to merge-base changes, with a UI toggle for uncommitted-only changes
+- Diff defaults to `touched` (`HEAD` vs working tree). Status-bar scopes are `all`, `committed`, `staged`, `unstaged`, and `touched`.
 - Base branch prefers `origin/main` over local `main` so unpushed commits are visible even when on main
 
 ## Available Context

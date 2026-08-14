@@ -4,7 +4,7 @@
 [![Node.js 20.11+](https://img.shields.io/badge/node-20.11+-green)](https://nodejs.org)
 [![Bun 1.0.23+](https://img.shields.io/badge/bun-1.0.23+-green)](https://bun.sh)
 
-Git diff viewer for cmux. Opens in a browser split and shows tracked changes relative to your merge-base by default, with a UI toggle for uncommitted-only changes, split/unified diff views, inline comments, and live auto-refresh.
+Git diff viewer for cmux. Opens in a browser split and shows `HEAD` versus the working tree by default (`touched`), with status-bar scopes for merge-base and staged/unstaged views, split/unified diffs, and inline comments. A watcher marks updates; refresh is manual (`r`).
 
 ## Install
 
@@ -26,7 +26,7 @@ Run inside any git repository:
 diffhub
 ```
 
-Opens `http://localhost:2047` and shows tracked changes relative to your branch merge-base (`main`, `master`, `develop`, or `dev`, auto-detected).
+Opens `http://localhost:2047` and shows `HEAD` versus the working tree. Use `--base` to pick the comparison branch (`main`, `master`, `develop`, or `dev`, auto-detected). Switch scopes in the status bar: `all`, `committed`, `staged`, `unstaged`, `touched`.
 
 ```bash
 # Use a different base branch
@@ -44,13 +44,12 @@ diffhub --no-open
 
 ## Features
 
-- **PR-style diff** — defaults to merge-base diffs and also supports an uncommitted-only mode from the UI
+- **Working-tree diff** — defaults to `touched` (`git diff HEAD` plus untracked); status bar switches `all` / `committed` / `staged` / `unstaged` / `touched`
 - **Split and unified views** — toggle with `s`, keyboard-navigable with `j` / `k`
-- **Whitespace filtering** — ignore whitespace-only changes from the top bar when reviewing formatting-heavy diffs
-- **Inline AI comments** — add `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]` notes on any diff line; copy all comments as a formatted prompt
-- **"Open in" context menu** — right-click any file to open in Zed, VS Code, Ghostty, Terminal, Finder, or copy the path
-- **Live refresh** — watches local file changes and updates the diff automatically; force refresh with `r`
-- **File sidebar** — filter files with `/`, see per-file `+`/`-` stats at a glance
+- **Inline comments** — add `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]` notes on any diff line; copy all comments as a formatted prompt
+- **Copy path** — file headers expose a copy-path control
+- **Manual refresh** — watches local file changes and marks updates available; press `r` or the status-bar refresh control
+- **File sidebar** — filter files with `/` or `t`, see per-file `+`/`-` stats at a glance
 
 ## Development notes
 
@@ -60,12 +59,16 @@ diffhub --no-open
 
 ## Keyboard shortcuts
 
-| Key       | Action                      |
-| --------- | --------------------------- |
-| `j` / `k` | Next / previous file        |
-| `s`       | Toggle split / unified view |
-| `/`       | Focus file filter           |
-| `r`       | Force refresh diff          |
+| Key         | Action                               |
+| ----------- | ------------------------------------ |
+| `j` / `k`   | Next / previous file                 |
+| `s`         | Toggle split / unified view          |
+| `c`         | Collapse or expand the selected file |
+| `Shift+C`   | Collapse all files                   |
+| `Shift+E`   | Expand all files                     |
+| `/` or `t`  | Focus file filter                    |
+| `r`         | Refresh the diff                     |
+| `F2`        | Toggle the Diff stats panel          |
 
 ## Options
 
@@ -79,7 +82,7 @@ diffhub --no-open
 ## Requirements
 
 - Node.js 20.11+ or Bun 1.0.23+
-- A git repository with at least one commit on your current branch
+- A git repository (`git rev-parse --show-toplevel` must succeed)
 
 ## License
 
