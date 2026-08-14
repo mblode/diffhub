@@ -121,9 +121,11 @@ test("FAQ answers in the markup match the answers the page renders", () => {
   // only fail if `plainAnswer` and the node builder disagree.
   const graph = zoneGraph({ faqs, page });
   const webPage = find(graph, `${page.url}/#webpage`);
-  const questions = webPage?.mainEntity as Node[];
+  const faqPage = find(graph, `${page.url}/#faq`);
+  const questions = faqPage?.mainEntity as Node[];
 
-  expect(webPage?.["@type"]).toStrictEqual(["WebPage", "FAQPage"]);
+  expect(webPage?.["@type"]).toBe("WebPage");
+  expect(faqPage?.["@type"]).toBe("FAQPage");
   expect(questions).toHaveLength(faqs.length);
   for (const [index, question] of questions.entries()) {
     expect(question.name).toBe(faqs[index].question);
@@ -142,6 +144,7 @@ test("a page without FAQs is unchanged by the FAQ support", () => {
   expect(webPage?.["@type"]).toBe("WebPage");
   expect(webPage).not.toHaveProperty("mainEntity");
   expect(webPage).not.toHaveProperty("dateModified");
+  expect(find(graph, `${page.url}/#faq`)).toBeUndefined();
 });
 
 test("updatedAt surfaces as dateModified", () => {
