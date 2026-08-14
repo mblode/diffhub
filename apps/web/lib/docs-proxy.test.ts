@@ -78,7 +78,7 @@ test("asset URLs round-trip through a routable public segment", () => {
 });
 
 test("forwards Next router headers so the origin returns a flight, not HTML", async () => {
-  const fetchSpy = vi.fn(() =>
+  const fetchSpy = vi.fn<typeof fetch>(() =>
     Promise.resolve(
       new Response("1:", {
         headers: { "content-type": "text/x-component" },
