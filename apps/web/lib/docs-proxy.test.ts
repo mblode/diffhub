@@ -77,6 +77,59 @@ test("asset URLs round-trip through a routable public segment", () => {
   expect(toUpstreamPath(slug)).toBe(`/_docs/_next/${slug.slice(1).join("/")}`);
 });
 
+test("forwards Next router headers so the origin returns a flight, not HTML", async () => {
+  const fetchSpy = vi.fn(() =>
+    Promise.resolve(
+      new Response("1:", {
+        headers: { "content-type": "text/x-component" },
+      }),
+    ),
+  );
+  vi.stubGlobal("fetch", fetchSpy);
+
+  await proxyDocsRequest(
+    new Request("https://blode.co/diffhub/docs/features/comments", {
+      headers: {
+        "next-router-prefetch": "1",
+        "next-router-segment-prefetch": "/_tree",
+        "next-router-state-tree": "%5B%22%22%5D",
+        "next-url": "/diffhub/docs",
+        rsc: "1",
+      },
+    }),
+    ["features", "comments"],
+  );
+
+  expect(fetchSpy).toHaveBeenCalledOnce();
+  const forwarded = new Headers(fetchSpy.mock.calls[0]?.[1]?.headers);
+  expect(forwarded.get("rsc")).toBe("1");
+  expect(forwarded.get("next-router-prefetch")).toBe("1");
+  expect(forwarded.get("next-router-segment-prefetch")).toBe("/_tree");
+  expect(forwarded.get("next-router-state-tree")).toBe("%5B%22%22%5D");
+  expect(forwarded.get("next-url")).toBe("/diffhub/docs");
+});
+
+test("rewrites RSC flights the same way as HTML", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve(
+        new Response('1:{"href":"/_docs/_next/static/chunk.js","llms":"/llms.txt"}', {
+          headers: { "content-type": "text/x-component" },
+        }),
+      ),
+    ),
+  );
+
+  const response = await proxyDocsRequest(new Request("https://blode.co/diffhub/docs"), []);
+  const body = await response.text();
+
+  expect(body).toContain("/diffhub/docs/_chunks/static/chunk.js");
+  expect(body).toContain("/diffhub/docs/llms.txt");
+  expect(body).not.toContain("/_docs/_next/");
+  expect(body).not.toContain('"/llms.txt"');
+});
+
 test("docs HTML cannot remain cached across deployments", async () => {
   vi.stubGlobal(
     "fetch",
