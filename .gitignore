@@ -23,6 +23,7 @@ logs
 .DS_Store
 .turbo
 .vercel
+.next/
 
 .claude/
 .cursor/
