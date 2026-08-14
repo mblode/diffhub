@@ -122,6 +122,7 @@ const softwareNode = {
     // is schema.org-legal but Semrush Site Audit flags it as invalid markup.
     price: 0,
     priceCurrency: "USD",
+    url: siteConfig.url,
   },
   operatingSystem: "macOS, Linux, Windows",
   publisher: { "@id": schemaId.organization },
@@ -130,44 +131,43 @@ const softwareNode = {
 };
 
 /**
- * FAQPage is a subtype of WebPage, so the questions belong on the page node
- * rather than in one of their own. A second page-typed node for a single URL
- * is the duplicate-entity error the comment on `zoneGraph` describes, just
- * wearing a different `@type`.
- *
- * Google restricted FAQ rich results to government and health sites in August
- * 2023, so Search Console will likely mark these items ineligible. Ineligible
- * is not invalid and carries no penalty, and the answer engines this markup is
- * actually for read it regardless. Kept for them, not for the rich result.
+ * FAQPage is a subtype of WebPage, but Semrush and Google's rich-result
+ * validators treat `["WebPage", "FAQPage"]` as invalid markup. Questions live
+ * on their own node (same pattern as Convene). Google restricted FAQ rich
+ * results to government and health sites in August 2023, so Search Console
+ * will likely mark these items ineligible. Ineligible is not invalid and
+ * carries no penalty; answer engines still read the markup.
  */
-const webPageNode = (
-  identity: PageIdentity,
-  { faqs, updatedAt }: { faqs: readonly Faq[]; updatedAt?: string },
-) => {
+const webPageNode = (identity: PageIdentity, { updatedAt }: { updatedAt?: string }) => {
   const ids = pageIds(identity);
 
   return {
     "@id": ids.webPage,
-    "@type": faqs.length > 0 ? ["WebPage", "FAQPage"] : "WebPage",
+    "@type": "WebPage",
     about: { "@id": schemaId.software },
     breadcrumb: { "@id": ids.breadcrumb },
     ...(updatedAt ? { dateModified: updatedAt } : {}),
     description: identity.description,
     inLanguage: "en-US",
     isPartOf: { "@id": schemaId.website },
-    ...(faqs.length > 0
-      ? {
-          mainEntity: faqs.map((faq) => ({
-            "@type": "Question",
-            acceptedAnswer: { "@type": "Answer", text: plainAnswer(faq.answer) },
-            name: faq.question,
-          })),
-        }
-      : {}),
     name: identity.name,
     url: identity.url,
   };
 };
+
+const faqPageNode = (identity: PageIdentity, faqs: readonly Faq[]) => ({
+  "@id": `${identity.url}/#faq`,
+  "@type": "FAQPage",
+  inLanguage: "en-US",
+  isPartOf: { "@id": schemaId.website },
+  mainEntity: faqs.map((faq) => ({
+    "@type": "Question",
+    acceptedAnswer: { "@type": "Answer", text: plainAnswer(faq.answer) },
+    name: faq.question,
+  })),
+  name: `${identity.name} questions`,
+  url: identity.url,
+});
 
 /**
  * The single `@graph` for one page. Emitted by the page, never by a layout.
@@ -214,9 +214,10 @@ export const zoneGraph = ({
   return {
     "@context": "https://schema.org",
     "@graph": [
-      webPageNode(identity, { faqs, updatedAt }),
+      webPageNode(identity, { updatedAt }),
       softwareNode,
       breadcrumbGraph(trail, pageIds(identity).breadcrumb),
+      ...(faqs.length > 0 ? [faqPageNode(identity, faqs)] : []),
       ...nodes,
     ],
   };
