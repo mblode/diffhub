@@ -1,4 +1,5 @@
 import { renderZoneOgImage } from "@/app/og-image-shared";
+import { OgLogo } from "@/app/og-logo";
 
 export { OG_CONTENT_TYPE as contentType, OG_SIZE as size } from "@/app/og-image-shared";
 
@@ -18,11 +19,9 @@ export const alt = "DiffHub";
  */
 export default function OpengraphImage() {
   return renderZoneOgImage({
-    badge: "DIFF",
-    eyebrow: "blode.co/diffhub",
-    // Shorter than the meta description, which runs long for the SERP. A card
-    // is read in a feed, at a glance.
-    subtitle: "A git diff viewer for cmux. Branch diffs, inline notes, prompts.",
+    background: "#f7f7f4",
+    color: "#26251e",
+    logo: <OgLogo />,
     title: "DiffHub",
   });
 }
