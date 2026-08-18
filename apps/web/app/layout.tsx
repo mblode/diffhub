@@ -59,6 +59,22 @@ export const metadata: Metadata = {
     type: "website",
     url: siteConfig.url,
   },
+  // Without these, Google's defaults cap the text snippet and the image
+  // preview. The cap is what AI surfaces read against when deciding how much of
+  // a page they may quote, and Search Console shows those surfaces carrying 27%
+  // of blode.co's impressions. blode.co sets the same three at its root; no
+  // zone did.
+  robots: {
+    follow: true,
+    googleBot: {
+      follow: true,
+      index: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+    index: true,
+  },
   title: {
     default: siteTitle,
     template: `%s | ${siteConfig.name}`,
