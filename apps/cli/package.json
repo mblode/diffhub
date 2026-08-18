@@ -14,8 +14,9 @@
     "github",
     "pr"
   ],
-  "homepage": "https://github.com/mblode/diffhub#readme",
+  "homepage": "https://blode.co/diffhub",
   "license": "MIT",
+  "author": "Matthew Blode <m@blode.co> (https://blode.co)",
   "repository": {
     "type": "git",
     "url": "https://github.com/mblode/diffhub"
