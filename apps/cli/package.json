@@ -1,6 +1,6 @@
 {
   "name": "diffhub",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Git diff viewer for cmux: review your branch in a browser split",
   "keywords": [
     "ai",
