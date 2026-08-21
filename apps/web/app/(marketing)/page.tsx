@@ -86,9 +86,11 @@ export default function HomePage(): React.JSX.Element {
 
             <div className="grid gap-12 py-12 sm:py-16 lg:min-h-[calc(100svh-6.5rem)] lg:grid-cols-[5fr_7fr] lg:items-center lg:gap-16 lg:py-20">
               <div className="relative z-10">
+                <h1 className="sr-only">Review the whole branch.</h1>
                 <SplitText
                   animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
-                  as="h1"
+                  aria-hidden="true"
+                  as="p"
                   className="max-w-[13ch] text-balance text-5xl leading-[1.05] tracking-tight sm:text-6xl xl:text-7xl"
                   initial={{ filter: "blur(10px)", opacity: 0, y: 28 }}
                   options={{ type: "words" }}
