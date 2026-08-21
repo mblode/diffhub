@@ -108,8 +108,8 @@ export default function HomePage(): React.JSX.Element {
                   className="mt-6 max-w-[44ch] text-pretty text-lg text-white/65"
                   transition={{ ...blurUp.transition, delay: 0.38 }}
                 >
-                  See every changed file, leave line comments, and send your notes back to your
-                  coding agent.
+                  A git diff viewer for the whole branch. See every changed file, leave line
+                  comments, and send your notes back to your coding agent.
                 </motion.p>
 
                 <motion.div
