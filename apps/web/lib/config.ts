@@ -6,7 +6,7 @@ export const siteUrl = `https://blode.co${basePath}`;
 
 export const siteConfig = {
   description:
-    "Review every changed file in your branch, leave line comments, and copy your notes back to your coding agent.",
+    "A git diff viewer for the whole branch. See every changed file, leave line comments, and send your notes back to your coding agent.",
   links: {
     author: "https://blode.co",
     // Routed through next/link, which applies the basePath itself.
