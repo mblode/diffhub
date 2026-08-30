@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import { plainAnswer } from "./faq";
+import { siteConfig } from "./config";
 import { schemaId, zoneGraph } from "./schema";
 
 /**
@@ -73,6 +74,17 @@ test("the zone root keeps the ids it has always published", () => {
   expect(find(graph, "https://blode.co/diffhub/#breadcrumb")).toBeDefined();
   expect(schemaId.webPage).toBe("https://blode.co/diffhub/#webpage");
   expect(schemaId.breadcrumb).toBe("https://blode.co/diffhub/#breadcrumb");
+});
+
+test("the zone root names the search intent in its page and software entities", () => {
+  const graph = zoneGraph();
+  const webPage = find(graph, schemaId.webPage);
+  const software = find(graph, schemaId.software);
+
+  expect(webPage?.name).toBe(siteConfig.title);
+  expect(webPage?.description).toContain("cmux git diff viewer for agent code review");
+  expect(software?.description).toBe(siteConfig.description);
+  expect(software?.applicationSubCategory).toBe("Git diff viewer for cmux");
 });
 
 test("an inner page does not claim the zone root's identity", () => {

@@ -22,10 +22,6 @@ const glideMono = localFont({
   weight: "400",
 });
 
-// `Product: what it does`, under 60 characters so the SERP does not truncate
-// it. Colon, never a pipe or an em dash.
-const siteTitle = `${siteConfig.name}: cmux git diff viewer for agent code review`;
-
 export const viewport: Viewport = {
   width: "device-width",
 };
@@ -55,7 +51,7 @@ export const metadata: Metadata = {
     // name already has the og:title slot; repeating it here would spend the one
     // field in the card that could say who made the thing.
     siteName: "Matthew Blode",
-    title: siteTitle,
+    title: siteConfig.title,
     type: "website",
     url: siteConfig.url,
   },
@@ -76,14 +72,14 @@ export const metadata: Metadata = {
     index: true,
   },
   title: {
-    default: siteTitle,
+    default: siteConfig.title,
     template: `%s | ${siteConfig.name}`,
   },
   twitter: {
     card: "summary_large_image",
     creator: "@mattblode",
     description: siteConfig.description,
-    title: siteTitle,
+    title: siteConfig.title,
   },
   verification: {
     google: "mFwyBIbXTaKK4uF_NA0MzVWFyY40hPgBjFObg3rje04",

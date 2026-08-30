@@ -42,7 +42,7 @@ interface PageIdentity {
 
 const rootIdentity: PageIdentity = {
   description: siteConfig.description,
-  name: siteConfig.name,
+  name: siteConfig.title,
   url: siteConfig.url,
 };
 
@@ -100,6 +100,7 @@ const softwareNode = {
   "@id": schemaId.software,
   "@type": "SoftwareApplication",
   applicationCategory: "DeveloperApplication",
+  applicationSubCategory: "Git diff viewer for cmux",
   author: { "@id": schemaId.person },
   description: siteConfig.description,
   downloadUrl: siteConfig.links.npm,

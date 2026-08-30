@@ -41,9 +41,9 @@ const CHANGELOG = CHANGELOGS[PATH];
 const publishedAt = firstDate(CHANGELOG) || CHECKED;
 const updatedAt = latestDate(CHANGELOG) || publishedAt;
 
-const title = "How to view a git diff in cmux";
+const title = "cmux diff viewer: three ways to review a branch";
 const description =
-  "cmux has its own git diff viewer, and there's git diff in a pane, and there's a browser split that refreshes while you work. What each one is good for.";
+  "Compare three cmux diff viewer options: the built-in cmux diff, git diff in a pane, or DiffHub for a branch view that refreshes while you edit.";
 
 // Declaring `openGraph` here replaces the layout's block rather than merging
 // into it, so everything the card needs has to be repeated: the image, and the
@@ -217,12 +217,11 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
 
           {/* The answer block: the first extractable passage answers the h1. */}
           <p className="mt-6 text-pretty text-lg text-muted-foreground">
-            There are three ways to read a branch diff in cmux. Run{" "}
-            <code className="font-mono text-sm">cmux diff</code> for the built-in viewer,{" "}
-            <code className="font-mono text-sm">git diff main...HEAD</code> in a pane for a quick
-            answer, or <code className="font-mono text-sm">npx diffhub@latest cmux</code> for a
-            browser split that refreshes while you keep editing. Which you want comes down to how
-            big the branch is, and whether it&rsquo;s still moving.
+            A cmux diff viewer can be built into the terminal, run in a pane, or kept open in a
+            browser split. Use <code className="font-mono text-sm">cmux diff</code> for the built-in
+            viewer, <code className="font-mono text-sm">git diff main...HEAD</code> in a pane for a
+            quick answer, or <code className="font-mono text-sm">npx diffhub@latest cmux</code> when
+            the branch is still changing and you want the view to refresh as you edit.
           </p>
 
           <h2 className={heading}>What does cmux diff actually do?</h2>

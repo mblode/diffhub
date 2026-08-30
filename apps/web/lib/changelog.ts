@@ -46,6 +46,11 @@ export const CHANGELOGS = {
   "/": [
     {
       change:
+        "Aligned the page title, heading and opening answer around its job as a cmux git diff viewer for agent code review.",
+      date: "2026-08-30",
+    },
+    {
+      change:
         "Cut the page roughly in half: the feature grid, the keyboard shortcuts, the pain list and the tool comparison all restated something already on the page or on one of the two guides. The comparison now lives only on those guides.",
       date: "2026-08-11",
     },
@@ -57,6 +62,11 @@ export const CHANGELOGS = {
     { change: "First published.", date: "2026-07-20" },
   ],
   "/cmux-git-diff": [
+    {
+      change:
+        "Retitled the guide around cmux diff viewer searches and clarified the three choices in the opening answer.",
+      date: "2026-08-30",
+    },
     {
       change: "Replaced the list of alternatives with a comparison table, and added an FAQ.",
       date: "2026-08-10",

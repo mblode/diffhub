@@ -2,7 +2,7 @@
 
 # [DiffHub](https://blode.co/diffhub)
 
-**Review your git branch in a [cmux](https://cmux.com) browser split, with inline comments you can hand to an agent**
+**A cmux git diff viewer for reviewing a whole branch, with inline comments you can hand to an agent**
 
 Run one command inside any git repository and DiffHub serves a GitHub-style diff of your working tree at `localhost:2047`.
 
@@ -85,16 +85,16 @@ The default view is `touched`: `HEAD` versus the working tree, including untrack
 
 ## Keyboard shortcuts
 
-| Key         | Action                                      |
-| ----------- | ------------------------------------------- |
-| `j` / `k`   | Next / previous file                        |
-| `s`         | Toggle split / stacked view                 |
-| `c`         | Collapse or expand the selected file        |
-| `Shift+C`   | Collapse all files                          |
-| `Shift+E`   | Expand all files                            |
-| `/` or `t`  | Focus the file filter                       |
-| `r`         | Refresh the diff                            |
-| `F2`        | Toggle the Diff stats panel                 |
+| Key        | Action                               |
+| ---------- | ------------------------------------ |
+| `j` / `k`  | Next / previous file                 |
+| `s`        | Toggle split / stacked view          |
+| `c`        | Collapse or expand the selected file |
+| `Shift+C`  | Collapse all files                   |
+| `Shift+E`  | Expand all files                     |
+| `/` or `t` | Focus the file filter                |
+| `r`        | Refresh the diff                     |
+| `F2`       | Toggle the Diff stats panel          |
 
 ## Notes
 
