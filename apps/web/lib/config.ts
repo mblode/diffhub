@@ -6,7 +6,7 @@ export const siteUrl = `https://blode.co${basePath}`;
 
 export const siteConfig = {
   description:
-    "A git diff viewer for the whole branch. See every changed file, leave line comments, and send your notes back to your coding agent.",
+    "DiffHub is a cmux git diff viewer for agent code review. See a whole branch, refresh changes as you edit, and leave inline comments without sending code away.",
   links: {
     author: "https://blode.co",
     // Routed through next/link, which applies the basePath itself.
@@ -17,5 +17,6 @@ export const siteConfig = {
     npm: "https://www.npmjs.com/package/diffhub",
   },
   name: "DiffHub",
+  title: "cmux git diff viewer for agent code review | DiffHub",
   url: siteUrl,
 };

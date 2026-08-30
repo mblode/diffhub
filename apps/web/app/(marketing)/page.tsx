@@ -86,7 +86,7 @@ export default function HomePage(): React.JSX.Element {
 
             <div className="grid gap-12 py-12 sm:py-16 lg:min-h-[calc(100svh-6.5rem)] lg:grid-cols-[5fr_7fr] lg:items-center lg:gap-16 lg:py-20">
               <div className="relative z-10">
-                <h1 className="sr-only">Review the whole branch.</h1>
+                <h1 className="sr-only">cmux git diff viewer for agent code review</h1>
                 <SplitText
                   animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
                   aria-hidden="true"
@@ -101,15 +101,17 @@ export default function HomePage(): React.JSX.Element {
                   }}
                   waitForFonts={false}
                 >
-                  <span>Review the whole branch.</span>
+                  <span>Review agent code in cmux.</span>
                 </SplitText>
                 <motion.p
                   {...blurUp}
                   className="mt-6 max-w-[44ch] text-pretty text-lg text-white/65"
                   transition={{ ...blurUp.transition, delay: 0.38 }}
                 >
-                  A git diff viewer for the whole branch. See every changed file, leave line
-                  comments, and send your notes back to your coding agent.
+                  DiffHub is a cmux git diff viewer for agent code review. It opens the whole branch
+                  in a browser split, refreshes as files change, keeps inline comments beside the
+                  code, and copies those notes into a prompt for your next coding-agent pass.
+                  Everything runs locally.
                 </motion.p>
 
                 <motion.div
