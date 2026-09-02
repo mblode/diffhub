@@ -110,6 +110,7 @@ test("captureConversion sends cta_clicked and never throws", () => {
 
 test("primary marketing CTAs fire conversion events", () => {
   const homepage = read("../app/(marketing)/page.tsx");
+  const guide = read("../app/(marketing)/cmux-git-diff/page.tsx");
   const navbar = read("../components/shared/navbar.tsx");
   const footer = read("../components/shared/footer.tsx");
   const launcher = read("../components/shared/demo-launcher.tsx");
@@ -123,6 +124,7 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(homepage).toMatch(/label="Live demo screenshot"/u);
   expect(homepage).toMatch(/label="Read the install guide"/u);
   expect(homepage).toMatch(/label="Copy install command"/u);
+  expect(guide).toMatch(/label="Copy install command"/u);
   expect(copyButton).toMatch(/captureConversion/u);
 
   expect(navbar).toMatch(/label="Docs"/u);

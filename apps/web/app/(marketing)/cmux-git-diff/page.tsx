@@ -288,7 +288,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
           </p>
           <code className="my-4 flex w-fit items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-muted-foreground">
             <span>npx diffhub@latest cmux</span>
-            <CopyButton content="npx diffhub@latest cmux" />
+            <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
           </code>
           <p className={body}>
             It opens in a browser split, compares against the detected base branch, usually{" "}
