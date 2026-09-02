@@ -4,6 +4,7 @@ import { GithubIcon, StarIcon } from "blode-icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { TrackedCta } from "@/components/tracked-cta";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -52,19 +53,16 @@ export const Navbar = () => {
               >
                 Guide
               </Link>
-              <a
+              <TrackedCta
                 className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
                 href={siteConfig.links.docs}
-                rel="noopener noreferrer"
-                target="_blank"
+                label="Docs"
               >
                 Docs
-              </a>
+              </TrackedCta>
               <Button
                 className="relative after:absolute after:-inset-y-2 after:content-['']"
-                render={
-                  <a href={siteConfig.links.github} rel="noopener noreferrer" target="_blank" />
-                }
+                render={<TrackedCta href={siteConfig.links.github} label="GitHub" />}
                 size="sm"
                 variant="outline"
               >

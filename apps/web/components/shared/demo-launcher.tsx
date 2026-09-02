@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { captureConversion } from "@/lib/conversion-events";
 
 // Accepts a full GitHub PR URL or an owner/repo#123 / owner/repo/pull/123 shorthand.
 const parsePrPath = (raw: string): string | null => {
@@ -39,6 +40,7 @@ export const DemoLauncher = (): React.JSX.Element => {
         return;
       }
       setError(false);
+      captureConversion({ href: path, label: "Open PR" });
       router.push(path);
     },
     [value, router],

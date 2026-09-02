@@ -12,6 +12,7 @@ import { DemoLauncher } from "@/components/shared/demo-launcher";
 import { FaqSection } from "@/components/shared/faq-section";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
+import { TrackedCta } from "@/components/tracked-cta";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { CHANGELOGS, latestDate } from "@/lib/changelog";
@@ -121,15 +122,16 @@ export default function HomePage(): React.JSX.Element {
                 >
                   <code className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#f7f7f4] py-2.5 pr-2 pl-4 font-mono text-[#26251e] text-sm shadow-[0_8px_32px_rgba(0,0,0,0.28)]">
                     <span className="truncate">npx diffhub@latest cmux</span>
-                    <CopyButton content="npx diffhub@latest cmux" />
+                    <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
                   </code>
-                  <Link
+                  <TrackedCta
                     className="relative inline-flex items-center gap-1.5 py-2 text-white/65 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white"
                     href={siteConfig.links.demo}
+                    label="Try a live review"
                   >
                     Try a live review
                     <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
-                  </Link>
+                  </TrackedCta>
                 </motion.div>
 
                 <motion.p
@@ -147,10 +149,11 @@ export default function HomePage(): React.JSX.Element {
                 initial={{ filter: "blur(12px)", opacity: 0, x: 48 }}
                 transition={{ delay: 0.62, duration: 0.9, ease: [0.25, 1, 0.5, 1] }}
               >
-                <Link
+                <TrackedCta
                   aria-label="Open the live DiffHub demo for oven-sh/bun #16000"
                   className="relative block w-[125%] overflow-hidden rounded-[min(1.4vw,var(--radius-2xl))] bg-[#eceae5] shadow-[0_32px_100px_rgba(0,0,0,0.5)] outline-1 -outline-offset-1 outline-white/15 lg:w-[min(72vw,64rem)]"
                   href={siteConfig.links.demo}
+                  label="Live demo screenshot"
                 >
                   <Image
                     alt="DiffHub reviewing a branch with a file tree on the left and added and removed code on the right"
@@ -161,7 +164,7 @@ export default function HomePage(): React.JSX.Element {
                     src={asset("/screenshot.png")}
                     width={2111}
                   />
-                </Link>
+                </TrackedCta>
               </motion.div>
             </div>
           </div>
@@ -305,17 +308,16 @@ export default function HomePage(): React.JSX.Element {
               <div className="flex flex-col items-start gap-5 lg:items-end">
                 <code className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#f7f7f4] py-2.5 pr-2 pl-4 font-mono text-[#26251e] text-sm">
                   <span className="truncate">npx diffhub@latest cmux</span>
-                  <CopyButton content="npx diffhub@latest cmux" />
+                  <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
                 </code>
-                <a
+                <TrackedCta
                   className="inline-flex items-center gap-1.5 py-2 text-white/55 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white"
                   href={siteConfig.links.docs}
-                  rel="noopener noreferrer"
-                  target="_blank"
+                  label="Read the install guide"
                 >
                   Read the install guide
                   <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
-                </a>
+                </TrackedCta>
               </div>
             </div>
           </div>
