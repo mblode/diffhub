@@ -4,10 +4,13 @@ import { Checkmark1Icon as CheckIcon, CopySimpleIcon as CopyIcon } from "blode-i
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useState } from "react";
 
+import { captureConversion } from "@/lib/conversion-events";
 import { cn } from "@/lib/utils";
 
 interface CopyButtonProps {
   content: string;
+  /** When set, fire `cta_clicked` with this label. Does not change the button. */
+  label?: string;
 }
 
 /**
@@ -26,10 +29,13 @@ const MESSAGE: Record<CopyStatus, string> = {
   idle: "",
 };
 
-export const CopyButton = ({ content }: CopyButtonProps) => {
+export const CopyButton = ({ content, label }: CopyButtonProps) => {
   const [status, setStatus] = useState<CopyStatus>("idle");
 
   const handleCopy = useCallback(async () => {
+    if (label !== undefined) {
+      captureConversion({ href: content, label });
+    }
     try {
       await navigator.clipboard.writeText(content);
       setStatus("copied");
@@ -38,7 +44,7 @@ export const CopyButton = ({ content }: CopyButtonProps) => {
       setStatus("failed");
     }
     setTimeout(() => setStatus("idle"), 3000);
-  }, [content]);
+  }, [content, label]);
 
   const Icon = status === "copied" ? CheckIcon : CopyIcon;
 

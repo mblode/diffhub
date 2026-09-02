@@ -1,3 +1,4 @@
+import { TrackedCta } from "@/components/tracked-cta";
 import { asset, siteConfig } from "@/lib/config";
 
 /**
@@ -50,23 +51,21 @@ export const Footer = (): React.JSX.Element => (
           <span aria-hidden="true">·</span>
         </>
       ) : null}
-      <a
+      <TrackedCta
         className="text-muted-foreground transition-colors hover:text-foreground"
         href={siteConfig.links.github}
-        rel="noopener noreferrer"
-        target="_blank"
+        label="GitHub"
       >
         GitHub
-      </a>
+      </TrackedCta>
       <span aria-hidden="true">·</span>
-      <a
+      <TrackedCta
         className="text-muted-foreground transition-colors hover:text-foreground"
         href={siteConfig.links.npm}
-        rel="noopener noreferrer"
-        target="_blank"
+        label="npm"
       >
         npm
-      </a>
+      </TrackedCta>
     </div>
   </footer>
 );
