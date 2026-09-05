@@ -1,0 +1,55 @@
+---
+title: Review agent-written code in cmux
+description: Inspect a branch in DiffHub, give Codex precise line comments, and verify the revision before committing.
+---
+
+## Open the checkout the agent changed
+
+Run this in the same Git checkout or worktree that Codex is editing:
+
+```bash
+npx diffhub@latest cmux
+```
+
+DiffHub opens a browser split in cmux. This integration requires cmux at `/Applications/cmux.app` on macOS. For another terminal, use `npx diffhub@latest` to open the viewer in your browser.
+
+The default view shows changes against HEAD, including untracked files. If the agent already committed its work, choose the `all` or `committed` scope in the status bar. Otherwise a clean working tree can hide the very changes you came to review.
+
+To compare with a particular branch, use its actual name:
+
+```bash
+npx diffhub@latest cmux --base main
+```
+
+Replace `main` if your repository uses another base. Select a merge-base scope in the viewer to review that comparison.
+
+## Review one behaviour at a time
+
+Start with the requirement. Follow the change through its caller, implementation and test. Use the file filter to narrow a large patch and `s` to switch between split and unified views.
+
+Leave comments that describe the failure and the expected behaviour. For example:
+
+> [must-fix] This removes the empty-input guard. Preserve the guard and add a regression for an empty submission.
+
+A line number on the old side refers to the comparison version, not necessarily the file currently on disk. Include that context when handing off feedback, especially with older installed versions of DiffHub.
+
+## Hand the review to Codex
+
+Copy the comments as a prompt, then add this instruction:
+
+```text
+Address these review comments in this checkout. Inspect the diff and the
+surrounding code first. Preserve unrelated changes. Run the relevant tests
+and report what passed, what failed and any comment you could not resolve.
+Do not commit, push or deploy.
+```
+
+Keep the request tied to the checkout you reviewed. A different worktree can have the same filename and different code.
+
+## Verify the revision
+
+When DiffHub reports updates, press `r` to refresh. Revisit each comment against the revised patch, then run the affected user journey and the repository's required checks.
+
+An empty comment list or a successful test run alone does not prove that the original behaviour is fixed. Check the trigger that motivated the comment. Commit only after the revised behaviour and patch match your intent.
+
+[Comment controls and storage](./features/comments) explain how review notes persist. [Usage](./usage) covers the comparison modes and CLI options.
