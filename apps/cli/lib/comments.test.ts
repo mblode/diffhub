@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { addComment, deleteComment, readComments } from "./comments";
 
+import { exportCommentsAsPrompt } from "./export-comments";
+
 const tempPaths: string[] = [];
 
 const createTempRepo = (): string => {
@@ -62,5 +64,40 @@ describe("comments store", () => {
     await deleteComment(firstComment.id);
 
     expect(readComments()).toStrictEqual([secondComment]);
+  });
+});
+
+describe("review prompt export", () => {
+  it("distinguishes old and new code at the same file and line", () => {
+    const common = {
+      body: "Keep the validation",
+      createdAt: "2026-09-05",
+      file: "src/save.ts",
+      lineNumber: 12,
+      tag: "[must-fix]" as const,
+    };
+    const prompt = exportCommentsAsPrompt([
+      { ...common, id: "old", side: "left" },
+      { ...common, id: "new", side: "right" },
+    ]);
+    expect(prompt).toContain("[must-fix] **src/save.ts:12** (old side): Keep the validation");
+    expect(prompt).toContain("[must-fix] **src/save.ts:12** (new side): Keep the validation");
+  });
+
+  it("keeps file comments free of a misleading line or side", () => {
+    expect(
+      exportCommentsAsPrompt([
+        {
+          body: "Split this module",
+          createdAt: "2026-09-05",
+          file: "src/save.ts",
+          id: "file",
+          lineNumber: 0,
+          side: "right",
+          tag: "",
+        },
+      ]),
+    ).toContain("**src/save.ts**: Split this module");
+    expect(exportCommentsAsPrompt([])).toBe("No comments.");
   });
 });
