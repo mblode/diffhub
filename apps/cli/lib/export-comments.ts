@@ -7,7 +7,8 @@ export const exportCommentsAsPrompt = (comments: Comment[]): string => {
   const lines = comments.map((c) => {
     const tag = c.tag ? `${c.tag} ` : "";
     const loc = c.lineNumber > 0 ? `:${c.lineNumber}` : "";
-    return `- ${tag}**${c.file}${loc}**: ${c.body}`;
+    const side = c.lineNumber > 0 ? ` (${c.side === "left" ? "old" : "new"} side)` : "";
+    return `- ${tag}**${c.file}${loc}**${side}: ${c.body}`;
   });
   return `## Code Review Comments\n\nPlease address the following:\n\n${lines.join("\n")}`;
 };
