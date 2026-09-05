@@ -57,6 +57,8 @@ diffhub cmux --repo ~/Code/mblode/cmux
 
 The default view is `touched`: `HEAD` versus the working tree, including untracked files. Merge-base scopes (`all`, `committed`) are available from the status bar, and `--base` still selects the comparison branch, preferring `origin/main` so unpushed commits show up. A watcher marks updates available; press `r` to refresh. `diffhub cmux` uses a repo-derived port in 20000–29999 instead of 2047.
 
+For a complete review loop, see [Review agent-written code in cmux](apps/docs/review-with-codex.mdx).
+
 ## Commands
 
 | Command         | Description                                 |

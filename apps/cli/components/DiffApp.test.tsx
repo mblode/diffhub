@@ -440,7 +440,7 @@ describe("DiffApp review flow", () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining("- [must-fix] **src/b.ts:12**: Investigate this diff"),
+        expect.stringContaining("- [must-fix] **src/b.ts:12** (new side): Investigate this diff"),
       );
     });
     expect(fetchMock).toHaveBeenCalledWith(

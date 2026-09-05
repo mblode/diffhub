@@ -18,8 +18,10 @@ Click any line in the diff to open the comment input. Type your note and press E
 
 ## Copy as prompt
 
-Click the copy button in the status bar to copy all comments as a formatted markdown prompt. This is useful when you want to hand review feedback to an agent or share it with a teammate.
+Click the copy button in the status bar to copy all comments as a formatted markdown prompt. A successful copy clears the saved comments, so paste the prompt somewhere you can keep it before copying anything else. This is useful when you want to hand review feedback to an agent or share it with a teammate.
+
+The prompt includes the file, line number and old or new side for each line comment. A comment on deleted code refers to the old side, so its line number may not exist in the current file. Ask the agent to inspect the diff before applying the feedback.
 
 ## Storage
 
-Comments are stored in `.git/diffhub-comments.json` inside the target repository. The file is gitignored by default and stays there between sessions.
+Comments are stored as `diffhub-comments.json` in the Git directory of the target checkout. A linked worktree has its own Git directory, so its comments stay separate from the main checkout. Comments persist between sessions and are not committed with your source files.
