@@ -121,7 +121,7 @@ export default function HomePage(): React.JSX.Element {
                   transition={{ ...blurUp.transition, delay: 0.5 }}
                 >
                   <TrackedCta
-                    className="inline-flex items-center gap-2 rounded-full bg-[#f54e00] py-3 pr-5 pl-6 font-medium text-[#151611] shadow-[0_8px_32px_rgba(245,78,0,0.35)] transition-[background-color,transform] hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 active:translate-y-px"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#f54e00] py-3 pr-5 pl-6 font-medium text-[#151611] transition-[background-color,transform] hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 active:translate-y-px"
                     href={siteConfig.links.demo}
                     label="Try a live review"
                   >
