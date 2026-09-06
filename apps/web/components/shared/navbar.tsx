@@ -1,6 +1,6 @@
 "use client";
 
-import { GithubIcon, StarIcon } from "blode-icons-react";
+import { GithubIcon } from "blode-icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -47,12 +47,13 @@ export const Navbar = () => {
             </Link>
 
             <div className="flex items-center gap-4">
-              <Link
+              <TrackedCta
                 className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
-                href="/cmux-git-diff"
+                href={siteConfig.links.demo}
+                label="Live demo"
               >
-                Guide
-              </Link>
+                Live demo
+              </TrackedCta>
               <TrackedCta
                 className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
                 href={siteConfig.links.docs}
@@ -67,8 +68,7 @@ export const Navbar = () => {
                 variant="outline"
               >
                 <GithubIcon data-icon="inline-start" />
-                Star on GitHub
-                <StarIcon data-icon="inline-end" />
+                GitHub
               </Button>
             </div>
           </div>

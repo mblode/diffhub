@@ -120,18 +120,18 @@ export default function HomePage(): React.JSX.Element {
                   className="mt-8 flex flex-col items-start gap-4"
                   transition={{ ...blurUp.transition, delay: 0.5 }}
                 >
-                  <code className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#f7f7f4] py-2.5 pr-2 pl-4 font-mono text-[#26251e] text-sm shadow-[0_8px_32px_rgba(0,0,0,0.28)]">
-                    <span className="truncate">npx diffhub@latest cmux</span>
-                    <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
-                  </code>
                   <TrackedCta
-                    className="relative inline-flex items-center gap-1.5 py-2 text-white/65 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#f54e00] py-3 pr-5 pl-6 font-medium text-[#151611] shadow-[0_8px_32px_rgba(245,78,0,0.35)] transition-[background-color,transform] hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 active:translate-y-px"
                     href={siteConfig.links.demo}
                     label="Try a live review"
                   >
-                    Try a live review
+                    Open the live demo
                     <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
                   </TrackedCta>
+                  <code className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#f7f7f4] py-2 pr-1.5 pl-4 font-mono text-[#26251e] text-sm">
+                    <span className="truncate">npx diffhub@latest cmux</span>
+                    <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
+                  </code>
                 </motion.div>
 
                 <motion.p
