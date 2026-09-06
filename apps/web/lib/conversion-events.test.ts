@@ -127,6 +127,7 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(guide).toMatch(/label="Copy install command"/u);
   expect(copyButton).toMatch(/captureConversion/u);
 
+  expect(navbar).toMatch(/label="Live demo"/u);
   expect(navbar).toMatch(/label="Docs"/u);
   expect(navbar).toMatch(/label="GitHub"/u);
   expect(footer).toMatch(/label="GitHub"/u);
