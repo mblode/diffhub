@@ -3,7 +3,7 @@ title: cmux git diff viewer
 description: Review a whole branch in cmux or a browser with DiffHub.
 ---
 
-DiffHub is a cmux git diff viewer for agent code review. It opens the whole branch in a browser split, refreshes as files change, and keeps inline comments beside the code so you can send focused notes back to your coding agent.
+DiffHub is a cmux git diff viewer for agent code review. It opens the whole branch in a browser split, signals when files change, and keeps inline comments beside the code so you can send focused notes back to your coding agent.
 
 It opens your branch in a browser split and compares it with the detected base branch, usually `origin/main`. If you do not use cmux, you can open the same view in a normal browser window.
 
@@ -35,7 +35,7 @@ npm install -g diffhub
 - **Split and unified views**. Toggle with `s`.
 - **Inline comments**. Tag notes as `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]`.
 - **File sidebar**. Filter files with `/` and scan per-file `+` and `-` stats.
-- **Auto-refresh while you work**. Keep the view open and see updates as files change.
+- **Working-tree change detection**. Keep the view open, see when updates are available, and refresh when you are ready.
 - **Open in your tools**. Right-click to jump into Zed, VS Code, Terminal, or Finder.
 
 Requires Node.js 20.11+ or Bun 1.0.23+ and a git repository with at least one commit. cmux mode expects `cmux.app` on macOS at `/Applications/cmux.app`.

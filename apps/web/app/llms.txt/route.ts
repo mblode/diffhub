@@ -25,7 +25,7 @@ const PAGES: { path: keyof typeof CHANGELOGS; summary: string; title: string }[]
   {
     path: "/",
     summary:
-      "DiffHub is a local cmux git diff viewer for reviewing a whole branch and agent-written code. It refreshes as files change, keeps inline comments beside the code, and exports those comments for the next agent pass.",
+      "DiffHub is a local cmux git diff viewer for reviewing a whole branch and agent-written code. It signals when files change, refreshes on demand, keeps inline comments beside the code, and exports those comments for the next agent pass.",
     title: "cmux git diff viewer for agent code review",
   },
   {

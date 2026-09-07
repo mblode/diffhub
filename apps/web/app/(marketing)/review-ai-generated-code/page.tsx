@@ -293,8 +293,8 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
             </a>{" "}
             keep you in the terminal, cmux&rsquo;s built-in{" "}
             <code className="font-mono text-sm">cmux diff</code> opens a pane, and DiffHub opens a
-            browser tab that refreshes while you keep editing. DiffHub is the browser answer. If you
-            never want to leave the terminal, it&rsquo;s the wrong one.
+            browser tab that detects edits and refreshes on demand. DiffHub is the browser answer.
+            If you never want to leave the terminal, it&rsquo;s the wrong one.
           </p>
 
           <div className="mt-10 overflow-x-auto">

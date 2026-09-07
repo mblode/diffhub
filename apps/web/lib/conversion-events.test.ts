@@ -125,6 +125,8 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(homepage).toMatch(/label="Read the install guide"/u);
   expect(homepage).toMatch(/label="Copy install command"/u);
   expect(guide).toMatch(/label="Copy install command"/u);
+  expect(guide).toMatch(/label="Try guide live demo"/u);
+  expect(guide).toMatch(/location="\/diffhub\/cmux-git-diff"/u);
   expect(copyButton).toMatch(/captureConversion/u);
 
   expect(navbar).toMatch(/label="Live demo"/u);

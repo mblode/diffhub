@@ -110,7 +110,7 @@ export default function HomePage(): React.JSX.Element {
                   transition={{ ...blurUp.transition, delay: 0.38 }}
                 >
                   DiffHub is a cmux git diff viewer for agent code review. It opens the whole branch
-                  in a browser split, refreshes as files change, keeps inline comments beside the
+                  in a browser split, signals when files change, keeps inline comments beside the
                   code, and copies those notes into a prompt for your next coding-agent pass.
                   Everything runs locally.
                 </motion.p>
@@ -196,7 +196,7 @@ export default function HomePage(): React.JSX.Element {
               </h2>
               <p className="max-w-[48ch] text-pretty text-muted-foreground">
                 Terminal output disappears as soon as it scrolls past. DiffHub keeps the whole
-                branch open and updates it as files change.
+                branch open, signals new changes, and refreshes when you are ready.
               </p>
             </div>
 
