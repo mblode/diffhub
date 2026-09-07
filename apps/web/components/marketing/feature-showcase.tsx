@@ -16,7 +16,7 @@ const features = [
   },
   {
     description:
-      "Run DiffHub beside your agent. Refresh after an edit and carry on where you left off.",
+      "Run DiffHub beside your agent. It signals edits, then refreshes when you choose without moving the code mid-review.",
     title: "Keep the diff open",
     visual: "refresh",
   },

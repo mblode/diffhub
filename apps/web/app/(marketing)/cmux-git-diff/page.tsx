@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AuthorByline } from "@/components/shared/author-byline";
+import { WorkingTreeDemo } from "@/components/marketing/working-tree-demo";
 import { FaqSection } from "@/components/shared/faq-section";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { CopyButton } from "@/components/ui/copy-button";
+import { TrackedCta } from "@/components/tracked-cta";
 import { CHANGELOGS, firstDate, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
-import { REPO } from "@/lib/facts";
 import type { Faq } from "@/lib/faq";
 import { schemaId, zoneGraph } from "@/lib/schema";
 
@@ -43,7 +44,7 @@ const updatedAt = latestDate(CHANGELOG) || publishedAt;
 
 const title = "cmux diff viewer: three ways to review a branch";
 const description =
-  "Compare three cmux diff viewer options: the built-in cmux diff, git diff in a pane, or DiffHub for a branch view that refreshes while you edit.";
+  "Compare three cmux diff viewer options: the built-in cmux diff, git diff in a pane, or DiffHub for a branch view that detects changes while you edit.";
 
 // Declaring `openGraph` here replaces the layout's block rather than merging
 // into it, so everything the card needs has to be repeated: the image, and the
@@ -144,11 +145,8 @@ const pageJsonLd = zoneGraph({
 });
 
 /**
- * `language` and `stars` come from each repository's GitHub metadata, read on
- * CHECKED. They are here because they are the two things about a small tool a
- * reader can verify in one click, and because a comparison table where the
- * author's own project has the second-lowest star count is a table doing its
- * job. Re-read them if you touch this page; a stale count is a wrong claim.
+ * Each alternative links to its primary repository so readers can check the
+ * implementation and current project state without relying on copied metrics.
  */
 const alternatives = [
   {
@@ -156,36 +154,30 @@ const alternatives = [
     language: "TypeScript",
     name: "cmux-hub",
     note: "Inline review comments, commit history, GitHub PR status",
-    stars: "40",
   },
   {
     href: "https://github.com/sinozu/cmux-git-diff",
     language: "Go",
     name: "cmux-git-diff",
     note: "A single Go binary, staged and unstaged tabs, live reload",
-    stars: "6",
   },
   {
     href: "https://github.com/jaequery/cmux-diff",
     language: "TypeScript",
     name: "cmux-diff",
     note: "Shiki highlighting and commit message suggestions",
-    stars: "4",
   },
   {
     href: "https://github.com/umputun/revdiff",
     language: "Go",
     name: "revdiff",
     note: "A TUI, if you’d rather not leave the pane at all",
-    stars: "760",
   },
   {
     href: "/",
     language: "TypeScript",
     name: "DiffHub",
-    note: "A browser split that refreshes while you keep editing",
-    // Shared with the landing page's facts table: one number, one source.
-    stars: REPO.stars,
+    note: "A browser split that detects edits and refreshes on demand",
   },
 ];
 
@@ -221,7 +213,8 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             browser split. Use <code className="font-mono text-sm">cmux diff</code> for the built-in
             viewer, <code className="font-mono text-sm">git diff main...HEAD</code> in a pane for a
             quick answer, or <code className="font-mono text-sm">npx diffhub@latest cmux</code> when
-            the branch is still changing and you want the view to refresh as you edit.
+            the branch is still changing and you want the view to detect edits without losing your
+            review position.
           </p>
 
           <h2 className={heading}>What does cmux diff actually do?</h2>
@@ -292,13 +285,28 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
           </code>
           <p className={body}>
             It opens in a browser split, compares against the detected base branch, usually{" "}
-            <code className="font-mono text-sm">origin/main</code>, and refreshes while you keep
-            editing. There&rsquo;s a split and unified toggle, a filterable file sidebar with
-            per-file <code className="font-mono text-sm">+</code> and{" "}
+            <code className="font-mono text-sm">origin/main</code>, watches for edits, and marks the
+            refresh control when an update is available. Refresh when you are ready so the code does
+            not move during review. There&rsquo;s a split and unified toggle, a filterable file
+            sidebar with per-file <code className="font-mono text-sm">+</code> and{" "}
             <code className="font-mono text-sm">-</code> counts, and right-click to open a file in
             Zed, VS Code, Terminal, or Finder. It runs in an ordinary browser tab too, which a
             viewer built into a terminal can&rsquo;t.
           </p>
+          <WorkingTreeDemo />
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <TrackedCta
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2"
+              href={siteConfig.links.demo}
+              label="Try guide live demo"
+              location="/diffhub/cmux-git-diff"
+            >
+              Try the live review
+            </TrackedCta>
+            <p className="text-sm text-muted-foreground">
+              Then run the command against your own branch.
+            </p>
+          </div>
           <p className={body}>
             If you only want to answer one question, skip all of it and run{" "}
             <code className="font-mono text-sm">git diff main...HEAD</code> in a pane. The three-dot
@@ -308,14 +316,14 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
 
           <h2 className={heading}>What are the alternatives to cmux diff?</h2>
           <p className={body}>
-            A few people have built for this, and they make different trade-offs. Star counts are a
-            crude signal, and they&rsquo;re here anyway: they&rsquo;re the one number on this table
-            you can check in a click.
+            A few people have built for this, and they make different trade-offs. Each name links to
+            the project&rsquo;s repository so you can check its current behavior and maintenance
+            state.
           </p>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">
-                Diff viewers for cmux, with GitHub language and star count read {CHECKED}
+                Diff viewers for cmux, with implementation language and distinguishing feature
               </caption>
               <thead>
                 <tr className="text-muted-foreground">
@@ -324,9 +332,6 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
                   </th>
                   <th className={`${cell} font-medium`} scope="col">
                     Written in
-                  </th>
-                  <th className={`${cell} font-medium`} scope="col">
-                    Stars
                   </th>
                   <th className={`${cell} font-medium`} scope="col">
                     What it adds
@@ -353,16 +358,12 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
                       )}
                     </th>
                     <td className={cell}>{tool.language}</td>
-                    <td className={`${cell} tabular-nums`}>{tool.stars}</td>
                     <td className={cell}>{tool.note}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Language and star counts read from each repository on {CHECKED}.
-          </p>
           <p className={body}>
             Turns out what separates them isn&rsquo;t the diff rendering. It&rsquo;s whether the
             view keeps up with you while you work.

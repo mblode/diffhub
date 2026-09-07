@@ -64,6 +64,11 @@ export const CHANGELOGS = {
   "/cmux-git-diff": [
     {
       change:
+        "Added an interactive working-tree refresh demonstration and a direct live-review step, and replaced stale popularity metrics with links to each project's primary repository.",
+      date: "2026-09-07",
+    },
+    {
+      change:
         "Retitled the guide around cmux diff viewer searches and clarified the three choices in the opening answer.",
       date: "2026-08-30",
     },
