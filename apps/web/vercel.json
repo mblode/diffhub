@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "if [ \"$VERCEL_ENV\" = \"preview\" ]; then exit 0; fi; npx turbo-ignore"
+  "ignoreCommand": "case \"$VERCEL_GIT_COMMIT_MESSAGE\" in *\"[skip ci]\"*) exit 0 ;; esac; if [ \"$VERCEL_ENV\" = \"preview\" ]; then exit 0; fi; npx turbo-ignore"
 }
