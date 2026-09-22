@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { InstallCommand } from "@/components/marketing/install-command";
-import { captureInstallCommandCopied } from "@/lib/conversion-events";
+import { captureInstallCommandCopied, trackSectionViews } from "@/lib/conversion-events";
 
 /**
  * The landing page is a Server Component and cannot hand a function to a
@@ -21,3 +23,12 @@ export const HomeInstallCommand = ({ className }: { className?: string }): React
     onCopy={captureInstallCommandCopied}
   />
 );
+
+/**
+ * Reports `section_viewed` for every `[data-section]` on the page. Renders
+ * nothing; it only exists to run the observer on the client.
+ */
+export const SectionViews = (): null => {
+  useEffect(() => trackSectionViews(document.querySelectorAll("[data-section]")), []);
+  return null;
+};

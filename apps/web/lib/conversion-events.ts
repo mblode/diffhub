@@ -15,6 +15,7 @@ export const DOWNLOAD_CLICKED_EVENT = "download_clicked";
  */
 export const INSTALL_COMMAND_COPIED_EVENT = "install_command_copied";
 export const DEMO_OPENED_EVENT = "demo_opened";
+export const SECTION_VIEWED_EVENT = "section_viewed";
 
 export const SITE = "diffhub";
 
@@ -121,3 +122,79 @@ export const captureInstallCommandCopied = (variant: string): void =>
 
 /** A live PR demo was opened, from any entry point on the page. */
 export const captureDemoOpened = (): void => capture(DEMO_OPENED_EVENT, {});
+
+/** `section` is the section's stable `data-section` id, e.g. "faq". */
+export const captureSectionViewed = (section: string): void =>
+  capture(SECTION_VIEWED_EVENT, { section });
+
+/**
+ * Landing sections carry `data-section="<id>"`. The value is the `section`
+ * property on `section_viewed`, so rename one only on purpose.
+ */
+export const SECTION_ATTRIBUTE = "data-section";
+
+/** Share of the section, or of the viewport for a tall one, that counts. */
+const SECTION_VISIBLE_SHARE = 0.5;
+const SECTION_THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5];
+
+const noop = (): void => {
+  // Nothing to clean up.
+};
+
+/**
+ * Sends `section_viewed {site, section}` once per section per page view, the
+ * first time half of it (or half the viewport, for a section taller than two
+ * viewports) is on screen. Skips the hero and anything already in view when
+ * this runs, so the count is sections a reader scrolled to. Returns a cleanup.
+ * Does nothing without IntersectionObserver and never throws.
+ */
+export const trackSectionViews = (
+  sections: Iterable<Element>,
+  send: (section: string) => void = captureSectionViewed,
+): (() => void) => {
+  try {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+      return noop;
+    }
+    const seen = new Set<string>();
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          try {
+            const id = entry.target.getAttribute(SECTION_ATTRIBUTE);
+            const viewport = entry.rootBounds?.height ?? window.innerHeight;
+            const visible =
+              entry.intersectionRatio >= SECTION_VISIBLE_SHARE ||
+              entry.intersectionRect.height >= viewport * SECTION_VISIBLE_SHARE;
+            if (!(id && entry.isIntersecting && visible) || seen.has(id)) {
+              continue;
+            }
+            seen.add(id);
+            observer.unobserve(entry.target);
+            send(id);
+          } catch {
+            // One bad entry must not stop the others.
+          }
+        }
+      },
+      { threshold: SECTION_THRESHOLDS },
+    );
+    for (const section of sections) {
+      const id = section.getAttribute(SECTION_ATTRIBUTE);
+      const rect = section.getBoundingClientRect();
+      const inView = rect.top < window.innerHeight && rect.bottom > 0;
+      if (id && id !== "hero" && !inView) {
+        observer.observe(section);
+      }
+    }
+    return () => {
+      try {
+        observer.disconnect();
+      } catch {
+        // Already gone.
+      }
+    };
+  } catch {
+    return noop;
+  }
+};

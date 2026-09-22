@@ -16,6 +16,8 @@ import {
   DOWNLOAD_CLICKED_EVENT,
   INSTALL_COMMAND_COPIED_EVENT,
   isDownloadHref,
+  SECTION_VIEWED_EVENT,
+  trackSectionViews,
 } from "./conversion-events";
 
 vi.mock("posthog-js", () => ({
@@ -28,6 +30,7 @@ const read = (relative: string) => readFileSync(path.join(import.meta.dirname, r
 
 afterEach(() => {
   vi.mocked(posthog.capture).mockReset();
+  vi.unstubAllGlobals();
 });
 
 test("conversion events reuse the existing Taste Training names", () => {
@@ -183,4 +186,97 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(launcher).toMatch(/label: "Open PR"/u);
   expect(launcher).toMatch(/captureConversion/u);
   expect(launcher).toMatch(/captureDemoOpened/u);
+});
+
+const VIEWPORT = 800;
+
+const fakeSection = (id: string, top: number) => ({
+  getAttribute: (name: string) => (name === "data-section" ? id : null),
+  getBoundingClientRect: () => ({ bottom: top + 600, top }),
+});
+
+/**
+ * A stand-in IntersectionObserver. A function constructor that returns the
+ * instance, so `new` works on it; `show` scrolls a section into view.
+ */
+const fakeObserver = () => {
+  const observed = new Set<unknown>();
+  const state: { notify: ((entries: unknown[]) => void) | null } = { notify: null };
+  const FakeIntersectionObserver = function FakeIntersectionObserver(
+    notify: (entries: unknown[]) => void,
+  ) {
+    state.notify = notify;
+    return {
+      disconnect: () => observed.clear(),
+      observe: (target: unknown) => observed.add(target),
+      unobserve: (target: unknown) => observed.delete(target),
+    };
+  };
+  const show = (target: unknown) =>
+    state.notify?.([
+      {
+        intersectionRatio: 0.6,
+        intersectionRect: { height: 360 },
+        isIntersecting: true,
+        rootBounds: { height: VIEWPORT },
+        target,
+      },
+    ]);
+  return { FakeIntersectionObserver, observed, show };
+};
+
+const BrokenIntersectionObserver = function BrokenIntersectionObserver(): never {
+  throw new Error("unsupported");
+};
+
+const asElements = (sections: unknown[]) => sections as Element[];
+
+test("section_viewed fires once per section, skipping the hero and the first viewport", () => {
+  const { FakeIntersectionObserver, observed, show } = fakeObserver();
+  vi.stubGlobal("window", {
+    IntersectionObserver: FakeIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  const hero = fakeSection("hero", 2000);
+  const onLoad = fakeSection("features", 400);
+  const faq = fakeSection("faq", 3000);
+
+  trackSectionViews(asElements([hero, onLoad, faq]));
+
+  expect([...observed]).toEqual([faq]);
+  show(faq);
+  show(faq);
+  expect(SECTION_VIEWED_EVENT).toBe("section_viewed");
+  expect(posthog.capture).toHaveBeenCalledTimes(1);
+  expect(posthog.capture).toHaveBeenCalledWith("section_viewed", {
+    section: "faq",
+    site: "diffhub",
+  });
+});
+
+test("section_viewed does nothing without IntersectionObserver", () => {
+  vi.stubGlobal("window", { innerHeight: VIEWPORT });
+  const cleanup = trackSectionViews(asElements([fakeSection("faq", 3000)]));
+  expect(posthog.capture).not.toHaveBeenCalled();
+  expect(() => cleanup()).not.toThrow();
+});
+
+test("section_viewed never throws when posthog or the observer does", () => {
+  const { FakeIntersectionObserver, show } = fakeObserver();
+  vi.stubGlobal("window", {
+    IntersectionObserver: FakeIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  vi.mocked(posthog.capture).mockImplementation(() => {
+    throw new Error("analytics down");
+  });
+  const faq = fakeSection("faq", 3000);
+  trackSectionViews(asElements([faq]));
+  expect(() => show(faq)).not.toThrow();
+
+  vi.stubGlobal("window", {
+    IntersectionObserver: BrokenIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  expect(() => trackSectionViews(asElements([faq]))).not.toThrow();
 });

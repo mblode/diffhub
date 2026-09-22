@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { CtaClose } from "@/components/marketing/cta-close";
 import { FeatureRows } from "@/components/marketing/feature-rows";
-import { HomeInstallCommand } from "@/components/marketing/home-islands";
+import { HomeInstallCommand, SectionViews } from "@/components/marketing/home-islands";
 import { MarketingHero } from "@/components/marketing/marketing-hero";
 import { ProofStats } from "@/components/marketing/proof-stats";
 import { Reveal } from "@/components/marketing/reveal";
@@ -150,6 +150,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
   return (
     <div className="isolate overflow-clip">
       <JsonLd data={zoneGraph({ faqs, updatedAt })} />
+      <SectionViews />
 
       <section className="bg-[#111111] text-[#f7f7f4]">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
@@ -179,7 +180,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28">
+      <section className="py-20 sm:py-28" data-section="features" id="features">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-6 pb-12 lg:grid-cols-[7fr_5fr] lg:gap-16">
             <h2 className="max-w-[18ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
@@ -194,7 +195,11 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section className="border-foreground/10 border-t bg-secondary py-20 sm:py-28">
+      <section
+        className="border-foreground/10 border-t bg-secondary py-20 sm:py-28"
+        data-section="proof"
+        id="proof"
+      >
         <Reveal className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:gap-16">
             <div>
@@ -236,7 +241,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </Reveal>
       </section>
 
-      <section className="py-20 sm:py-28">
+      <section className="py-20 sm:py-28" data-section="faq" id="faq">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-8 lg:grid-cols-[5fr_7fr] lg:gap-16">
             <h2 className="max-w-[16ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
@@ -273,7 +278,11 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section className="bg-[#151611] py-20 text-[#f7f7f4] sm:py-28" id="install">
+      <section
+        className="bg-[#151611] py-20 text-[#f7f7f4] sm:py-28"
+        data-section="install"
+        id="install"
+      >
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <CtaClose
             action={
