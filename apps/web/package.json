@@ -15,22 +15,22 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.8.0",
     "@diffhub/diff-core": "*",
-    "@pierre/diffs": "^1.2.12",
-    "@pierre/trees": "^1.0.0-beta.5",
+    "@pierre/diffs": "^1.4.3",
+    "@pierre/trees": "^1.0.0-beta.6",
     "@tailwindcss/typography": "^0.5.20",
-    "blode-icons-react": "^0.4.1",
+    "blode-icons-react": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "griffo": "^1.1.1",
-    "motion": "^12.42.2",
-    "next": "16.3.0",
-    "posthog-js": "^1.414.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "shadcn": "^4.13.0",
-    "tailwind-merge": "^3.6.0",
+    "motion": "^13.4.1",
+    "next": "16.3.6",
+    "posthog-js": "^1.434.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "shadcn": "^4.21.0",
+    "tailwind-merge": "^3.7.0",
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
@@ -38,12 +38,12 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "oxfmt": "^0.58.0",
-    "oxlint": "^1.73.0",
-    "portless": "^0.15.4",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
+    "portless": "^0.15.6",
     "tailwindcss": "^4",
     "typescript": "^7.0.2",
-    "ultracite": "7.9.3",
-    "vitest": "^4.1.10"
+    "ultracite": "7.12.0",
+    "vitest": "^5.0.1"
   }
 }

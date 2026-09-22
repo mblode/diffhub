@@ -151,9 +151,9 @@ const CodeView = dynamic(
   { ssr: false },
 ) as unknown as (props: {
   key?: React.Key;
-  ref?: React.Ref<CodeViewHandle<undefined>>;
+  ref?: React.Ref<CodeViewHandle<undefined, undefined>>;
   initialItems?: readonly CodeViewItem<undefined>[];
-  options?: CodeViewOptions<undefined>;
+  options?: CodeViewOptions<undefined, undefined>;
   className?: string;
   containerRef?: React.Ref<HTMLDivElement>;
   onScroll?: (scrollTop: number, viewer: unknown) => void;
@@ -240,7 +240,7 @@ const ReadOnlyDiffViewInner = (
   const workerPoolRef = useRef(workerPool);
   workerPoolRef.current = workerPool;
 
-  const codeViewRef = useRef<CodeViewHandle<undefined> | null>(null);
+  const codeViewRef = useRef<CodeViewHandle<undefined, undefined> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -392,7 +392,7 @@ const ReadOnlyDiffViewInner = (
     });
   }, []);
 
-  const options = useMemo<CodeViewOptions<undefined>>(
+  const options = useMemo<CodeViewOptions<undefined, undefined>>(
     () => ({
       diffIndicators,
       diffStyle: layout === "split" ? "split" : "unified",

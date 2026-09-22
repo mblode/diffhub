@@ -82,6 +82,25 @@ const findFreePort = async (start) => {
   return start;
 };
 
+const getListeningPids = async (port) => {
+  try {
+    const { stdout } = await execFile("lsof", [`-nP`, `-tiTCP:${port}`, `-sTCP:LISTEN`], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return [
+      ...new Set(
+        stdout
+          .split(/\s+/)
+          .map((pid) => Number.parseInt(pid, 10))
+          .filter((pid) => Number.isInteger(pid) && pid > 0),
+      ),
+    ];
+  } catch {
+    return [];
+  }
+};
+
 const waitForServer = async (
   port,
   maxMs = 15_000,
@@ -857,25 +876,6 @@ const readRepoPointer = () => {
 
 const writeRepoPointer = (repoPath) => {
   writeFileSync(REPO_POINTER, `${repoPath}\n`);
-};
-
-const getListeningPids = async (port) => {
-  try {
-    const { stdout } = await execFile("lsof", [`-nP`, `-tiTCP:${port}`, `-sTCP:LISTEN`], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return [
-      ...new Set(
-        stdout
-          .split(/\s+/)
-          .map((pid) => Number.parseInt(pid, 10))
-          .filter((pid) => Number.isInteger(pid) && pid > 0),
-      ),
-    ];
-  } catch {
-    return [];
-  }
 };
 
 const waitForPortRelease = async (port, maxMs = 5000) => {
