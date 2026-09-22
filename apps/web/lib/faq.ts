@@ -11,8 +11,7 @@
  * an invitation to edit one of them. So there is one authored string, written
  * with backticks, and two readers of it.
  *
- * No imports. Both a Server Component page and the `"use client"` landing page
- * pull this in transitively, so it has to stay safe in either graph.
+ * No imports, so it stays safe in a server or a client graph.
  */
 
 export interface Faq {

@@ -300,6 +300,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
               href={siteConfig.links.demo}
               label="Try guide live demo"
               location="/diffhub/cmux-git-diff"
+              opensDemo
             >
               Try the live review
             </TrackedCta>

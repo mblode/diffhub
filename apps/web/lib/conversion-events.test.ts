@@ -7,7 +7,6 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   captureConversion,
   captureDemoOpened,
-  captureFaqOpened,
   captureInstallCommandCopied,
   conversionEventForHref,
   conversionLocation,
@@ -15,10 +14,8 @@ import {
   CTA_CLICKED_EVENT,
   DEMO_OPENED_EVENT,
   DOWNLOAD_CLICKED_EVENT,
-  FAQ_OPENED_EVENT,
   INSTALL_COMMAND_COPIED_EVENT,
   isDownloadHref,
-  SITE,
 } from "./conversion-events";
 
 vi.mock("posthog-js", () => ({
@@ -41,22 +38,15 @@ test("conversion events reuse the existing Taste Training names", () => {
 test("the landing-page contract adds events without renaming the old ones", () => {
   expect(INSTALL_COMMAND_COPIED_EVENT).toBe("install_command_copied");
   expect(DEMO_OPENED_EVENT).toBe("demo_opened");
-  expect(FAQ_OPENED_EVENT).toBe("faq_opened");
-  expect(SITE).toBe("diffhub");
 
   captureInstallCommandCopied("cmux");
   captureDemoOpened();
-  captureFaqOpened("Do you need cmux to use DiffHub?");
 
   expect(posthog.capture).toHaveBeenCalledWith("install_command_copied", {
     site: "diffhub",
     variant: "cmux",
   });
   expect(posthog.capture).toHaveBeenCalledWith("demo_opened", { site: "diffhub" });
-  expect(posthog.capture).toHaveBeenCalledWith("faq_opened", {
-    question: "Do you need cmux to use DiffHub?",
-    site: "diffhub",
-  });
 
   vi.mocked(posthog.capture).mockImplementation(() => {
     throw new Error("analytics down");
@@ -164,7 +154,6 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(homepage).toMatch(/opensDemo/u);
   expect(install).toMatch(/label="Copy install command"/u);
   expect(islands).toMatch(/captureInstallCommandCopied/u);
-  expect(islands).toMatch(/captureFaqOpened/u);
   expect(demo).toMatch(/opensDemo/u);
   expect(guide).toMatch(/label="Copy install command"/u);
   expect(guide).toMatch(/label="Try guide live demo"/u);

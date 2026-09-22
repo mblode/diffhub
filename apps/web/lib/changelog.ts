@@ -1,13 +1,11 @@
 /**
  * Per-route changelogs, newest entry first.
  *
- * No imports, deliberately. Three consumers pull this in: two Server Component
- * pages, the `"use client"` landing page, and `app/sitemap.ts`. A leaf module
- * is safe in all four graphs and cannot participate in a cycle. Reaching into
- * `app/(marketing)/page.tsx` for these dates instead would drag griffo, motion
- * and blode-icons-react into a metadata route's server graph, and a non-
- * component export crossing a `"use client"` boundary can fail Turbopack's
- * checks at build rather than at dev.
+ * No imports, deliberately. The three marketing pages, `app/sitemap.ts` and
+ * `app/llms.txt/route.ts` pull this in. A leaf module is safe in every graph
+ * and cannot participate in a cycle. Reaching into `app/(marketing)/page.tsx`
+ * for these dates instead would drag the page's client islands into a metadata
+ * route's server graph.
  *
  * Only dates live here. Page copy stays in the page file; a changelog is
  * metadata about the page, and it has a second reader.

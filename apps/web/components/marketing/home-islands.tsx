@@ -1,13 +1,11 @@
 "use client";
 
-import { Faq } from "@/components/marketing/faq";
 import { InstallCommand } from "@/components/marketing/install-command";
-import type { Faq as FaqItem } from "@/lib/faq";
-import { captureFaqOpened, captureInstallCommandCopied } from "@/lib/conversion-events";
+import { captureInstallCommandCopied } from "@/lib/conversion-events";
 
 /**
  * The landing page is a Server Component and cannot hand a function to a
- * client block, so the analytics callbacks are bound here, on the client side
+ * client block, so the analytics callback is bound here, on the client side
  * of the boundary.
  */
 
@@ -22,8 +20,4 @@ export const HomeInstallCommand = ({ className }: { className?: string }): React
     commands={INSTALL_COMMANDS}
     onCopy={captureInstallCommandCopied}
   />
-);
-
-export const HomeFaq = ({ items }: { items: readonly FaqItem[] }): React.JSX.Element => (
-  <Faq items={items} onOpen={captureFaqOpened} />
 );

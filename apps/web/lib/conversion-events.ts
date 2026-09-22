@@ -15,7 +15,6 @@ export const DOWNLOAD_CLICKED_EVENT = "download_clicked";
  */
 export const INSTALL_COMMAND_COPIED_EVENT = "install_command_copied";
 export const DEMO_OPENED_EVENT = "demo_opened";
-export const FAQ_OPENED_EVENT = "faq_opened";
 
 export const SITE = "diffhub";
 
@@ -112,7 +111,7 @@ const capture = (event: string, properties: Record<string, string>): void => {
   try {
     posthog.capture(event, { site: SITE, ...properties });
   } catch {
-    // Analytics must not be able to fail a copy, a toggle or a navigation.
+    // Analytics must not be able to fail a copy or a navigation.
   }
 };
 
@@ -122,6 +121,3 @@ export const captureInstallCommandCopied = (variant: string): void =>
 
 /** A live PR demo was opened, from any entry point on the page. */
 export const captureDemoOpened = (): void => capture(DEMO_OPENED_EVENT, {});
-
-/** The question text, exactly as rendered. */
-export const captureFaqOpened = (question: string): void => capture(FAQ_OPENED_EVENT, { question });

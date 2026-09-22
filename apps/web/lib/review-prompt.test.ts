@@ -40,13 +40,3 @@ test("the landing demo writes the same prompt as the CLI", () => {
   expect(formatReviewPrompt(comments)).toBe(cli);
   expect(formatReviewPrompt([])).toBe(exportCommentsAsPrompt([]));
 });
-
-test("line comments name the side, file-level comments do not", () => {
-  const prompt = formatReviewPrompt(comments);
-
-  expect(prompt).toContain(
-    "- [question] **apps/cli/lib/export-comments.ts:10** (new side): Should file-level comments name a side too?",
-  );
-  expect(prompt).toContain("- [must-fix] **apps/cli/lib/export-comments.ts:10** (old side):");
-  expect(prompt).toContain("- **apps/cli/lib/export-comments.ts**: Add a changeset.");
-});

@@ -4,13 +4,14 @@ import Link from "next/link";
 
 import { CtaClose } from "@/components/marketing/cta-close";
 import { FeatureRows } from "@/components/marketing/feature-rows";
-import { HomeFaq, HomeInstallCommand } from "@/components/marketing/home-islands";
+import { HomeInstallCommand } from "@/components/marketing/home-islands";
 import { MarketingHero } from "@/components/marketing/marketing-hero";
 import { ProofStats } from "@/components/marketing/proof-stats";
 import { Reveal } from "@/components/marketing/reveal";
 import { ReviewDemo } from "@/components/marketing/review-demo";
 import { WorkingTreeDemo } from "@/components/marketing/working-tree-demo";
 import { DemoLauncher } from "@/components/shared/demo-launcher";
+import { FaqSection } from "@/components/shared/faq-section";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { TrackedCta } from "@/components/tracked-cta";
@@ -23,8 +24,7 @@ import { zoneGraph } from "@/lib/schema";
 
 /**
  * A Server Component. The hero, feature rows, facts and FAQ answers are in the
- * initial HTML; the review demo, install tabs, FAQ toggles and PR launcher are
- * the only client islands. Nothing above the fold animates on mount.
+ * initial HTML, and nothing above the fold animates on mount.
  */
 
 /** The date the facts table was last read from its sources. */
@@ -47,10 +47,7 @@ const shortcuts = [
   { keys: ["c"], label: "Collapse a file" },
 ];
 
-/**
- * Rendered by `<HomeFaq>` and passed to `zoneGraph`, so the FAQPage answers
- * and the visible answers are the same strings.
- */
+/** Shared with zoneGraph so the visible answers and structured data stay identical. */
 const faqs: Faq[] = [
   {
     answer:
@@ -245,7 +242,13 @@ export default async function HomePage(): Promise<React.JSX.Element> {
               A few things to know.
             </h2>
             <div>
-              <HomeFaq items={faqs} />
+              <FaqSection
+                answerClassName="mt-3 max-w-[64ch] text-pretty text-muted-foreground"
+                className="divide-y divide-foreground/10 border-foreground/10 border-t"
+                faqs={faqs}
+                itemClassName="py-7 first:pt-0"
+                questionClassName="font-medium text-xl tracking-tight"
+              />
               <p className="mt-10 max-w-[65ch] text-muted-foreground">
                 Compare{" "}
                 <Link
