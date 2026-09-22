@@ -46,6 +46,11 @@ export const CHANGELOGS = {
   "/": [
     {
       change:
+        "Made the visible headline the H1 and rendered the page on the server. Added a review demo on a real DiffHub diff that builds the agent prompt as you comment, live GitHub stars and npm downloads, and three more FAQ answers. Folded the keyboard shortcuts into the feature rows.",
+      date: "2026-09-22",
+    },
+    {
+      change:
         "Aligned the page title, heading and opening answer around its job as a cmux git diff viewer for agent code review.",
       date: "2026-08-30",
     },

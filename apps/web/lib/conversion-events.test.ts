@@ -6,12 +6,19 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import {
   captureConversion,
+  captureDemoOpened,
+  captureFaqOpened,
+  captureInstallCommandCopied,
   conversionEventForHref,
   conversionLocation,
   conversionProperties,
   CTA_CLICKED_EVENT,
+  DEMO_OPENED_EVENT,
   DOWNLOAD_CLICKED_EVENT,
+  FAQ_OPENED_EVENT,
+  INSTALL_COMMAND_COPIED_EVENT,
   isDownloadHref,
+  SITE,
 } from "./conversion-events";
 
 vi.mock("posthog-js", () => ({
@@ -31,6 +38,32 @@ test("conversion events reuse the existing Taste Training names", () => {
   expect(DOWNLOAD_CLICKED_EVENT).toBe("download_clicked");
 });
 
+test("the landing-page contract adds events without renaming the old ones", () => {
+  expect(INSTALL_COMMAND_COPIED_EVENT).toBe("install_command_copied");
+  expect(DEMO_OPENED_EVENT).toBe("demo_opened");
+  expect(FAQ_OPENED_EVENT).toBe("faq_opened");
+  expect(SITE).toBe("diffhub");
+
+  captureInstallCommandCopied("cmux");
+  captureDemoOpened();
+  captureFaqOpened("Do you need cmux to use DiffHub?");
+
+  expect(posthog.capture).toHaveBeenCalledWith("install_command_copied", {
+    site: "diffhub",
+    variant: "cmux",
+  });
+  expect(posthog.capture).toHaveBeenCalledWith("demo_opened", { site: "diffhub" });
+  expect(posthog.capture).toHaveBeenCalledWith("faq_opened", {
+    question: "Do you need cmux to use DiffHub?",
+    site: "diffhub",
+  });
+
+  vi.mocked(posthog.capture).mockImplementation(() => {
+    throw new Error("analytics down");
+  });
+  expect(() => captureDemoOpened()).not.toThrow();
+});
+
 test("cta_clicked carries href, label, location, $pathname, and $current_url", () => {
   const properties = conversionProperties({
     href: "https://github.com/mblode/diffhub",
@@ -44,6 +77,7 @@ test("cta_clicked carries href, label, location, $pathname, and $current_url", (
     href: "https://github.com/mblode/diffhub",
     label: "GitHub",
     location: "/diffhub",
+    site: "diffhub",
   });
   expect(conversionEventForHref(properties.href)).toBe(CTA_CLICKED_EVENT);
 });
@@ -97,6 +131,7 @@ test("captureConversion sends cta_clicked and never throws", () => {
     href: "/oven-sh/bun/pull/16000",
     label: "Try a live review",
     location: "/diffhub",
+    site: "diffhub",
   });
 
   vi.mocked(posthog.capture).mockImplementation(() => {
@@ -110,6 +145,9 @@ test("captureConversion sends cta_clicked and never throws", () => {
 
 test("primary marketing CTAs fire conversion events", () => {
   const homepage = read("../app/(marketing)/page.tsx");
+  const install = read("../components/marketing/install-command.tsx");
+  const islands = read("../components/marketing/home-islands.tsx");
+  const demo = read("../components/marketing/review-demo.tsx");
   const guide = read("../app/(marketing)/cmux-git-diff/page.tsx");
   const navbar = read("../components/shared/navbar.tsx");
   const footer = read("../components/shared/footer.tsx");
@@ -123,7 +161,11 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(homepage).toMatch(/label="Try a live review"/u);
   expect(homepage).toMatch(/label="Live demo screenshot"/u);
   expect(homepage).toMatch(/label="Read the install guide"/u);
-  expect(homepage).toMatch(/label="Copy install command"/u);
+  expect(homepage).toMatch(/opensDemo/u);
+  expect(install).toMatch(/label="Copy install command"/u);
+  expect(islands).toMatch(/captureInstallCommandCopied/u);
+  expect(islands).toMatch(/captureFaqOpened/u);
+  expect(demo).toMatch(/opensDemo/u);
   expect(guide).toMatch(/label="Copy install command"/u);
   expect(guide).toMatch(/label="Try guide live demo"/u);
   expect(guide).toMatch(/location="\/diffhub\/cmux-git-diff"/u);
@@ -137,4 +179,5 @@ test("primary marketing CTAs fire conversion events", () => {
 
   expect(launcher).toMatch(/label: "Open PR"/u);
   expect(launcher).toMatch(/captureConversion/u);
+  expect(launcher).toMatch(/captureDemoOpened/u);
 });

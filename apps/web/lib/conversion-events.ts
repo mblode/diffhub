@@ -8,6 +8,17 @@ import posthog from "posthog-js";
 export const CTA_CLICKED_EVENT = "cta_clicked";
 export const DOWNLOAD_CLICKED_EVENT = "download_clicked";
 
+/**
+ * The shared landing-page contract, added alongside the two above without
+ * renaming either. Every event carries `site` so one PostHog project can split
+ * the seven product pages apart.
+ */
+export const INSTALL_COMMAND_COPIED_EVENT = "install_command_copied";
+export const DEMO_OPENED_EVENT = "demo_opened";
+export const FAQ_OPENED_EVENT = "faq_opened";
+
+export const SITE = "diffhub";
+
 export interface ConversionClick {
   href: string;
   label: string;
@@ -72,12 +83,14 @@ export const conversionProperties = ({
   href: string;
   label: string;
   location: string;
+  site: typeof SITE;
 } => {
   const resolvedLocation = conversionLocation(location);
   return {
     href,
     label,
     location: resolvedLocation,
+    site: SITE,
     ...conversionPageLocation(resolvedLocation),
   };
 };
@@ -94,3 +107,21 @@ export const captureConversion = (click: ConversionClick): void => {
     // Analytics must not be able to fail a click.
   }
 };
+
+const capture = (event: string, properties: Record<string, string>): void => {
+  try {
+    posthog.capture(event, { site: SITE, ...properties });
+  } catch {
+    // Analytics must not be able to fail a copy, a toggle or a navigation.
+  }
+};
+
+/** `variant` names the command that was copied, e.g. "cmux" or "Browser". */
+export const captureInstallCommandCopied = (variant: string): void =>
+  capture(INSTALL_COMMAND_COPIED_EVENT, { variant });
+
+/** A live PR demo was opened, from any entry point on the page. */
+export const captureDemoOpened = (): void => capture(DEMO_OPENED_EVENT, {});
+
+/** The question text, exactly as rendered. */
+export const captureFaqOpened = (question: string): void => capture(FAQ_OPENED_EVENT, { question });

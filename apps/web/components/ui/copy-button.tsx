@@ -8,9 +8,13 @@ import { captureConversion } from "@/lib/conversion-events";
 import { cn } from "@/lib/utils";
 
 interface CopyButtonProps {
+  /** Accessible name. Name the thing being copied, e.g. "Copy install command". */
+  ariaLabel?: string;
   content: string;
   /** When set, fire `cta_clicked` with this label. Does not change the button. */
   label?: string;
+  /** Runs on every click, before the clipboard write, e.g. for `install_command_copied`. */
+  onCopy?: () => void;
 }
 
 /**
@@ -29,13 +33,19 @@ const MESSAGE: Record<CopyStatus, string> = {
   idle: "",
 };
 
-export const CopyButton = ({ content, label }: CopyButtonProps) => {
+export const CopyButton = ({
+  ariaLabel = "Copy to clipboard",
+  content,
+  label,
+  onCopy,
+}: CopyButtonProps) => {
   const [status, setStatus] = useState<CopyStatus>("idle");
 
   const handleCopy = useCallback(async () => {
     if (label !== undefined) {
       captureConversion({ href: content, label });
     }
+    onCopy?.();
     try {
       await navigator.clipboard.writeText(content);
       setStatus("copied");
@@ -44,7 +54,7 @@ export const CopyButton = ({ content, label }: CopyButtonProps) => {
       setStatus("failed");
     }
     setTimeout(() => setStatus("idle"), 3000);
-  }, [content, label]);
+  }, [content, label, onCopy]);
 
   const Icon = status === "copied" ? CheckIcon : CopyIcon;
 
@@ -60,7 +70,7 @@ export const CopyButton = ({ content, label }: CopyButtonProps) => {
         {MESSAGE[status]}
       </output>
       <button
-        aria-label="Copy to clipboard"
+        aria-label={ariaLabel}
         // `after` widens the tap target to 44px without changing the 28px box
         // the inline command pill is laid out around.
         className={cn(
