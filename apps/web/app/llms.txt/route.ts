@@ -1,5 +1,6 @@
 import { CHANGELOGS, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
+import { GUIDES } from "@/lib/guides";
 
 /**
  * The zone's own llms.txt: what is on blode.co/diffhub and where to read it.
@@ -16,30 +17,18 @@ import { siteConfig } from "@/lib/config";
  */
 
 /**
- * `path` is keyed to `CHANGELOGS` rather than written free-hand, so a page
- * added here without a changelog entry fails `tsc` instead of building a route
- * that throws. The alternative was a `keyof typeof` assertion at the lookup,
- * which silences exactly the error worth keeping.
+ * The zone root, then every guide from `lib/guides.ts`, the list the sitemap
+ * and the landing page read too. A guide added there shows up here with its
+ * own title, summary and changelog date.
  */
 const PAGES: { path: keyof typeof CHANGELOGS; summary: string; title: string }[] = [
   {
     path: "/",
     summary:
       "DiffHub is a local git diff viewer for reviewing agent-written code, in a browser tab or a cmux split. It signals when files change, refreshes on demand, keeps inline comments beside the code, and copies those comments as one prompt for the next agent pass.",
-    title: "DiffHub: local git diff viewer for reviewing agent code",
+    title: siteConfig.title,
   },
-  {
-    path: "/cmux-git-diff",
-    summary:
-      "The three ways to read a branch diff in cmux, what the built-in cmux diff does, why it does not refresh yet, and the other tools people have built.",
-    title: "cmux diff viewer: three ways to review a branch",
-  },
-  {
-    path: "/review-ai-generated-code",
-    summary:
-      "Where to read a diff an agent wrote, compared across hunk, revdiff, cmux diff and DiffHub, with stated limits and first-party measurements.",
-    title: "How to review code an AI agent wrote",
-  },
+  ...GUIDES.map(({ path, summary, title }) => ({ path, summary, title })),
 ];
 
 const DOCS = [

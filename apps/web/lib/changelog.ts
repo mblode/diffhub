@@ -1,7 +1,7 @@
 /**
  * Per-route changelogs, newest entry first.
  *
- * No imports, deliberately. The three marketing pages, `app/sitemap.ts` and
+ * No imports, deliberately. The marketing pages, `app/sitemap.ts` and
  * `app/llms.txt/route.ts` pull this in. A leaf module is safe in every graph
  * and cannot participate in a cycle. Reaching into `app/(marketing)/page.tsx`
  * for these dates instead would drag the page's client islands into a metadata
@@ -83,6 +83,13 @@ export const CHANGELOGS = {
       change:
         "First published. cmux version numbers and the two linked issues checked on this date.",
       date: "2026-08-06",
+    },
+  ],
+  "/git-diff-viewer": [
+    {
+      change:
+        "First published. Split view, the five diff scopes, the port, the 127.0.0.1 bind and the inline render limits checked against the CLI source on this date.",
+      date: "2026-09-22",
     },
   ],
   "/review-ai-generated-code": [

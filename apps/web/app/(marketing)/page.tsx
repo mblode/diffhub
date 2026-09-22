@@ -19,6 +19,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { CHANGELOGS, latestDate } from "@/lib/changelog";
 import { asset, siteConfig } from "@/lib/config";
 import type { Faq } from "@/lib/faq";
+import { GUIDES } from "@/lib/guides";
 import { fetchGithubStars, fetchNpmWeeklyDownloads } from "@/lib/live-stats";
 import { zoneGraph } from "@/lib/schema";
 
@@ -249,23 +250,24 @@ export default async function HomePage(): Promise<React.JSX.Element> {
                 itemClassName="py-7 first:pt-0"
                 questionClassName="font-medium text-xl tracking-tight"
               />
-              <p className="mt-10 max-w-[65ch] text-muted-foreground">
-                Compare{" "}
-                <Link
-                  className="text-link underline-offset-4 hover:underline"
-                  href="/cmux-git-diff"
-                >
-                  DiffHub, cmux diff, and hunk
-                </Link>
-                , or read{" "}
-                <Link
-                  className="text-link underline-offset-4 hover:underline"
-                  href="/review-ai-generated-code"
-                >
-                  how to review agent-written code
-                </Link>
-                .
-              </p>
+              <nav aria-labelledby="guides" className="mt-14">
+                <h2 className="font-medium text-xl tracking-tight" id="guides">
+                  Guides
+                </h2>
+                <ul className="mt-4 grid gap-x-8 border-foreground/10 border-t sm:grid-cols-2">
+                  {GUIDES.map((entry) => (
+                    <li className="border-foreground/10 border-b py-4" key={entry.path}>
+                      <Link
+                        className="font-medium text-link underline-offset-4 hover:underline"
+                        href={entry.path}
+                      >
+                        {entry.label}
+                      </Link>
+                      <p className="mt-1 text-muted-foreground text-sm">{entry.pitch}</p>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
             </div>
           </div>
         </div>
