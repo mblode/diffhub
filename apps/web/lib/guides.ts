@@ -56,14 +56,36 @@ export const GUIDES = [
   },
   {
     description:
-      "An agent just changed forty files. Where you read that diff decides whether you catch anything. Terminal, TUI, or browser tab, and what each one is good for.",
-    heading: "How to review code an AI agent wrote",
+      "Tests pass and the AI reviewer signed off. What still needs a human: scope, deleted checks, invented APIs. A checklist, and a local way to read the diff.",
+    heading: "How to review AI-generated code before you merge it",
     label: "Review AI-generated code",
     path: "/review-ai-generated-code",
-    pitch: "Where to read an agent’s diff, compared.",
+    pitch: "What to check that tests and AI reviewers miss.",
     summary:
-      "Where to read a diff an agent wrote, compared across hunk, revdiff, cmux diff and DiffHub, with stated limits and first-party measurements.",
-    title: "How to review code an AI agent wrote",
+      "A checklist for reviewing code an AI agent wrote, where an AI code reviewer helps and where it can't, and five places to read the diff compared, with stated limits.",
+    title: "How to review AI-generated code before you merge it",
+  },
+  {
+    description:
+      "Claude Code edits your working tree, so a git diff viewer can read its work. Open every change in a local tab, comment on lines, paste the notes back in.",
+    heading: "Review Claude Code’s changes before you commit",
+    label: "Review Claude Code’s changes",
+    path: "/claude-code-review",
+    pitch: "Read its diff and hand the notes back before you commit.",
+    summary:
+      "Reviewing Claude Code's changes locally before committing: open its uncommitted work in DiffHub, keep the view open while it edits, and paste line comments back as one prompt. DiffHub is not an Anthropic product.",
+    title: "Review Claude Code’s changes locally before you commit",
+  },
+  {
+    description:
+      "Codex, Cursor and Claude Code all end in a git diff. Read the whole branch in one local tab, comment inline, then paste one prompt back into the agent.",
+    heading: "Review any coding agent’s diff",
+    label: "Review any agent’s diff",
+    path: "/agent-diff",
+    pitch: "Codex, Cursor or Claude Code: one review loop for all of them.",
+    summary:
+      "One review loop for any coding agent: pick the diff scope that matches how the agent works, read the whole branch, comment inline, and paste one prompt back. Covers agents in separate worktrees.",
+    title: "Agent code review: read any coding agent’s diff locally",
   },
   {
     description:

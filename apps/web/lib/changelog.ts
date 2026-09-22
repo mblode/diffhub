@@ -85,6 +85,20 @@ export const CHANGELOGS = {
       date: "2026-08-06",
     },
   ],
+  "/agent-diff": [
+    {
+      change:
+        "First published. Diff scopes, worktree comment storage, the port range and the prompt format checked against the CLI source on this date.",
+      date: "2026-09-22",
+    },
+  ],
+  "/claude-code-review": [
+    {
+      change:
+        "First published. Default scope, untracked files, change detection and the prompt format checked against the CLI source on this date.",
+      date: "2026-09-22",
+    },
+  ],
   "/git-diff-viewer": [
     {
       change:
@@ -93,6 +107,11 @@ export const CHANGELOGS = {
     },
   ],
   "/review-ai-generated-code": [
+    {
+      change:
+        "Rebuilt around what to check in AI-generated code and where an AI code reviewer helps. Retitled, added a checklist and two FAQ answers, re-read the npm figures for diffhub 1.0.0, and corrected the prompt example to the format the CLI writes, which names the diff side. Removed the claim that comments carry a tag you pick: the viewer has no tag picker.",
+      date: "2026-09-22",
+    },
     {
       change:
         "First published. Competitor claims quoted from hunk.dev, github.com/umputun/revdiff and the two cmux issues, all checked on this date.",
