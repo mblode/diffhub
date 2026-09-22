@@ -44,7 +44,7 @@ export const CHANGELOGS = {
   "/": [
     {
       change:
-        "Made the visible headline the H1 and rendered the page on the server. Added a review demo on a real DiffHub diff that builds the agent prompt as you comment, live GitHub stars and npm downloads, and three more FAQ answers. Folded the keyboard shortcuts into the feature rows.",
+        "Made the visible headline the H1 and rendered the page on the server. Added a review demo on a real DiffHub diff that builds the agent prompt as you comment, live GitHub stars and npm downloads, and three more FAQ answers. Folded the keyboard shortcuts into the feature rows. Retitled the page to say what DiffHub is, and corrected two FAQ answers: the default scope is uncommitted work against HEAD, and the viewer has no label picker.",
       date: "2026-09-22",
     },
     {

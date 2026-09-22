@@ -25,8 +25,8 @@ const PAGES: { path: keyof typeof CHANGELOGS; summary: string; title: string }[]
   {
     path: "/",
     summary:
-      "DiffHub is a local cmux git diff viewer for reviewing a whole branch and agent-written code. It signals when files change, refreshes on demand, keeps inline comments beside the code, and exports those comments for the next agent pass.",
-    title: "cmux git diff viewer for agent code review",
+      "DiffHub is a local git diff viewer for reviewing agent-written code, in a browser tab or a cmux split. It signals when files change, refreshes on demand, keeps inline comments beside the code, and copies those comments as one prompt for the next agent pass.",
+    title: "DiffHub: local git diff viewer for reviewing agent code",
   },
   {
     path: "/cmux-git-diff",
@@ -64,7 +64,7 @@ const body = () => {
 
 > ${siteConfig.description}
 
-DiffHub is a cmux git diff viewer for agent code review. It is free and MIT
+DiffHub is a local git diff viewer for agent code review. It is free and MIT
 licensed, published on npm as \`diffhub\`, runs on localhost, and makes no
 outbound requests. Written by Matthew Blode
 (${siteConfig.links.author}).

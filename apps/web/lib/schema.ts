@@ -100,7 +100,7 @@ const softwareNode = {
   "@id": schemaId.software,
   "@type": "SoftwareApplication",
   applicationCategory: "DeveloperApplication",
-  applicationSubCategory: "Git diff viewer for cmux",
+  applicationSubCategory: "Local git diff viewer",
   author: { "@id": schemaId.person },
   description: siteConfig.description,
   downloadUrl: siteConfig.links.npm,

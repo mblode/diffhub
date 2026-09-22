@@ -56,7 +56,7 @@ const faqs: Faq[] = [
   },
   {
     answer:
-      "Comment on any line and give it a label: must-fix, suggestion, nit or question. When you’re done, copy every comment as one Markdown prompt and paste it into your agent. Each line names the file, the line number and the side of the diff. Copying clears the list for the next pass.",
+      "Hover a line, click the plus and write the note. When you’re done, Copy & clear turns every comment into one Markdown prompt to paste into your agent. Each line names the file, the line number and the side of the diff. Copying clears the list for the next pass.",
     question: "How do review comments get to the agent?",
   },
   {
@@ -66,7 +66,7 @@ const faqs: Faq[] = [
   },
   {
     answer:
-      "DiffHub diffs your branch from its merge base with main, master, develop or dev, whichever exists locally. Pass `--base <branch>` to pick another. You can also narrow the view to committed, staged or unstaged changes.",
+      "By default it shows everything you haven’t committed, against HEAD, plus untracked files. Switch the scope to All for the whole branch from its merge base with main, master, develop or dev, whichever it finds first. Pass `--base <branch>` to pick another.",
     question: "Which branch does DiffHub compare against?",
   },
   {

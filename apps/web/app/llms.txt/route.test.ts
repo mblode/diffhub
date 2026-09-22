@@ -7,7 +7,9 @@ test("the agent-readable index leads with the page search intents", async () => 
   const text = await response.text();
 
   expect(response.headers.get("content-type")).toBe("text/plain; charset=utf-8");
-  expect(text).toContain("[cmux git diff viewer for agent code review](https://blode.co/diffhub)");
+  expect(text).toContain(
+    "[DiffHub: local git diff viewer for reviewing agent code](https://blode.co/diffhub)",
+  );
   expect(text).toContain(
     "[cmux diff viewer: three ways to review a branch](https://blode.co/diffhub/cmux-git-diff)",
   );
