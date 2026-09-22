@@ -198,7 +198,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
           <div className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:gap-16">
             <div>
               <h2 className="max-w-[16ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
-                Not a review bot.
+                You review. Your agent fixes.
               </h2>
               <p className="mt-5 max-w-[48ch] text-pretty text-muted-foreground">
                 DiffHub doesn’t review code for you. You read the diff, it keeps your notes and
