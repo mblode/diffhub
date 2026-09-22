@@ -190,11 +190,11 @@ const alternatives = [
 /** What Copy & clear produces for a cmux session, from the CLI's own format. */
 const loopExample: ReviewComment[] = [
   {
-    body: "Don’t swallow this error. Return it so the caller can show it.",
+    body: "[must-fix] Don’t swallow this error. Return it so the caller can show it.",
     file: "src/sync/queue.ts",
     lineNumber: 57,
     side: "right",
-    tag: "[must-fix]",
+    tag: "",
   },
 ];
 

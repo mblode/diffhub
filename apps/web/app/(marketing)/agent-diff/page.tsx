@@ -62,11 +62,11 @@ const example: ReviewComment[] = [
     tag: "",
   },
   {
-    body: "This test now expects a 500 for an empty id. It should still be a 400.",
+    body: "[must-fix] This test now expects a 500 for an empty id. It should still be a 400.",
     file: "app/routes/users.test.ts",
     lineNumber: 24,
     side: "right",
-    tag: "[must-fix]",
+    tag: "",
   },
 ];
 
@@ -143,10 +143,6 @@ export default function AgentDiffPage(): React.JSX.Element {
         <div className="mt-6">
           <ReviewDemo />
         </div>
-        <p className="mt-3 text-muted-foreground text-sm">
-          The demo lets you pick a label. In the viewer you type it at the start of the note
-          instead, and it reaches the agent as written.
-        </p>
 
         <h2 className={heading}>Which diff scope matches how your agent works?</h2>
         <p className={body}>

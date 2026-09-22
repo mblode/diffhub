@@ -131,18 +131,18 @@ const tools = [
 
 const example: ReviewComment[] = [
   {
-    body: "This catch returns an empty list, so a failed request looks like no orders. Let the error through.",
+    body: "[must-fix] This catch returns an empty list, so a failed request looks like no orders. Let the error through.",
     file: "src/api/orders.ts",
     lineNumber: 42,
     side: "right",
-    tag: "[must-fix]",
+    tag: "",
   },
   {
-    body: "Why was this assertion removed? Put it back unless the behaviour really changed.",
+    body: "[question] Why was this assertion removed? Put it back unless the behaviour really changed.",
     file: "src/api/orders.test.ts",
     lineNumber: 18,
     side: "left",
-    tag: "[question]",
+    tag: "",
   },
 ];
 

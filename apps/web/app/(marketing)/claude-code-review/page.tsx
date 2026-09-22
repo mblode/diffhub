@@ -48,18 +48,18 @@ const { body, code, heading, lead, link, primaryCta } = guideClass;
 
 const example: ReviewComment[] = [
   {
-    body: "This adds a retry loop I didn’t ask for. Take it out and keep the original single request.",
+    body: "[must-fix] This adds a retry loop I didn’t ask for. Take it out and keep the original single request.",
     file: "lib/sync.ts",
     lineNumber: 88,
     side: "right",
-    tag: "[must-fix]",
+    tag: "",
   },
   {
-    body: "Rename to fetchInvoices so it matches the other loaders.",
+    body: "[nit] Rename to fetchInvoices so it matches the other loaders.",
     file: "lib/invoices.ts",
     lineNumber: 12,
     side: "right",
-    tag: "[nit]",
+    tag: "",
   },
 ];
 

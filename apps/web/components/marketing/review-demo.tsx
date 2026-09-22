@@ -7,7 +7,7 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { TrackedCta } from "@/components/tracked-cta";
 import { captureConversion } from "@/lib/conversion-events";
 import { formatReviewPrompt } from "@/lib/review-prompt";
-import type { ReviewComment, ReviewSide, ReviewTag } from "@/lib/review-prompt";
+import type { ReviewComment, ReviewSide } from "@/lib/review-prompt";
 import { cn } from "@/lib/utils";
 
 /**
@@ -82,22 +82,6 @@ const HUNK: DiffLine[] = [
 
 const MARKER: Record<LineKind, string> = { add: "+", context: "", del: "−" };
 
-const TAGS: { label: string; value: ReviewTag }[] = [
-  { label: "No label", value: "" },
-  { label: "must-fix", value: "[must-fix]" },
-  { label: "suggestion", value: "[suggestion]" },
-  { label: "nit", value: "[nit]" },
-  { label: "question", value: "[question]" },
-];
-
-const TAG_COLOUR: Record<ReviewTag, { border: string; text: string }> = {
-  "": { border: "border-white/30", text: "text-white/60" },
-  "[must-fix]": { border: "border-[#ff8b5c]", text: "text-[#ff8b5c]" },
-  "[nit]": { border: "border-white/40", text: "text-white/70" },
-  "[question]": { border: "border-[#ffd479]", text: "text-[#ffd479]" },
-  "[suggestion]": { border: "border-[#8be9a8]", text: "text-[#8be9a8]" },
-};
-
 interface DemoComment extends ReviewComment {
   id: string;
 }
@@ -120,7 +104,7 @@ const SEED: DemoComment[] = [
     id: "seed",
     lineNumber: 10,
     side: "right",
-    tag: "[question]",
+    tag: "",
   },
 ];
 
@@ -142,7 +126,6 @@ export const ReviewDemo = (): React.JSX.Element => {
   const [comments, setComments] = useState<DemoComment[]>(SEED);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [body, setBody] = useState("");
-  const [tag, setTag] = useState<ReviewTag>("");
   const [error, setError] = useState(false);
   const [copy, setCopy] = useState<CopyStatus>("idle");
   const nextId = useRef(0);
@@ -166,7 +149,6 @@ export const ReviewDemo = (): React.JSX.Element => {
     (key: string) => {
       setOpenKey(null);
       setBody("");
-      setTag("");
       setError(false);
       focusLine(key);
     },
@@ -181,7 +163,6 @@ export const ReviewDemo = (): React.JSX.Element => {
       }
       setOpenKey(key);
       setBody("");
-      setTag("");
       setError(false);
     },
     [close, openKey],
@@ -198,12 +179,12 @@ export const ReviewDemo = (): React.JSX.Element => {
       nextId.current += 1;
       setComments((current) => [
         ...current,
-        { ...anchor, body: text, file: FILE, id: `c${nextId.current}`, tag },
+        { ...anchor, body: text, file: FILE, id: `c${nextId.current}`, tag: "" },
       ]);
       setCopy("idle");
       close(keyFor(anchor.side, anchor.lineNumber));
     },
-    [body, close, tag],
+    [body, close],
   );
 
   const remove = useCallback(
@@ -301,19 +282,11 @@ export const ReviewDemo = (): React.JSX.Element => {
               {lineComments.map((comment) => (
                 <div
                   className={cn(
-                    "mx-3 my-2 flex items-start justify-between gap-3 rounded-lg border-l-2 bg-white/6 py-2 pr-2 pl-3 font-sans text-sm leading-5",
-                    TAG_COLOUR[comment.tag].border,
+                    "mx-3 my-2 flex items-start justify-between gap-3 rounded-lg border-l-2 border-white/30 bg-white/6 py-2 pr-2 pl-3 font-sans text-sm leading-5",
                   )}
                   key={comment.id}
                 >
-                  <p className="min-w-0 text-pretty">
-                    {comment.tag ? (
-                      <span className={cn("mr-2 font-mono", TAG_COLOUR[comment.tag].text)}>
-                        {comment.tag.slice(1, -1)}
-                      </span>
-                    ) : null}
-                    {comment.body}
-                  </p>
+                  <p className="min-w-0 text-pretty">{comment.body}</p>
                   <button
                     aria-label={`Remove comment on ${where}`}
                     className="shrink-0 rounded-md px-2 py-0.5 text-white/50 text-xs transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
@@ -334,30 +307,13 @@ export const ReviewDemo = (): React.JSX.Element => {
                     submit(anchor);
                   }}
                 >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-white/60" htmlFor={`${formId}-tag`}>
-                      Label
-                    </label>
-                    <select
-                      className="min-h-9 rounded-md bg-[#151611] px-2 font-mono text-sm outline-1 -outline-offset-1 outline-white/15 focus-visible:outline-2 focus-visible:outline-[#f54e00]"
-                      id={`${formId}-tag`}
-                      onChange={(event) => setTag(event.target.value as ReviewTag)}
-                      value={tag}
-                    >
-                      {TAGS.map((option) => (
-                        <option key={option.label} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   <label className="sr-only" htmlFor={`${formId}-body`}>
                     Comment on {where}
                   </label>
                   <textarea
                     aria-describedby={error ? `${formId}-error` : undefined}
                     aria-invalid={error}
-                    className="mt-2 block w-full resize-y rounded-md bg-[#151611] px-3 py-2 text-base outline-1 -outline-offset-1 outline-white/15 placeholder:text-white/35 focus-visible:outline-2 focus-visible:outline-[#f54e00] sm:text-sm"
+                    className="block w-full resize-y rounded-md bg-[#151611] px-3 py-2 text-base outline-1 -outline-offset-1 outline-white/15 placeholder:text-white/35 focus-visible:outline-2 focus-visible:outline-[#f54e00] sm:text-sm"
                     id={`${formId}-body`}
                     onChange={(event) => {
                       setBody(event.target.value);
