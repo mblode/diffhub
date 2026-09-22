@@ -95,7 +95,7 @@ export const GUIDES = [
     path: "/cmux-git-diff",
     pitch: "Three ways to review a branch in cmux.",
     summary:
-      "The three ways to read a branch diff in cmux, what the built-in cmux diff does, why it does not refresh yet, and the other tools people have built.",
+      "The three ways to read a branch diff in cmux, what the built-in cmux diff does, why it does not refresh yet, how to install and drive DiffHub in a cmux split, and the other tools people have built.",
     title: "cmux diff viewer: three ways to review a branch",
   },
 ] as const satisfies readonly Guide[];

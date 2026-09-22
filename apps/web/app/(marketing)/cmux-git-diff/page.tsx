@@ -1,17 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AuthorByline } from "@/components/shared/author-byline";
+import { GuideCommand } from "@/components/guides/guide-command";
+import {
+  GuideChangelog,
+  GuideFaq,
+  PromptExample,
+  RelatedGuides,
+  ShortcutTable,
+} from "@/components/guides/guide";
 import { WorkingTreeDemo } from "@/components/marketing/working-tree-demo";
-import { FaqSection } from "@/components/shared/faq-section";
+import { AuthorByline } from "@/components/shared/author-byline";
 import { JsonLd } from "@/components/shared/json-ld";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
-import { CopyButton } from "@/components/ui/copy-button";
 import { TrackedCta } from "@/components/tracked-cta";
 import { CHANGELOGS, firstDate, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
 import type { Faq } from "@/lib/faq";
-import { schemaId, zoneGraph } from "@/lib/schema";
+import type { ReviewComment } from "@/lib/review-prompt";
+import { articleNode, zoneGraph } from "@/lib/schema";
+import { COMMENT_SHORTCUTS, VIEWER_SHORTCUTS } from "@/lib/shortcuts";
 
 /**
  * Deliberately a Server Component. The homepage is `"use client"` for its
@@ -23,6 +31,17 @@ import { schemaId, zoneGraph } from "@/lib/schema";
  * block. The headings are questions, which is a change from the noun phrases
  * this page shipped with: each section now answers one thing a reader would
  * type, so an extractor can lift a section without the ones around it.
+ *
+ * This page already wins the cmux cluster ("cmux git diff", "cmux diff
+ * viewer", "cmux diff"). Keep the title and the H1. Thicken it with what a
+ * reader needs once they've picked DiffHub (install, keys, the agent loop)
+ * rather than retitling it.
+ *
+ * DiffHub claims here are checked against apps/cli: `cmuxAction` and
+ * `derivePort` in bin/diffhub.mjs, the `handleKey` effect in DiffApp.tsx
+ * (mirrored in lib/shortcuts.ts). The right-click "Open in" menu this page
+ * used to describe was removed from the CLI in August; don't bring it back
+ * without checking it exists.
  */
 
 const PATH = "/cmux-git-diff";
@@ -122,22 +141,9 @@ const faqs: Faq[] = [
 const pageJsonLd = zoneGraph({
   faqs,
   nodes: [
-    {
-      "@type": "TechArticle",
-      author: { "@id": schemaId.person },
-      // Absent until now, on a page that makes version-bound claims. An
-      // article with no dates gives a reader no way to judge whether the cmux
-      // version it cites is current, and gives a model no reason to prefer it
-      // over a stale copy of the same claim.
-      dateModified: updatedAt,
-      datePublished: publishedAt,
-      description,
-      headline: title,
-      isPartOf: { "@id": schemaId.website },
-      mainEntityOfPage: url,
-      publisher: { "@id": schemaId.organization },
-      url,
-    },
+    // Dates off the changelog: an article making version-bound claims with no
+    // dates gives a reader no way to judge whether the cmux version is current.
+    articleNode({ description, headline: title, publishedAt, updatedAt, url }),
   ],
   page: { description, name: title, url },
   trail: [{ name: title, url }],
@@ -178,6 +184,17 @@ const alternatives = [
     language: "TypeScript",
     name: "DiffHub",
     note: "A browser split that detects edits and refreshes on demand",
+  },
+];
+
+/** What Copy & clear produces for a cmux session, from the CLI's own format. */
+const loopExample: ReviewComment[] = [
+  {
+    body: "Don’t swallow this error. Return it so the caller can show it.",
+    file: "src/sync/queue.ts",
+    lineNumber: 57,
+    side: "right",
+    tag: "[must-fix]",
   },
 ];
 
@@ -279,19 +296,17 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             </Link>{" "}
             sits in.
           </p>
-          <code className="my-4 flex w-fit items-center gap-2 rounded-full border border-border/60 bg-secondary/50 px-4 py-2 font-mono text-sm text-muted-foreground">
-            <span>npx diffhub@latest cmux</span>
-            <CopyButton content="npx diffhub@latest cmux" label="Copy install command" />
-          </code>
+          <GuideCommand command="npx diffhub@latest cmux" variant="cmux" />
           <p className={body}>
-            It opens in a browser split, compares against the detected base branch, usually{" "}
-            <code className="font-mono text-sm">origin/main</code>, watches for edits, and marks the
-            refresh control when an update is available. Refresh when you are ready so the code does
-            not move during review. There&rsquo;s a split and unified toggle, a filterable file
-            sidebar with per-file <code className="font-mono text-sm">+</code> and{" "}
-            <code className="font-mono text-sm">-</code> counts, and right-click to open a file in
-            Zed, VS Code, Terminal, or Finder. It runs in an ordinary browser tab too, which a
-            viewer built into a terminal can&rsquo;t.
+            It opens in a browser split beside your terminal and starts on everything you
+            haven&rsquo;t committed. Switch the scope to All to compare the whole branch against the
+            detected base, usually <code className="font-mono text-sm">origin/main</code>. It
+            watches for edits and marks the refresh control when an update is available. Refresh
+            when you&rsquo;re ready, so the code doesn&rsquo;t move during review. There&rsquo;s a
+            split and unified toggle and a filterable file tree with per-file{" "}
+            <code className="font-mono text-sm">+</code> and{" "}
+            <code className="font-mono text-sm">-</code> counts. It runs in an ordinary browser tab
+            too, which a viewer built into a terminal can&rsquo;t.
           </p>
           <WorkingTreeDemo />
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -315,10 +330,66 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             difference between two tips.
           </p>
 
+          <h2 className={heading}>How do you install DiffHub for cmux?</h2>
+          <p className={body}>
+            You don&rsquo;t have to. Run{" "}
+            <code className="font-mono text-sm">npx diffhub@latest cmux</code> from inside the
+            repository and npx fetches it. To keep it around, install it once and drop the prefix:
+          </p>
+          <GuideCommand command="npm install -g diffhub" variant="Global" />
+          <p className={body}>
+            Then <code className="font-mono text-sm">diffhub cmux</code> in any repository. It needs
+            macOS with cmux at <code className="font-mono text-sm">/Applications/cmux.app</code>,
+            and Node 20.11+ or Bun 1.0.23+. Outside cmux,{" "}
+            <code className="font-mono text-sm">npx diffhub@latest</code> opens the same viewer in
+            your normal browser.
+          </p>
+          <p className={body}>
+            The cmux command starts a local server, sends a cmux notification while it does, and
+            opens the split. Each repository gets its own port, worked out from its path, so two
+            repositories don&rsquo;t fight over one. Close the split and DiffHub stops the server.
+            Two flags cover most setups:{" "}
+            <code className="font-mono text-sm">--base &lt;branch&gt;</code> when your base
+            isn&rsquo;t main, master, develop or dev, and{" "}
+            <code className="font-mono text-sm">--repo &lt;path&gt;</code> to review a checkout
+            you&rsquo;re not standing in.
+          </p>
+
+          <h2 className={heading}>Which keyboard shortcuts does DiffHub have?</h2>
+          <p className={body}>
+            Nine in the viewer, so a review in a split never needs the mouse. They pause while
+            you&rsquo;re typing in the file filter or a comment.
+          </p>
+          <ShortcutTable caption="DiffHub viewer keyboard shortcuts" shortcuts={VIEWER_SHORTCUTS} />
+          <p className={body}>In a comment box, two more:</p>
+          <ShortcutTable caption="DiffHub comment box shortcuts" shortcuts={COMMENT_SHORTCUTS} />
+
+          <h2 className={heading}>How does the agent loop work in a cmux split?</h2>
+          <p className={body}>
+            The agent runs in one pane and DiffHub sits in the split beside it. While the agent
+            works, the status bar says Updates available. Press{" "}
+            <code className="font-mono text-sm">r</code> when you&rsquo;re ready to see them. Hover
+            a line, click the plus and write what you want changed. When you&rsquo;ve been through
+            the diff, Copy &amp; clear turns every comment into one prompt and empties the list.
+            Paste it into the agent&rsquo;s pane:
+          </p>
+          <PromptExample comments={loopExample} />
+          <p className={body}>
+            Then refresh and read the fix. It&rsquo;s the same loop whichever agent you run.{" "}
+            <Link className={link} href="/agent-diff">
+              Reviewing any agent&rsquo;s diff
+            </Link>{" "}
+            covers worktrees and pull requests, and{" "}
+            <Link className={link} href="/claude-code-review">
+              reviewing Claude Code&rsquo;s changes
+            </Link>{" "}
+            covers that one agent.
+          </p>
+
           <h2 className={heading}>What are the alternatives to cmux diff?</h2>
           <p className={body}>
             A few people have built for this, and they make different trade-offs. Each name links to
-            the project&rsquo;s repository so you can check its current behavior and maintenance
+            the project&rsquo;s repository so you can check its current behaviour and maintenance
             state.
           </p>
           <div className="mt-6 overflow-x-auto">
@@ -372,7 +443,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
           <p className={body}>
             Widen it past cmux and the field is bigger.{" "}
             <Link className={link} href="/review-ai-generated-code">
-              How to review code an AI agent wrote
+              How to review AI-generated code
             </Link>{" "}
             compares these against hunk and revdiff, and says which one to pick.
           </p>
@@ -380,27 +451,9 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
             cmux will probably close that gap. Until then I&rsquo;ve got a tab open.
           </p>
 
-          <h2 className={heading}>What else do people ask about git diffs in cmux?</h2>
-          <FaqSection
-            answerClassName={body}
-            faqs={faqs}
-            questionClassName="mt-8 font-medium text-lg tracking-tight"
-          />
-
-          {/* Not a question, on purpose. See the sibling page: forcing an
-              interrogative onto a two-entry list reads as a filled-in
-              template. */}
-          <h2 className={heading}>Changelog</h2>
-          <ul className={`${body} space-y-2`}>
-            {CHANGELOG.map((entry) => (
-              <li key={entry.date}>
-                <time className="font-mono text-sm" dateTime={entry.date}>
-                  {entry.date}
-                </time>
-                : {entry.change}
-              </li>
-            ))}
-          </ul>
+          <GuideFaq faqs={faqs} heading="What else do people ask about git diffs in cmux?" />
+          <RelatedGuides current={PATH} />
+          <GuideChangelog entries={CHANGELOG} />
         </div>
       </article>
     </div>

@@ -67,6 +67,11 @@ export const CHANGELOGS = {
   "/cmux-git-diff": [
     {
       change:
+        "Added how to install DiffHub for cmux, the full keyboard shortcut list read from the viewer's source, and the agent review loop in a split. Removed the right-click Open in menu, which the CLI no longer has, and corrected the default scope: DiffHub opens on uncommitted changes, with the base-branch comparison one scope away.",
+      date: "2026-09-22",
+    },
+    {
+      change:
         "Added an interactive working-tree refresh demonstration and a direct live-review step, and replaced stale popularity metrics with links to each project's primary repository.",
       date: "2026-09-07",
     },

@@ -139,6 +139,13 @@ test("primary marketing CTAs fire conversion events", () => {
   const islands = read("../components/marketing/home-islands.tsx");
   const demo = read("../components/marketing/review-demo.tsx");
   const guide = read("../app/(marketing)/cmux-git-diff/page.tsx");
+  const guideCommand = read("../components/guides/guide-command.tsx");
+  const guides = [
+    "git-diff-viewer",
+    "review-ai-generated-code",
+    "claude-code-review",
+    "agent-diff",
+  ].map((slug) => read(`../app/(marketing)/${slug}/page.tsx`));
   const navbar = read("../components/shared/navbar.tsx");
   const footer = read("../components/shared/footer.tsx");
   const launcher = read("../components/shared/demo-launcher.tsx");
@@ -155,7 +162,14 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(install).toMatch(/label="Copy install command"/u);
   expect(islands).toMatch(/captureInstallCommandCopied/u);
   expect(demo).toMatch(/opensDemo/u);
-  expect(guide).toMatch(/label="Copy install command"/u);
+  // Guide install commands copy through one island, which fires both the
+  // `cta_clicked` label and `install_command_copied`.
+  expect(guide).toMatch(/<GuideCommand/u);
+  expect(guideCommand).toMatch(/label="Copy install command"/u);
+  expect(guideCommand).toMatch(/captureInstallCommandCopied/u);
+  for (const page of guides) {
+    expect(page).toMatch(/<GuideCommand/u);
+  }
   expect(guide).toMatch(/label="Try guide live demo"/u);
   expect(guide).toMatch(/location="\/diffhub\/cmux-git-diff"/u);
   expect(copyButton).toMatch(/captureConversion/u);
