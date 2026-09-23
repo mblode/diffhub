@@ -1,8 +1,6 @@
 import type { NextRequest } from "next/server";
 import { fetchPrDiff, parseRepoParams } from "@/lib/github";
 
-export const runtime = "nodejs";
-
 const textResponse = (body: string, status: number): Response =>
   new Response(body, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },

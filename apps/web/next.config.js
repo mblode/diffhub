@@ -52,10 +52,17 @@ const securityHeaders = [
 const nextConfig = {
   assetPrefix: basePath,
   basePath,
+  // Instant navigation: routes prerender a static shell, data is cached with
+  // `"use cache"` + `cacheLife`, and each `<Link>` prefetches its
+  // destination's App Shell. Guarded by `e2e/instant.spec.ts`.
+  cacheComponents: true,
   env: {
     DIFFHUB_VERSION: version,
   },
   experimental: {
+    // `@next/playwright`'s `instant()` needs the testing API. `test:instant`
+    // builds with this flag; production builds never expose it.
+    exposeTestingApiInProductionBuild: process.env.NEXT_EXPOSE_TESTING_API === "1",
     // Runs the React Compiler in Turbopack's Rust pipeline, so the build no
     // longer needs the Babel plugin.
     turbopackRustReactCompiler: true,
@@ -86,6 +93,7 @@ const nextConfig = {
       })),
     ];
   },
+  partialPrefetching: true,
   reactCompiler: true,
   redirects() {
     // The vanity host stays attached to this Vercel project, so the 308 onto

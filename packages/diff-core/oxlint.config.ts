@@ -24,7 +24,13 @@ export default defineConfig({
     // Intentional public entry points for the package.
     "no-barrel-file": "off",
     "prefer-named-capture-group": "off",
-    "react/react-compiler": "off",
+    // oxlint split "react/react-compiler" (off here before) into one rule per
+    // React Compiler diagnostic. These are the ones that fire; same decision.
+    "react/exhaustive-effect-dependencies": "off",
+    "react/refs": "off",
+    "react/rule-suppression": "off",
+    "react/set-state-in-effect": "off",
+    "react/todo": "off",
     "require-unicode-regexp": "off",
     "typescript/method-signature-style": "off",
     // React components use PascalCase filenames by convention.

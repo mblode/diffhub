@@ -114,6 +114,10 @@ const pageJsonLd = zoneGraph({
   updatedAt,
 });
 
+// Dev flags anything that would block navigating here. Not in
+// e2e/instant.spec.ts, which covers the landing page and three guides.
+export const instant = true;
+
 export default function AgentDiffPage(): React.JSX.Element {
   return (
     <div>

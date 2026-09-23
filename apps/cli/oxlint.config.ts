@@ -17,6 +17,16 @@ export default defineConfig({
     },
   ],
   rules: {
+    // oxlint split "react/react-compiler" (off here before) into one rule per
+    // React Compiler diagnostic. These are the ones that fire; same decision.
+    "react/exhaustive-effect-dependencies": "off",
+    // New in ultracite 7.12. It fights Next's `export default function Page`
+    // convention and flags forwardRef/memo render callbacks; style-only.
+    "react/function-component-definition": "off",
+    "react/refs": "off",
+    "react/rule-suppression": "off",
+    "react/set-state-in-effect": "off",
+    "react/todo": "off",
     // Streaming, polling and CLI process management are intentionally
     // sequential; the remaining rules are mechanical style churn in tests and
     // established React ref patterns.
@@ -24,7 +34,6 @@ export default defineConfig({
     "no-await-in-loop": "off",
     "prefer-named-capture-group": "off",
     "react/display-name": "off",
-    "react/react-compiler": "off",
     "require-unicode-regexp": "off",
     "sort-keys": "off",
     "typescript/method-signature-style": "off",

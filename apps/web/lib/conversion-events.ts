@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import { posthog } from "posthog-js";
 
 /**
  * Conversion events already used by Taste Training and the homepage
