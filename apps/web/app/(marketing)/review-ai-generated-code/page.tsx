@@ -248,6 +248,9 @@ const pageJsonLd = zoneGraph({
   updatedAt,
 });
 
+// Stretched over the cell's `py-3`, so the tap target is the row, not the 18px word.
+const toolLink = `${link} inline-block py-3 -my-3`;
+
 /**
  * next/link for the in-zone row, so the basePath is applied. A plain
  * `<a href="/">` here used to point at blode.co's own root.
@@ -258,13 +261,13 @@ const ToolName = ({ href, name }: { href: string | null; name: string }) => {
   }
   if (href.startsWith("/")) {
     return (
-      <Link className={link} href={href}>
+      <Link className={toolLink} href={href}>
         {name}
       </Link>
     );
   }
   return (
-    <a className={link} href={href} rel="noopener noreferrer" target="_blank">
+    <a className={toolLink} href={href} rel="noopener noreferrer" target="_blank">
       {name}
     </a>
   );

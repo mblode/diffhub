@@ -88,7 +88,7 @@ const features = [
     media: (
       <TrackedCta
         aria-label="Open the live DiffHub demo for oven-sh/bun #16000"
-        className="block overflow-hidden rounded-[min(1.4vw,var(--radius-2xl))] bg-[#eceae5] shadow-soft outline-1 -outline-offset-1 outline-foreground/10 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-4"
+        className="block overflow-hidden rounded-[min(1.4vw,var(--radius-2xl))] bg-secondary shadow-soft outline-1 -outline-offset-1 outline-foreground/10 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-4"
         href={siteConfig.links.demo}
         label="Live demo screenshot"
         opensDemo
@@ -265,9 +265,10 @@ export default async function HomePage(): Promise<React.JSX.Element> {
                 </h2>
                 <ul className="mt-4 grid gap-x-8 border-foreground/10 border-t sm:grid-cols-2">
                   {GUIDES.map((entry) => (
-                    <li className="border-foreground/10 border-b py-4" key={entry.path}>
+                    <li className="relative border-foreground/10 border-b py-4" key={entry.path}>
+                      {/* The whole row is the hit area: the title alone is 20px tall. */}
                       <Link
-                        className="font-medium text-link underline-offset-4 hover:underline"
+                        className="font-medium text-link underline-offset-4 after:absolute after:inset-0 hover:underline"
                         href={entry.path}
                       >
                         {entry.label}
@@ -291,7 +292,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
           <CtaClose
             action={
               <TrackedCta
-                className="inline-flex items-center gap-1.5 py-2 text-white/60 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
+                className="inline-flex min-h-11 items-center gap-1.5 text-white/60 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
                 href={siteConfig.links.docs}
                 label="Read the install guide"
               >
