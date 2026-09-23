@@ -206,7 +206,8 @@ const heading = "mt-16 text-2xl font-medium tracking-tight";
 // Tightening the gutter removes the overflow rather than hinting at it.
 const cell = "border-border/60 border-b py-3 pr-2 align-top sm:pr-6";
 
-// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+// Dev flags anything that would block navigating here; e2e/instant.spec.ts
+// checks it against a production build.
 export const instant = true;
 
 export default function CmuxGitDiffPage(): React.JSX.Element {

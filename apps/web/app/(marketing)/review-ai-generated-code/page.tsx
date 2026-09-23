@@ -270,7 +270,8 @@ const ToolName = ({ href, name }: { href: string | null; name: string }) => {
   );
 };
 
-// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+// Dev flags anything that would block navigating here; e2e/instant.spec.ts
+// checks it against a production build.
 export const instant = true;
 
 export default function ReviewAiGeneratedCodePage(): React.JSX.Element {

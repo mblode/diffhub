@@ -141,7 +141,8 @@ const features = [
   },
 ];
 
-// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+// Dev flags anything that would block navigating here; e2e/instant.spec.ts
+// checks it against a production build.
 export const instant = true;
 
 export default async function HomePage(): Promise<React.JSX.Element> {

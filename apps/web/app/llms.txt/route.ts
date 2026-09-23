@@ -74,12 +74,9 @@ ${docs.join("\n")}
 };
 
 /**
- * Static, matching `robots.txt` and `sitemap.xml`. This was
- * `dynamic = "force-static"`; under Cache Components a GET that reads no
- * request or uncached data prerenders at build on its own, and the segment
- * config is an error. The build output lists it as static (○).
+ * Prerendered at build, matching `robots.txt` and `sitemap.xml`, because it
+ * reads no request and no uncached data. Reading either would make it dynamic.
  */
-
 export const GET = () =>
   new Response(body(), {
     headers: {

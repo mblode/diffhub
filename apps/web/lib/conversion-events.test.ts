@@ -20,10 +20,7 @@ import {
   trackSectionViews,
 } from "./conversion-events";
 
-vi.mock("posthog-js", () => {
-  const client = { capture: vi.fn() };
-  return { default: client, posthog: client };
-});
+vi.mock("posthog-js", () => ({ posthog: { capture: vi.fn() } }));
 
 const read = (relative: string) => readFileSync(path.join(import.meta.dirname, relative), "utf-8");
 
