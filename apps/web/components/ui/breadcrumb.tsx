@@ -40,7 +40,11 @@ const BreadcrumbLink = ({
     defaultTagName: "a",
     props: mergeProps<"a">(
       {
-        className: cn("transition-colors hover:text-foreground", className),
+        // `after` grows the 20px text link to a 44px tap target without moving the trail.
+        className: cn(
+          "relative transition-colors after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] hover:text-foreground",
+          className,
+        ),
       },
       asChild ? props : { ...props, children },
     ),
