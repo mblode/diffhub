@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowRightIcon, PlusIcon } from "blode-icons-react";
+import {
+  ArrowRightIcon,
+  ChevronDownIcon,
+  CircleDotsCenter1Icon,
+  PlusIcon,
+  TrashCanIcon,
+} from "blode-icons-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
@@ -21,66 +27,250 @@ import { cn } from "@/lib/utils";
  * first paint, and nothing animates on mount.
  */
 
-const FILE = "apps/cli/lib/export-comments.ts";
+const FILE_DIR = "apps/cli/lib/";
+const FILE_NAME = "export-comments.ts";
+const FILE = `${FILE_DIR}${FILE_NAME}`;
+const BRANCH = "fix/review-comment-side";
 const PR_PATH = "/mblode/diffhub/pull/52";
 
 type LineKind = "add" | "context" | "del";
+
+/** A run of source text and its Linear Dark colour; no colour is the theme's foreground. */
+type Token = readonly [text: string, color?: string];
 
 interface DiffLine {
   kind: LineKind;
   newNumber: number | null;
   oldNumber: number | null;
-  text: string;
+  tokens: Token[];
 }
 
-// Verbatim from `git show afe7d53 -- apps/cli/lib/export-comments.ts`. The
-// hunk is set in the system monospace stack, not Glide Mono, because Glide
-// Mono's backtick has zero advance width and eats the space beside it.
+// Verbatim from `git show afe7d53 -- apps/cli/lib/export-comments.ts`, split
+// into the tokens Shiki produces with packages/diff-core/src/themes/linear-dark.json,
+// the theme the viewer itself renders with. Set in the system monospace stack,
+// not Glide Mono, because Glide Mono's backtick has zero advance width and eats
+// the space beside it.
+const PINK = "#fa9ce3";
+const PURPLE = "#cc9dff";
+const BLUE = "#8fa7ff";
+const ORANGE = "#fac08a";
+const TEAL = "#7fdede";
+const YELLOW = "#ffe09e";
+
 /* oxlint-disable no-template-curly-in-string -- these are lines of source code, not templates */
 const HUNK: DiffLine[] = [
-  { kind: "context", newNumber: 7, oldNumber: 7, text: "  const lines = comments.map((c) => {" },
+  {
+    kind: "context",
+    newNumber: 7,
+    oldNumber: 7,
+    tokens: [
+      ["  "],
+      ["const ", PINK],
+      ["lines", BLUE],
+      [" = "],
+      ["comments", ORANGE],
+      ["."],
+      ["map", TEAL],
+      ["(("],
+      ["c", ORANGE],
+      [") "],
+      ["=>", PINK],
+      [" {"],
+    ],
+  },
   {
     kind: "context",
     newNumber: 8,
     oldNumber: 8,
-    text: '    const tag = c.tag ? `${c.tag} ` : "";',
+    tokens: [
+      ["    "],
+      ["const ", PINK],
+      ["tag", BLUE],
+      [" = "],
+      ["c", ORANGE],
+      ["."],
+      ["tag", ORANGE],
+      [" ? "],
+      ["`", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["tag", ORANGE],
+      ["}", PINK],
+      [" `", YELLOW],
+      [" : "],
+      ['""', YELLOW],
+      [";"],
+    ],
   },
   {
     kind: "context",
     newNumber: 9,
     oldNumber: 9,
-    text: '    const loc = c.lineNumber > 0 ? `:${c.lineNumber}` : "";',
+    tokens: [
+      ["    "],
+      ["const ", PINK],
+      ["loc", BLUE],
+      [" = "],
+      ["c", ORANGE],
+      ["."],
+      ["lineNumber", ORANGE],
+      [" > "],
+      ["0", TEAL],
+      [" ? "],
+      ["`:", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["lineNumber", ORANGE],
+      ["}", PINK],
+      ["`", YELLOW],
+      [" : "],
+      ['""', YELLOW],
+      [";"],
+    ],
   },
   {
     kind: "del",
     newNumber: null,
     oldNumber: 10,
-    text: "    return `- ${tag}**${c.file}${loc}**: ${c.body}`;",
+    tokens: [
+      ["    "],
+      ["return ", PURPLE],
+      ["`- ", YELLOW],
+      ["${", PINK],
+      ["tag", ORANGE],
+      ["}", PINK],
+      ["**", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["file", ORANGE],
+      ["}${", PINK],
+      ["loc", ORANGE],
+      ["}", PINK],
+      ["**: ", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["body", ORANGE],
+      ["}", PINK],
+      ["`", YELLOW],
+      [";"],
+    ],
   },
   {
     kind: "add",
     newNumber: 10,
     oldNumber: null,
-    text: '    const side = c.lineNumber > 0 ? ` (${c.side === "left" ? "old" : "new"} side)` : "";',
+    tokens: [
+      ["    "],
+      ["const ", PINK],
+      ["side", BLUE],
+      [" = "],
+      ["c", ORANGE],
+      ["."],
+      ["lineNumber", ORANGE],
+      [" > "],
+      ["0", TEAL],
+      [" ? "],
+      ["` (", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["side", ORANGE],
+      [" === "],
+      ['"left"', YELLOW],
+      [" ? "],
+      ['"old"', YELLOW],
+      [" : "],
+      ['"new"', YELLOW],
+      ["}", PINK],
+      [" side)`", YELLOW],
+      [" : "],
+      ['""', YELLOW],
+      [";"],
+    ],
   },
   {
     kind: "add",
     newNumber: 11,
     oldNumber: null,
-    text: "    return `- ${tag}**${c.file}${loc}**${side}: ${c.body}`;",
+    tokens: [
+      ["    "],
+      ["return ", PURPLE],
+      ["`- ", YELLOW],
+      ["${", PINK],
+      ["tag", ORANGE],
+      ["}", PINK],
+      ["**", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["file", ORANGE],
+      ["}${", PINK],
+      ["loc", ORANGE],
+      ["}", PINK],
+      ["**", YELLOW],
+      ["${", PINK],
+      ["side", ORANGE],
+      ["}", PINK],
+      [": ", YELLOW],
+      ["${", PINK],
+      ["c", ORANGE],
+      ["."],
+      ["body", ORANGE],
+      ["}", PINK],
+      ["`", YELLOW],
+      [";"],
+    ],
   },
-  { kind: "context", newNumber: 12, oldNumber: 11, text: "  });" },
+  { kind: "context", newNumber: 12, oldNumber: 11, tokens: [["  });"]] },
   {
     kind: "context",
     newNumber: 13,
     oldNumber: 12,
-    text: '  return `## Code Review Comments\\n\\nPlease address the following:\\n\\n${lines.join("\\n")}`;',
+    tokens: [
+      ["  "],
+      ["return ", PURPLE],
+      ["`## Code Review Comments", YELLOW],
+      ["\\n\\n", ORANGE],
+      ["Please address the following:", YELLOW],
+      ["\\n\\n", ORANGE],
+      ["${", PINK],
+      ["lines", ORANGE],
+      ["."],
+      ["join", TEAL],
+      ["("],
+      ['"', YELLOW],
+      ["\\n", ORANGE],
+      ['"', YELLOW],
+      [")"],
+      ["}", PINK],
+      ["`", YELLOW],
+      [";"],
+    ],
   },
-  { kind: "context", newNumber: 14, oldNumber: 13, text: "};" },
+  { kind: "context", newNumber: 14, oldNumber: 13, tokens: [["};"]] },
 ];
 /* oxlint-enable no-template-curly-in-string */
 
-const MARKER: Record<LineKind, string> = { add: "+", context: "", del: "−" };
+const MONO = "[font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace]";
+
+/** Row and gutter tints read from the viewer's rendered Linear Dark diff. */
+const ROW: Record<LineKind, { code: string; gutter: string; label: string }> = {
+  add: {
+    code: "bg-[#293932]",
+    gutter: "bg-[#25312e] text-[#5ecc71] shadow-[inset_2px_0_0_#5ecc71]",
+    label: "Added",
+  },
+  context: { code: "", gutter: "text-[#9697a1]", label: "" },
+  del: {
+    code: "bg-[#432a2f]",
+    gutter: "bg-[#39262c] text-[#ff6762] shadow-[inset_2px_0_0_#ff6762]",
+    label: "Removed",
+  },
+};
 
 interface DemoComment extends ReviewComment {
   id: string;
@@ -209,22 +399,37 @@ export const ReviewDemo = (): React.JSX.Element => {
 
   return (
     <div
-      className="overflow-hidden rounded-2xl bg-[#1b1b19] text-[#f7f7f4] shadow-[0_32px_100px_rgba(0,0,0,0.45)] outline-1 -outline-offset-1 outline-white/12"
+      className="overflow-hidden rounded-xl bg-[#0a0a0a] text-[#fafafa] shadow-[0_32px_100px_rgba(0,0,0,0.45)] outline-1 -outline-offset-1 outline-white/10"
       id="review-demo"
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-white/10 border-b px-4 py-3 font-mono text-sm">
-        <p className="min-w-0 truncate">{FILE}</p>
-        <p className="shrink-0 text-white/50">
-          <span className="text-[#8be9a8]">+2</span> <span className="text-[#ff8b5c]">−1</span>
+      <div className="flex h-11 min-w-0 items-center gap-2 border-white/10 border-b px-3 font-mono text-xs">
+        <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[#a1a1a1]">
+          main
+        </span>
+        <ArrowRightIcon aria-hidden="true" className="size-3 shrink-0 text-[#a1a1a1]/60" />
+        <span className="min-w-0 truncate rounded-md border border-white/10 bg-white/5 px-2 py-1">
+          {BRANCH}
+        </span>
+      </div>
+
+      <div className="flex h-11 min-w-0 items-center gap-2 border-white/10 border-b bg-[#171717] px-3 text-xs">
+        <ChevronDownIcon aria-hidden="true" className="size-3.5 shrink-0 text-[#a1a1a1]" />
+        <CircleDotsCenter1Icon aria-hidden="true" className="size-3.5 shrink-0 text-[#a1a1a1]" />
+        <p className="min-w-0 truncate font-mono">
+          <span className="text-[#a1a1a1]">{FILE_DIR}</span>
+          {FILE_NAME}
+        </p>
+        <p className="shrink-0 font-mono">
+          <span className="text-[#ff6762]">−1</span> <span className="text-[#5ecc71]">+2</span>
         </p>
       </div>
 
       <section
         aria-label={`Diff of ${FILE}`}
-        className="py-2 [font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] text-[13px] leading-6"
+        className={cn("bg-[#191a23] pb-2 text-[#e5e6ef] text-[13px] leading-5", MONO)}
       >
-        <p className="px-4 pb-1 text-white/40">
-          @@ -7,7 +7,8 @@ export const exportCommentsAsPrompt
+        <p className="m-1.5 rounded-sm bg-[#36373f] px-2 py-1 font-sans text-[#c4c5cc] text-xs">
+          6 unmodified lines
         </p>
         {HUNK.map((line) => {
           const anchor = anchorFor(line);
@@ -237,71 +442,77 @@ export const ReviewDemo = (): React.JSX.Element => {
 
           return (
             <div key={key}>
-              <div
-                className={cn(
-                  "grid grid-cols-[2.25rem_1.75rem_1.75rem_1rem_minmax(0,1fr)] items-start",
-                  line.kind === "add" && "bg-[#183923] text-[#b9f6ca]",
-                  line.kind === "del" && "bg-[#3d1f1a] text-[#ffc9bd]",
-                  line.kind === "context" && "text-white/75",
-                )}
-              >
-                <button
-                  aria-expanded={isOpen}
-                  aria-label={`Comment on ${where}`}
+              <div className="group/line grid grid-cols-[3.5rem_minmax(0,1fr)]">
+                <div className={cn("relative select-none pr-3 text-right", ROW[line.kind].gutter)}>
+                  <button
+                    aria-expanded={isOpen}
+                    aria-label={`Comment on ${where}`}
+                    className={cn(
+                      "absolute top-0 left-1 inline-flex size-5 items-center justify-center rounded-[4px] bg-[#7e7fff] text-white opacity-0 transition-opacity focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1 group-hover/line:opacity-100 [@media(hover:none)]:opacity-100",
+                      "after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']",
+                      isOpen && "opacity-100",
+                    )}
+                    onClick={() => toggleComposer(key)}
+                    ref={(node) => {
+                      if (node) {
+                        lineButtons.current.set(key, node);
+                      } else {
+                        lineButtons.current.delete(key);
+                      }
+                    }}
+                    type="button"
+                  >
+                    <PlusIcon aria-hidden="true" className="size-3.5" />
+                  </button>
+                  <span aria-hidden="true">{anchor.lineNumber}</span>
+                </div>
+                <code
                   className={cn(
-                    "mx-1 my-0.5 inline-flex size-5 items-center justify-center rounded-md bg-white/8 text-white/55 transition-colors hover:bg-[#f54e00] hover:text-[#151611] focus-visible:bg-[#f54e00] focus-visible:text-[#151611] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-1",
-                    "relative after:absolute after:-inset-x-2 after:-inset-y-1 after:content-['']",
-                    isOpen && "bg-[#f54e00] text-[#151611]",
+                    "whitespace-pre-wrap pr-4 pl-3 [font-family:inherit] [overflow-wrap:anywhere]",
+                    ROW[line.kind].code,
                   )}
-                  onClick={() => toggleComposer(key)}
-                  ref={(node) => {
-                    if (node) {
-                      lineButtons.current.set(key, node);
-                    } else {
-                      lineButtons.current.delete(key);
-                    }
-                  }}
-                  type="button"
                 >
-                  <PlusIcon aria-hidden="true" className="size-3.5" />
-                </button>
-                <span aria-hidden="true" className="select-none text-right text-white/35">
-                  {line.oldNumber ?? ""}
-                </span>
-                <span aria-hidden="true" className="select-none text-right text-white/35">
-                  {line.newNumber ?? ""}
-                </span>
-                <span aria-hidden="true" className="select-none text-center text-white/45">
-                  {MARKER[line.kind]}
-                </span>
-                <code className="whitespace-pre-wrap pr-4 [font-family:inherit] [overflow-wrap:anywhere]">
-                  {line.text}
+                  {ROW[line.kind].label ? (
+                    <span className="sr-only">{ROW[line.kind].label}: </span>
+                  ) : null}
+                  {line.tokens.map(([text, color], index) => (
+                    // Static tokens that never reorder, so the position is the identity.
+                    // oxlint-disable-next-line react/no-array-index-key
+                    <span key={index} style={color ? { color } : undefined}>
+                      {text}
+                    </span>
+                  ))}
                 </code>
               </div>
 
               {lineComments.map((comment) => (
                 <div
-                  className={cn(
-                    "mx-3 my-2 flex items-start justify-between gap-3 rounded-lg border-l-2 border-white/30 bg-white/6 py-2 pr-2 pl-3 font-sans text-sm leading-5",
-                  )}
+                  className="group/comment mx-4 my-1 overflow-hidden rounded-md border border-white/10 border-l-2 border-l-[#737373]/60 bg-[#171717] font-sans"
                   key={comment.id}
                 >
-                  <p className="min-w-0 text-pretty">{comment.body}</p>
-                  <button
-                    aria-label={`Remove comment on ${where}`}
-                    className="shrink-0 rounded-md px-2 py-0.5 text-white/50 text-xs transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
-                    onClick={() => remove(comment)}
-                    type="button"
-                  >
-                    Remove
-                  </button>
+                  <div className="flex items-start gap-2 px-3 py-2.5">
+                    <p className="min-w-0 flex-1 text-pretty text-sm leading-relaxed">
+                      {comment.body}
+                    </p>
+                    <button
+                      aria-label={`Remove comment on ${where}`}
+                      className="relative shrink-0 rounded p-1 text-[#a1a1a1] opacity-0 transition-[opacity,color,background-color] after:absolute after:-inset-1.5 after:content-[''] hover:bg-[#ff6762]/10 hover:text-[#ff6762] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-white group-hover/comment:opacity-100 [@media(hover:none)]:opacity-100"
+                      onClick={() => remove(comment)}
+                      type="button"
+                    >
+                      <TrashCanIcon aria-hidden="true" className="size-3.5" />
+                    </button>
+                  </div>
+                  <p className="border-white/5 border-t px-3 py-1 text-[#a1a1a1] text-[10px]">
+                    L{comment.lineNumber} · {comment.side === "left" ? "old" : "new"} side
+                  </p>
                 </div>
               ))}
 
               {isOpen ? (
                 <form
                   aria-label={`Comment on ${where}`}
-                  className="mx-3 my-2 rounded-lg bg-white/6 p-3 font-sans text-sm"
+                  className="mx-4 my-1 rounded-md border border-white/10 bg-[#0a0a0a] p-3 font-sans text-sm focus-within:border-white/25"
                   onSubmit={(event: FormEvent) => {
                     event.preventDefault();
                     submit(anchor);
@@ -313,7 +524,7 @@ export const ReviewDemo = (): React.JSX.Element => {
                   <textarea
                     aria-describedby={error ? `${formId}-error` : undefined}
                     aria-invalid={error}
-                    className="block w-full resize-y rounded-md bg-[#151611] px-3 py-2 text-base outline-1 -outline-offset-1 outline-white/15 placeholder:text-white/35 focus-visible:outline-2 focus-visible:outline-[#f54e00] sm:text-sm"
+                    className="block w-full resize-none bg-transparent text-base placeholder:text-[#a1a1a1] focus-visible:outline-none sm:text-sm"
                     id={`${formId}-body`}
                     onChange={(event) => {
                       setBody(event.target.value);
@@ -328,29 +539,29 @@ export const ReviewDemo = (): React.JSX.Element => {
                         submit(anchor);
                       }
                     }}
-                    placeholder="What should the agent change?"
+                    placeholder="Add a comment for the AI"
                     ref={textarea}
-                    rows={2}
+                    rows={3}
                     value={body}
                   />
                   {error ? (
-                    <p className="mt-2 text-[#ff8b5c]" id={`${formId}-error`}>
+                    <p className="mt-2 text-[#ff6762] text-xs" id={`${formId}-error`}>
                       Write a comment first.
                     </p>
                   ) : null}
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-2 flex justify-end gap-2">
                     <button
-                      className="min-h-9 rounded-full bg-[#f54e00] px-4 font-medium text-[#151611] transition-colors hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
-                      type="submit"
-                    >
-                      Add comment
-                    </button>
-                    <button
-                      className="min-h-9 rounded-full px-4 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+                      className="min-h-9 rounded-md px-3 text-[#a1a1a1] transition-colors hover:bg-white/10 hover:text-[#fafafa] focus-visible:outline-2 focus-visible:outline-white"
                       onClick={() => close(key)}
                       type="button"
                     >
                       Cancel
+                    </button>
+                    <button
+                      className="min-h-9 rounded-md bg-[#fafafa] px-3 font-medium text-[#171717] transition-colors hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
+                      type="submit"
+                    >
+                      Comment
                     </button>
                   </div>
                 </form>
@@ -360,11 +571,11 @@ export const ReviewDemo = (): React.JSX.Element => {
         })}
       </section>
 
-      <div className="border-white/10 border-t bg-[#151611]">
+      <div className="border-white/10 border-t">
         <div className="flex items-center justify-between gap-4 px-4 py-3">
-          <p className="font-mono text-sm">
+          <p className="text-sm">
             Agent prompt{" "}
-            <span className="text-white/45">
+            <span className="text-[#a1a1a1]">
               · {comments.length} {comments.length === 1 ? "comment" : "comments"}
             </span>
           </p>
@@ -373,10 +584,10 @@ export const ReviewDemo = (): React.JSX.Element => {
           </output>
           <button
             className={cn(
-              "min-h-9 min-w-[7.5rem] shrink-0 rounded-full px-4 font-medium text-sm transition-colors focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
+              "min-h-9 min-w-[7.5rem] shrink-0 rounded-md px-3 font-medium text-sm transition-colors focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40",
               copy === "failed"
-                ? "bg-[#3d1f1a] text-[#ffc9bd]"
-                : "bg-[#f7f7f4] text-[#151611] hover:bg-white",
+                ? "bg-[#39262c] text-[#ff6762]"
+                : "bg-[#fafafa] text-[#171717] hover:bg-white/90",
             )}
             disabled={comments.length === 0}
             onClick={copyPrompt}
@@ -386,8 +597,9 @@ export const ReviewDemo = (): React.JSX.Element => {
           </button>
         </div>
         {comments.length === 0 ? (
-          <p className="px-4 pb-4 text-sm text-white/55">
-            Press + on any line to leave a comment. Each one becomes a line of the prompt.
+          <p className="px-4 pb-4 text-[#a1a1a1] text-sm">
+            Press + beside any line number to leave a comment. Each one becomes a line of the
+            prompt.
           </p>
         ) : (
           <pre
@@ -396,14 +608,17 @@ export const ReviewDemo = (): React.JSX.Element => {
             // outgrows its max height.
             // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
-            className="max-h-56 overflow-y-auto whitespace-pre-wrap px-4 pb-4 [font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace] text-[13px] text-white/80 leading-6 [overflow-wrap:anywhere]"
+            className={cn(
+              "max-h-56 overflow-y-auto whitespace-pre-wrap px-4 pb-4 text-[#e5e6ef]/80 text-[13px] leading-6 [overflow-wrap:anywhere]",
+              MONO,
+            )}
           >
             {prompt}
           </pre>
         )}
         <div className="border-white/10 border-t px-4 py-3">
           <TrackedCta
-            className="inline-flex items-center gap-1.5 text-sm text-white/60 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
+            className="inline-flex items-center gap-1.5 text-[#a1a1a1] text-sm underline decoration-white/25 underline-offset-4 hover:text-[#fafafa] hover:decoration-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
             href={PR_PATH}
             label="Open demo PR"
             opensDemo

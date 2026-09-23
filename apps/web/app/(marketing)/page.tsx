@@ -254,7 +254,7 @@ export default async function HomePage(): Promise<React.JSX.Element> {
             <div>
               <FaqSection
                 answerClassName="mt-3 max-w-[64ch] text-pretty text-muted-foreground"
-                className="divide-y divide-foreground/10 border-foreground/10 border-t"
+                className="divide-y divide-foreground/10"
                 faqs={faqs}
                 itemClassName="py-7 first:pt-0"
                 questionClassName="font-medium text-xl tracking-tight"
