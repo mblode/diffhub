@@ -5,7 +5,7 @@ description: Review a whole branch in cmux or a browser with DiffHub.
 
 DiffHub is a cmux git diff viewer for agent code review. It opens the whole branch in a browser split, signals when files change, and keeps inline comments beside the code so you can send focused notes back to your coding agent.
 
-It opens your branch in a browser split and compares it with the detected base branch, usually `origin/main`. If you do not use cmux, you can open the same view in a normal browser window.
+It opens in a browser split and shows your uncommitted changes against `HEAD` by default, plus untracked files. Switch the scope to **All** to compare the whole branch with the detected base branch, usually `origin/main`. If you do not use cmux, you can open the same view in a normal browser window.
 
 [Watch the demo (2 min)](https://www.loom.com/share/e0203dd97b354508a791ecd339094a02)
 
@@ -15,7 +15,7 @@ It opens your branch in a browser split and compares it with the detected base b
 npx diffhub@latest cmux
 ```
 
-That starts DiffHub and opens your branch diff in a cmux browser split.
+That starts DiffHub and opens the diff in a cmux browser split.
 
 ```bash
 npx diffhub@latest
@@ -31,17 +31,16 @@ npm install -g diffhub
 
 ## What you get
 
-- **Branch diff against the right base branch**. DiffHub uses the merge-base, so you see what your branch changed.
+- **Uncommitted changes first, the whole branch on demand**. The default scope is your uncommitted work against `HEAD`. The **All** scope uses the merge-base with the base branch, so you see what your branch changed.
 - **Split and unified views**. Toggle with `s`.
-- **Inline comments**. Tag notes as `[must-fix]`, `[suggestion]`, `[nit]`, or `[question]`.
+- **Inline comments**. Leave a note on any line and copy them all as one prompt for your agent.
 - **File sidebar**. Filter files with `/` and scan per-file `+` and `-` stats.
 - **Working-tree change detection**. Keep the view open, see when updates are available, and refresh when you are ready.
-- **Open in your tools**. Right-click to jump into Zed, VS Code, Terminal, or Finder.
 
 Requires Node.js 20.11+ or Bun 1.0.23+ and a git repository with at least one commit. cmux mode expects `cmux.app` on macOS at `/Applications/cmux.app`.
 
 ## Next steps
 
 - [Usage](/usage) - run DiffHub in cmux or a browser
-- [Diff Views](/features/diff-views) - review your whole branch or only uncommitted changes
+- [Diff Views](/features/diff-views) - review uncommitted changes or your whole branch
 - [Comments](/features/comments) - leave review notes

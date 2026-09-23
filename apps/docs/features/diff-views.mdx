@@ -1,6 +1,6 @@
 ---
 title: Diff Views
-description: See your whole branch against the base branch or switch to uncommitted-only changes.
+description: Review your uncommitted changes by default, or switch the scope to your whole branch against the base branch.
 ---
 
 ## Split vs unified
@@ -10,15 +10,18 @@ Toggle between split and unified views with the `s` key or the layout toggle in 
 - **Split** - side-by-side view with the old file on the left and the new file on the right
 - **Unified** - one stream of additions and deletions inline
 
-## Diff modes
+## Diff scopes
 
-DiffHub supports two review modes from the status bar:
+Pick the scope from the status bar. DiffHub remembers your choice in the browser.
 
-- **All** (default) - shows everything your branch changed since it diverged from the base branch. This is the mode most people want before push.
-- **Uncommitted** - shows only your staged and unstaged changes against `HEAD`.
+- **Touched** (default) - all uncommitted work against `HEAD`: staged and unstaged changes, plus untracked files.
+- **All** - everything your branch changed since it diverged from the base branch, including uncommitted work. Use it before you push, or when the agent already committed its work.
+- **Committed** - only the commits on this branch against the base branch.
+- **Staged** - only staged changes against `HEAD`.
+- **Unstaged** - only unstaged changes to tracked files.
 
 ## Merge-base diffing
 
-DiffHub diffs against `git merge-base HEAD <base-branch>`.
+The **All** and **Committed** scopes diff against `git merge-base HEAD <base-branch>`.
 
 That means commits pushed to the base branch after you branched do not show up in the review. You only see what your branch changed.

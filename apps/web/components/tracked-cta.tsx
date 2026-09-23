@@ -3,13 +3,15 @@
 import Link from "next/link";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 
-import { captureConversion } from "@/lib/conversion-events";
+import { captureConversion, captureDemoOpened } from "@/lib/conversion-events";
 
 type TrackedCtaProps = {
   children?: ReactNode;
   href: string;
   label: string;
   location?: string;
+  /** Also fire `demo_opened`: set on every link into the live PR viewer. */
+  opensDemo?: boolean;
 } & Omit<ComponentProps<"a">, "href">;
 
 const isHttpHref = (href: string) => href.startsWith("http://") || href.startsWith("https://");
@@ -26,10 +28,14 @@ export const TrackedCta = ({
   label,
   location,
   onClick,
+  opensDemo = false,
   ...rest
 }: TrackedCtaProps) => {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     captureConversion({ href, label, location });
+    if (opensDemo) {
+      captureDemoOpened();
+    }
     onClick?.(event);
   };
 

@@ -36,7 +36,13 @@ export const metadata: Metadata = {
   authors: [{ name: "Matthew Blode", url: "https://blode.co" }],
   creator: "Matthew Blode",
   description: siteConfig.description,
-  keywords: ["cmux git diff", "cmux diff viewer", "git diff viewer", "cmux", "DiffHub"],
+  keywords: [
+    "DiffHub",
+    "git diff viewer",
+    "cmux git diff",
+    "cmux diff viewer",
+    "agent code review",
+  ],
   // The zone URL, not the bare origin (Rule 11). Only correct because the card
   // is a generated `opengraph-image.tsx` route: Next does not prefix those with
   // `basePath`, so `metadataBase` supplies the prefix exactly once. Against the

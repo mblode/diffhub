@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { CHANGELOGS, latestDate } from "@/lib/changelog";
 import { siteConfig } from "@/lib/config";
+import { GUIDES } from "@/lib/guides";
 
 /**
  * The /docs routes are proxied from diffhub.blode.md by
@@ -43,18 +44,14 @@ const sitemap = (): MetadataRoute.Sitemap => [
     priority: 1,
     url: siteConfig.url,
   },
-  {
-    changeFrequency: "monthly",
-    lastModified: on(latestDate(CHANGELOGS["/cmux-git-diff"])),
+  // Every guide, from the same list the landing page and llms.txt read, dated
+  // by its own changelog rather than the build.
+  ...GUIDES.map((entry) => ({
+    changeFrequency: "monthly" as const,
+    lastModified: on(latestDate(CHANGELOGS[entry.path])),
     priority: 0.8,
-    url: `${siteConfig.url}/cmux-git-diff`,
-  },
-  {
-    changeFrequency: "monthly",
-    lastModified: on(latestDate(CHANGELOGS["/review-ai-generated-code"])),
-    priority: 0.8,
-    url: `${siteConfig.url}/review-ai-generated-code`,
-  },
+    url: `${siteConfig.url}${entry.path}`,
+  })),
   ...DOCS_PATHS.map((path) => ({
     changeFrequency: "monthly" as const,
     lastModified: on(DOCS_UPDATED),

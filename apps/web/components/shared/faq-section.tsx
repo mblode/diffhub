@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * the pairs do not.
  *
  * Must stay a plain component: no `"use client"`, no `async`, no `node:*` or
- * `server-only` imports. The client landing page bundles it.
+ * `server-only` imports.
  */
 
 interface FaqSectionProps {

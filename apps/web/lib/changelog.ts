@@ -1,13 +1,11 @@
 /**
  * Per-route changelogs, newest entry first.
  *
- * No imports, deliberately. Three consumers pull this in: two Server Component
- * pages, the `"use client"` landing page, and `app/sitemap.ts`. A leaf module
- * is safe in all four graphs and cannot participate in a cycle. Reaching into
- * `app/(marketing)/page.tsx` for these dates instead would drag griffo, motion
- * and blode-icons-react into a metadata route's server graph, and a non-
- * component export crossing a `"use client"` boundary can fail Turbopack's
- * checks at build rather than at dev.
+ * No imports, deliberately. The marketing pages, `app/sitemap.ts` and
+ * `app/llms.txt/route.ts` pull this in. A leaf module is safe in every graph
+ * and cannot participate in a cycle. Reaching into `app/(marketing)/page.tsx`
+ * for these dates instead would drag the page's client islands into a metadata
+ * route's server graph.
  *
  * Only dates live here. Page copy stays in the page file; a changelog is
  * metadata about the page, and it has a second reader.
@@ -46,6 +44,11 @@ export const CHANGELOGS = {
   "/": [
     {
       change:
+        "Made the visible headline the H1 and rendered the page on the server. Added a review demo on a real DiffHub diff that builds the agent prompt as you comment, live GitHub stars and npm downloads, and three more FAQ answers. Folded the keyboard shortcuts into the feature rows. Retitled the page to say what DiffHub is, and corrected two FAQ answers: the default scope is uncommitted work against HEAD, and the viewer has no label picker.",
+      date: "2026-09-22",
+    },
+    {
+      change:
         "Aligned the page title, heading and opening answer around its job as a cmux git diff viewer for agent code review.",
       date: "2026-08-30",
     },
@@ -62,6 +65,11 @@ export const CHANGELOGS = {
     { change: "First published.", date: "2026-07-20" },
   ],
   "/cmux-git-diff": [
+    {
+      change:
+        "Added how to install DiffHub for cmux, the full keyboard shortcut list read from the viewer's source, and the agent review loop in a split. Removed the right-click Open in menu, which the CLI no longer has, and corrected the default scope: DiffHub opens on uncommitted changes, with the base-branch comparison one scope away.",
+      date: "2026-09-22",
+    },
     {
       change:
         "Added an interactive working-tree refresh demonstration and a direct live-review step, and replaced stale popularity metrics with links to each project's primary repository.",
@@ -82,7 +90,33 @@ export const CHANGELOGS = {
       date: "2026-08-06",
     },
   ],
+  "/agent-diff": [
+    {
+      change:
+        "First published. Diff scopes, worktree comment storage, the port range and the prompt format checked against the CLI source on this date.",
+      date: "2026-09-22",
+    },
+  ],
+  "/claude-code-review": [
+    {
+      change:
+        "First published. Default scope, untracked files, change detection and the prompt format checked against the CLI source on this date.",
+      date: "2026-09-22",
+    },
+  ],
+  "/git-diff-viewer": [
+    {
+      change:
+        "First published. Split view, the five diff scopes, the port, the 127.0.0.1 bind and the inline render limits checked against the CLI source on this date.",
+      date: "2026-09-22",
+    },
+  ],
   "/review-ai-generated-code": [
+    {
+      change:
+        "Rebuilt around what to check in AI-generated code and where an AI code reviewer helps. Retitled, added a checklist and two FAQ answers, re-read the npm figures for diffhub 1.0.0, and corrected the prompt example to the format the CLI writes, which names the diff side. Removed the claim that comments carry a tag you pick: the viewer has no tag picker.",
+      date: "2026-09-22",
+    },
     {
       change:
         "First published. Competitor claims quoted from hunk.dev, github.com/umputun/revdiff and the two cmux issues, all checked on this date.",
