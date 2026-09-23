@@ -602,19 +602,23 @@ export const ReviewDemo = (): React.JSX.Element => {
             prompt.
           </p>
         ) : (
-          <pre
+          <section
             aria-label="Agent prompt"
-            // Focusable so the prompt can be scrolled from the keyboard once it
-            // outgrows its max height.
+            className="max-h-56 overflow-y-auto px-4 pb-4 focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
+            // A named region, focusable so the prompt can be scrolled from the
+            // keyboard once it outgrows its max height.
             // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
-            className={cn(
-              "max-h-56 overflow-y-auto whitespace-pre-wrap px-4 pb-4 text-[#e5e6ef]/80 text-[13px] leading-6 [overflow-wrap:anywhere]",
-              MONO,
-            )}
           >
-            {prompt}
-          </pre>
+            <pre
+              className={cn(
+                "whitespace-pre-wrap text-[#e5e6ef]/80 text-[13px] leading-6 [overflow-wrap:anywhere]",
+                MONO,
+              )}
+            >
+              {prompt}
+            </pre>
+          </section>
         )}
         <div className="border-white/10 border-t px-4 py-3">
           <TrackedCta
