@@ -16,9 +16,10 @@ interface PageParams {
  * client app that loads the diff after mount, so there is no meaningful shell
  * to show first.
  *
- * Known gap: under Cache Components this route still gets an (empty) PPR
- * shell, so `notFound()` renders the not-found page with `noindex` but the
- * response status is 200, not 404.
+ * Under Cache Components this route still streams an (empty) PPR shell, so the
+ * `notFound()` calls below can only render a soft 404 (status 200, `noindex`).
+ * `proxy.ts` catches malformed URLs and missing PRs first to send a real 404;
+ * these calls remain as the fallback when that check lets a request through.
  */
 export const instant = false;
 
