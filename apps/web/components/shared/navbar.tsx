@@ -63,7 +63,7 @@ export const Navbar = () => {
                 Docs
               </TrackedCta>
               <Button
-                className="relative after:absolute after:-inset-y-2 after:content-['']"
+                className="relative after:absolute after:inset-x-0 after:-inset-y-2 after:content-['']"
                 render={<TrackedCta href={siteConfig.links.github} label="GitHub" />}
                 size="sm"
                 variant="outline"

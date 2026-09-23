@@ -29,7 +29,7 @@ import { zoneGraph } from "@/lib/schema";
  */
 
 /** The date the facts table was last read from its sources. */
-const CHECKED = "10 Aug 2026";
+const CHECKED = "23 Sep 2026";
 
 const updatedAt = latestDate(CHANGELOGS["/"]);
 

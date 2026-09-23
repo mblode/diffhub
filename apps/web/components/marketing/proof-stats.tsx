@@ -27,7 +27,7 @@ export const ProofStats = ({ className, stats }: ProofStatsProps): React.JSX.Ele
           <dt className="mt-2 text-muted-foreground text-sm">
             {stat.href ? (
               <a
-                className="underline decoration-foreground/20 underline-offset-4 hover:text-foreground hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2"
+                className="relative underline decoration-foreground/20 after:absolute after:-inset-x-1 after:-inset-y-[13px] after:content-[''] underline-offset-4 hover:text-foreground hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2"
                 href={stat.href}
                 rel="noopener noreferrer"
                 target="_blank"
