@@ -77,7 +77,9 @@ export const DemoLauncher = (): React.JSX.Element => {
           <>
             Try{" "}
             <Link
-              className="text-link hover:underline"
+              // `after` makes a 44px tap target. It stops 8px up, at the edge of the
+              // gap above, so it never covers the Open PR button.
+              className="relative text-link after:absolute after:-inset-x-1 after:-top-2 after:-bottom-[21px] after:content-[''] hover:underline"
               href="/oven-sh/bun/pull/16000"
               onClick={captureDemoOpened}
             >
