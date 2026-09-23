@@ -51,6 +51,7 @@ export const Navbar = () => {
                 className="relative text-sm text-muted-foreground transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:text-foreground"
                 href={siteConfig.links.demo}
                 label="Live demo"
+                opensDemo
               >
                 Live demo
               </TrackedCta>

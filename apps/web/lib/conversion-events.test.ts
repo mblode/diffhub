@@ -6,12 +6,18 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import {
   captureConversion,
+  captureDemoOpened,
+  captureInstallCommandCopied,
   conversionEventForHref,
   conversionLocation,
   conversionProperties,
   CTA_CLICKED_EVENT,
+  DEMO_OPENED_EVENT,
   DOWNLOAD_CLICKED_EVENT,
+  INSTALL_COMMAND_COPIED_EVENT,
   isDownloadHref,
+  SECTION_VIEWED_EVENT,
+  trackSectionViews,
 } from "./conversion-events";
 
 vi.mock("posthog-js", () => ({
@@ -24,11 +30,31 @@ const read = (relative: string) => readFileSync(path.join(import.meta.dirname, r
 
 afterEach(() => {
   vi.mocked(posthog.capture).mockReset();
+  vi.unstubAllGlobals();
 });
 
 test("conversion events reuse the existing Taste Training names", () => {
   expect(CTA_CLICKED_EVENT).toBe("cta_clicked");
   expect(DOWNLOAD_CLICKED_EVENT).toBe("download_clicked");
+});
+
+test("the landing-page contract adds events without renaming the old ones", () => {
+  expect(INSTALL_COMMAND_COPIED_EVENT).toBe("install_command_copied");
+  expect(DEMO_OPENED_EVENT).toBe("demo_opened");
+
+  captureInstallCommandCopied("cmux");
+  captureDemoOpened();
+
+  expect(posthog.capture).toHaveBeenCalledWith("install_command_copied", {
+    site: "diffhub",
+    variant: "cmux",
+  });
+  expect(posthog.capture).toHaveBeenCalledWith("demo_opened", { site: "diffhub" });
+
+  vi.mocked(posthog.capture).mockImplementation(() => {
+    throw new Error("analytics down");
+  });
+  expect(() => captureDemoOpened()).not.toThrow();
 });
 
 test("cta_clicked carries href, label, location, $pathname, and $current_url", () => {
@@ -44,6 +70,7 @@ test("cta_clicked carries href, label, location, $pathname, and $current_url", (
     href: "https://github.com/mblode/diffhub",
     label: "GitHub",
     location: "/diffhub",
+    site: "diffhub",
   });
   expect(conversionEventForHref(properties.href)).toBe(CTA_CLICKED_EVENT);
 });
@@ -97,6 +124,7 @@ test("captureConversion sends cta_clicked and never throws", () => {
     href: "/oven-sh/bun/pull/16000",
     label: "Try a live review",
     location: "/diffhub",
+    site: "diffhub",
   });
 
   vi.mocked(posthog.capture).mockImplementation(() => {
@@ -110,7 +138,17 @@ test("captureConversion sends cta_clicked and never throws", () => {
 
 test("primary marketing CTAs fire conversion events", () => {
   const homepage = read("../app/(marketing)/page.tsx");
+  const install = read("../components/marketing/install-command.tsx");
+  const islands = read("../components/marketing/home-islands.tsx");
+  const demo = read("../components/marketing/review-demo.tsx");
   const guide = read("../app/(marketing)/cmux-git-diff/page.tsx");
+  const guideCommand = read("../components/guides/guide-command.tsx");
+  const guides = [
+    "git-diff-viewer",
+    "review-ai-generated-code",
+    "claude-code-review",
+    "agent-diff",
+  ].map((slug) => read(`../app/(marketing)/${slug}/page.tsx`));
   const navbar = read("../components/shared/navbar.tsx");
   const footer = read("../components/shared/footer.tsx");
   const launcher = read("../components/shared/demo-launcher.tsx");
@@ -123,8 +161,18 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(homepage).toMatch(/label="Try a live review"/u);
   expect(homepage).toMatch(/label="Live demo screenshot"/u);
   expect(homepage).toMatch(/label="Read the install guide"/u);
-  expect(homepage).toMatch(/label="Copy install command"/u);
-  expect(guide).toMatch(/label="Copy install command"/u);
+  expect(homepage).toMatch(/opensDemo/u);
+  expect(install).toMatch(/label="Copy install command"/u);
+  expect(islands).toMatch(/captureInstallCommandCopied/u);
+  expect(demo).toMatch(/opensDemo/u);
+  // Guide install commands copy through one island, which fires both the
+  // `cta_clicked` label and `install_command_copied`.
+  expect(guide).toMatch(/<GuideCommand/u);
+  expect(guideCommand).toMatch(/label="Copy install command"/u);
+  expect(guideCommand).toMatch(/captureInstallCommandCopied/u);
+  for (const page of guides) {
+    expect(page).toMatch(/<GuideCommand/u);
+  }
   expect(guide).toMatch(/label="Try guide live demo"/u);
   expect(guide).toMatch(/location="\/diffhub\/cmux-git-diff"/u);
   expect(copyButton).toMatch(/captureConversion/u);
@@ -137,4 +185,98 @@ test("primary marketing CTAs fire conversion events", () => {
 
   expect(launcher).toMatch(/label: "Open PR"/u);
   expect(launcher).toMatch(/captureConversion/u);
+  expect(launcher).toMatch(/captureDemoOpened/u);
+});
+
+const VIEWPORT = 800;
+
+const fakeSection = (id: string, top: number) => ({
+  getAttribute: (name: string) => (name === "data-section" ? id : null),
+  getBoundingClientRect: () => ({ bottom: top + 600, top }),
+});
+
+/**
+ * A stand-in IntersectionObserver. A function constructor that returns the
+ * instance, so `new` works on it; `show` scrolls a section into view.
+ */
+const fakeObserver = () => {
+  const observed = new Set<unknown>();
+  const state: { notify: ((entries: unknown[]) => void) | null } = { notify: null };
+  const FakeIntersectionObserver = function FakeIntersectionObserver(
+    notify: (entries: unknown[]) => void,
+  ) {
+    state.notify = notify;
+    return {
+      disconnect: () => observed.clear(),
+      observe: (target: unknown) => observed.add(target),
+      unobserve: (target: unknown) => observed.delete(target),
+    };
+  };
+  const show = (target: unknown) =>
+    state.notify?.([
+      {
+        intersectionRatio: 0.6,
+        intersectionRect: { height: 360 },
+        isIntersecting: true,
+        rootBounds: { height: VIEWPORT },
+        target,
+      },
+    ]);
+  return { FakeIntersectionObserver, observed, show };
+};
+
+const BrokenIntersectionObserver = function BrokenIntersectionObserver(): never {
+  throw new Error("unsupported");
+};
+
+const asElements = (sections: unknown[]) => sections as Element[];
+
+test("section_viewed fires once per section, skipping the hero and the first viewport", () => {
+  const { FakeIntersectionObserver, observed, show } = fakeObserver();
+  vi.stubGlobal("window", {
+    IntersectionObserver: FakeIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  const hero = fakeSection("hero", 2000);
+  const onLoad = fakeSection("features", 400);
+  const faq = fakeSection("faq", 3000);
+
+  trackSectionViews(asElements([hero, onLoad, faq]));
+
+  expect([...observed]).toEqual([faq]);
+  show(faq);
+  show(faq);
+  expect(SECTION_VIEWED_EVENT).toBe("section_viewed");
+  expect(posthog.capture).toHaveBeenCalledTimes(1);
+  expect(posthog.capture).toHaveBeenCalledWith("section_viewed", {
+    section: "faq",
+    site: "diffhub",
+  });
+});
+
+test("section_viewed does nothing without IntersectionObserver", () => {
+  vi.stubGlobal("window", { innerHeight: VIEWPORT });
+  const cleanup = trackSectionViews(asElements([fakeSection("faq", 3000)]));
+  expect(posthog.capture).not.toHaveBeenCalled();
+  expect(() => cleanup()).not.toThrow();
+});
+
+test("section_viewed never throws when posthog or the observer does", () => {
+  const { FakeIntersectionObserver, show } = fakeObserver();
+  vi.stubGlobal("window", {
+    IntersectionObserver: FakeIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  vi.mocked(posthog.capture).mockImplementation(() => {
+    throw new Error("analytics down");
+  });
+  const faq = fakeSection("faq", 3000);
+  trackSectionViews(asElements([faq]));
+  expect(() => show(faq)).not.toThrow();
+
+  vi.stubGlobal("window", {
+    IntersectionObserver: BrokenIntersectionObserver,
+    innerHeight: VIEWPORT,
+  });
+  expect(() => trackSectionViews(asElements([faq]))).not.toThrow();
 });

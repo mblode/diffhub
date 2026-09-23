@@ -82,9 +82,10 @@ test("the zone root names the search intent in its page and software entities", 
   const software = find(graph, schemaId.software);
 
   expect(webPage?.name).toBe(siteConfig.title);
-  expect(webPage?.description).toContain("cmux git diff viewer for agent code review");
+  expect(webPage?.name).toContain("git diff viewer");
+  expect(webPage?.description).toBe(siteConfig.description);
   expect(software?.description).toBe(siteConfig.description);
-  expect(software?.applicationSubCategory).toBe("Git diff viewer for cmux");
+  expect(software?.applicationSubCategory).toBe("Local git diff viewer");
 });
 
 test("an inner page does not claim the zone root's identity", () => {

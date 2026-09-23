@@ -100,7 +100,7 @@ const softwareNode = {
   "@id": schemaId.software,
   "@type": "SoftwareApplication",
   applicationCategory: "DeveloperApplication",
-  applicationSubCategory: "Git diff viewer for cmux",
+  applicationSubCategory: "Local git diff viewer",
   author: { "@id": schemaId.person },
   description: siteConfig.description,
   downloadUrl: siteConfig.links.npm,
@@ -223,3 +223,43 @@ export const zoneGraph = ({
     ],
   };
 };
+
+/**
+ * The article node every guide carries beside its WebPage. Built here rather
+ * than restated per page, because the dates are the part that drifts: both
+ * come off the page's changelog, so the visible changelog, `dateModified` and
+ * the sitemap's `lastmod` can only move together.
+ *
+ * `type` stays open for the one page that is also a `LearningResource`.
+ */
+export const articleNode = ({
+  description,
+  extra = {},
+  headline,
+  publishedAt,
+  type = "TechArticle",
+  updatedAt,
+  url,
+}: {
+  description: string;
+  extra?: Record<string, unknown>;
+  headline: string;
+  publishedAt: string;
+  type?: string | string[];
+  updatedAt: string;
+  url: string;
+}) => ({
+  "@type": type,
+  about: { "@id": schemaId.software },
+  author: { "@id": schemaId.person },
+  dateModified: updatedAt,
+  datePublished: publishedAt,
+  description,
+  headline,
+  inLanguage: "en-US",
+  isPartOf: { "@id": schemaId.website },
+  mainEntityOfPage: url,
+  publisher: { "@id": schemaId.organization },
+  url,
+  ...extra,
+});
