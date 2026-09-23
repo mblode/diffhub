@@ -1,5 +1,13 @@
 # diffhub
 
+## 1.0.1
+
+### Patch Changes
+
+- afe7d53: Preserve whether each copied review comment refers to the old or new side of a
+  diff, so agent review prompts identify the intended version of the file.
+- 47dea1b: Update the bundled viewer to Next.js 16.3.6, React 19.3 and the latest @pierre/diffs.
+
 ## 1.0.0
 
 ### Major Changes
