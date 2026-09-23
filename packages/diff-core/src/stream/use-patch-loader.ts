@@ -31,7 +31,7 @@ interface UsePatchLoaderOptions<T> {
   // Full endpoint (path + query) to fetch the raw unified patch from, e.g.
   // "/api/diff?mode=uncommitted" or "/api/github-diff?owner=…&repo=…&number=…".
   endpoint: string;
-  viewerRef: RefObject<CodeViewHandle<T> | null>;
+  viewerRef: RefObject<CodeViewHandle<T, undefined> | null>;
   // Stamp collapse state + annotations onto freshly built items, and record
   // their ids, before they are handed to the viewer. Mutates in place.
   prepareItems: (items: CodeViewDiffItem<T>[]) => void;

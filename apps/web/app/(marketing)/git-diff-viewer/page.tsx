@@ -170,6 +170,10 @@ const limits = [
   "It doesn’t review anything for you. You read the diff. It keeps your notes.",
 ];
 
+// Dev flags anything that would block navigating here; e2e/instant.spec.ts
+// checks it against a production build.
+export const instant = true;
+
 export default function GitDiffViewerPage(): React.JSX.Element {
   return (
     <div>
@@ -203,7 +207,7 @@ export default function GitDiffViewerPage(): React.JSX.Element {
 
         <TrackedCta
           aria-label="Open the live DiffHub demo for oven-sh/bun #16000"
-          className="mt-10 block overflow-hidden rounded-xl bg-[#eceae5] shadow-soft outline-1 -outline-offset-1 outline-foreground/10 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-4"
+          className="mt-10 block overflow-hidden rounded-xl bg-secondary shadow-soft outline-1 -outline-offset-1 outline-foreground/10 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-4"
           href={siteConfig.links.demo}
           label="Git diff viewer screenshot"
           location="/diffhub/git-diff-viewer"

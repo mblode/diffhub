@@ -74,12 +74,9 @@ ${docs.join("\n")}
 };
 
 /**
- * Route handler GETs are dynamic by default. Nothing here reads the request,
- * so prerender it and match `robots.txt` and `sitemap.xml`, both of which build
- * as static.
+ * Prerendered at build, matching `robots.txt` and `sitemap.xml`, because it
+ * reads no request and no uncached data. Reading either would make it dynamic.
  */
-export const dynamic = "force-static";
-
 export const GET = () =>
   new Response(body(), {
     headers: {

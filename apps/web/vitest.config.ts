@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 /**
  * Only the `@/` alias, mirroring `tsconfig.json`'s `paths`. Without it, any
@@ -15,5 +15,9 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname),
     },
+  },
+  // `e2e/` is Playwright's (`npm run test:instant`), not vitest's.
+  test: {
+    exclude: [...configDefaults.exclude, "e2e/**"],
   },
 });

@@ -199,12 +199,18 @@ const loopExample: ReviewComment[] = [
 ];
 
 const link = "text-link transition-colors hover:text-link/90";
+// Stretched over the cell's `py-3`, so the tap target is the row, not the 18px word.
+const toolLink = `${link} inline-block py-3 -my-3`;
 const body = "mt-4 text-pretty text-muted-foreground";
 const heading = "mt-16 text-2xl font-medium tracking-tight";
 // pr-3 below sm: at 390px the 4-column tables overflowed their container by
 // ~40px and scrolled with no affordance, which hid the last column entirely.
 // Tightening the gutter removes the overflow rather than hinting at it.
 const cell = "border-border/60 border-b py-3 pr-2 align-top sm:pr-6";
+
+// Dev flags anything that would block navigating here; e2e/instant.spec.ts
+// checks it against a production build.
+export const instant = true;
 
 export default function CmuxGitDiffPage(): React.JSX.Element {
   return (
@@ -415,12 +421,12 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
                   <tr key={tool.name}>
                     <th className={`${cell} font-normal`} scope="row">
                       {tool.href.startsWith("/") ? (
-                        <Link className={link} href={tool.href}>
+                        <Link className={toolLink} href={tool.href}>
                           {tool.name}
                         </Link>
                       ) : (
                         <a
-                          className={link}
+                          className={toolLink}
                           href={tool.href}
                           rel="noopener noreferrer"
                           target="_blank"

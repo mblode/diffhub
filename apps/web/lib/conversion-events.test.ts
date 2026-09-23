@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import posthog from "posthog-js";
+import { posthog } from "posthog-js";
 import { afterEach, expect, test, vi } from "vitest";
 
 import {
@@ -20,11 +20,7 @@ import {
   trackSectionViews,
 } from "./conversion-events";
 
-vi.mock("posthog-js", () => ({
-  default: {
-    capture: vi.fn(),
-  },
-}));
+vi.mock("posthog-js", () => ({ posthog: { capture: vi.fn() } }));
 
 const read = (relative: string) => readFileSync(path.join(import.meta.dirname, relative), "utf-8");
 

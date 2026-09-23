@@ -176,9 +176,9 @@ const CodeView = dynamic(
   // uncontrolled-prop shape we actually use here.
 ) as unknown as (props: {
   key?: React.Key;
-  ref?: React.Ref<CodeViewHandle<AnnotationData>>;
+  ref?: React.Ref<CodeViewHandle<AnnotationData, undefined>>;
   initialItems?: readonly CodeViewItem<AnnotationData>[];
-  options?: CodeViewOptions<AnnotationData>;
+  options?: CodeViewOptions<AnnotationData, undefined>;
   className?: string;
   style?: React.CSSProperties;
   containerRef?: React.Ref<HTMLDivElement>;
@@ -253,7 +253,9 @@ const InlineCommentInput = ({ onSubmit, onCancel }: InlineCommentInputProps) => 
           size="sm"
           disabled={!body.trim() || isSubmitting}
           // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop
-          onClick={() => void handleSubmit()}
+          onClick={() => {
+            void handleSubmit();
+          }}
         >
           {isSubmitting ? "Saving…" : "Comment"}
         </Button>
@@ -524,7 +526,7 @@ const DiffViewerInner = (
   const workerPoolRef = useRef(workerPool);
   workerPoolRef.current = workerPool;
 
-  const codeViewRef = useRef<CodeViewHandle<AnnotationData> | null>(null);
+  const codeViewRef = useRef<CodeViewHandle<AnnotationData, undefined> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const diffRootRef = useRef<HTMLDivElement | null>(null);
 
@@ -786,7 +788,7 @@ const DiffViewerInner = (
     });
   }, []);
 
-  const options = useMemo<CodeViewOptions<AnnotationData>>(
+  const options = useMemo<CodeViewOptions<AnnotationData, undefined>>(
     () => ({
       diffIndicators,
       diffStyle: layout === "split" ? "split" : "unified",
