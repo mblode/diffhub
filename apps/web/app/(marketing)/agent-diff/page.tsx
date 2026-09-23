@@ -114,6 +114,9 @@ const pageJsonLd = zoneGraph({
   updatedAt,
 });
 
+// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+export const instant = true;
+
 export default function AgentDiffPage(): React.JSX.Element {
   return (
     <div>

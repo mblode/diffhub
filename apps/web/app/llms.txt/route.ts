@@ -74,11 +74,11 @@ ${docs.join("\n")}
 };
 
 /**
- * Route handler GETs are dynamic by default. Nothing here reads the request,
- * so prerender it and match `robots.txt` and `sitemap.xml`, both of which build
- * as static.
+ * Static, matching `robots.txt` and `sitemap.xml`. This was
+ * `dynamic = "force-static"`; under Cache Components a GET that reads no
+ * request or uncached data prerenders at build on its own, and the segment
+ * config is an error. The build output lists it as static (○).
  */
-export const dynamic = "force-static";
 
 export const GET = () =>
   new Response(body(), {

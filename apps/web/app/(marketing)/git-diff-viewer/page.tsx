@@ -170,6 +170,9 @@ const limits = [
   "It doesn’t review anything for you. You read the diff. It keeps your notes.",
 ];
 
+// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+export const instant = true;
+
 export default function GitDiffViewerPage(): React.JSX.Element {
   return (
     <div>

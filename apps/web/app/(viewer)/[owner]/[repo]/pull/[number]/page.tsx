@@ -10,6 +10,18 @@ interface PageParams {
   number: string;
 }
 
+/**
+ * Allowed to block, outside the instant-navigation link graph. The header reads
+ * `params` and GitHub per URL before anything renders, and the viewer is a
+ * client app that loads the diff after mount, so there is no meaningful shell
+ * to show first.
+ *
+ * Known gap: under Cache Components this route still gets an (empty) PPR
+ * shell, so `notFound()` renders the not-found page with `noindex` but the
+ * response status is 200, not 404.
+ */
+export const instant = false;
+
 export const generateMetadata = async ({
   params,
 }: {

@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { fetchPrDiff, parseRepoParams } from "@/lib/github";
 
-export const runtime = "nodejs";
+// Node.js runtime, the default (the `runtime` segment config is an error under
+// Cache Components).
 
 const textResponse = (body: string, status: number): Response =>
   new Response(body, {

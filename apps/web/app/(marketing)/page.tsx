@@ -141,6 +141,9 @@ const features = [
   },
 ];
 
+// Instant navigation is validated for this route; see e2e/instant.spec.ts.
+export const instant = true;
+
 export default async function HomePage(): Promise<React.JSX.Element> {
   const [stars, downloads] = await Promise.all([
     fetchGithubStars("mblode/diffhub"),
