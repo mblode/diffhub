@@ -59,16 +59,16 @@ diffhub --no-open
 
 ## Keyboard shortcuts
 
-| Key         | Action                               |
-| ----------- | ------------------------------------ |
-| `j` / `k`   | Next / previous file                 |
-| `s`         | Toggle split / unified view          |
-| `c`         | Collapse or expand the selected file |
-| `Shift+C`   | Collapse all files                   |
-| `Shift+E`   | Expand all files                     |
-| `/` or `t`  | Focus file filter                    |
-| `r`         | Refresh the diff                     |
-| `F2`        | Toggle the Diff stats panel          |
+| Key        | Action                               |
+| ---------- | ------------------------------------ |
+| `j` / `k`  | Next / previous file                 |
+| `s`        | Toggle split / unified view          |
+| `c`        | Collapse or expand the selected file |
+| `Shift+C`  | Collapse all files                   |
+| `Shift+E`  | Expand all files                     |
+| `/` or `t` | Focus file filter                    |
+| `r`        | Refresh the diff                     |
+| `F2`       | Toggle the Diff stats panel          |
 
 ## Options
 
