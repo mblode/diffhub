@@ -1,7 +1,8 @@
 {
   "name": "DiffHub",
   "seo": {
-    "siteUrl": "https://blode.co/diffhub/docs"
+    "siteUrl": "https://blode.co/diffhub/docs",
+    "siteName": "Matthew Blode"
   },
   "metadata": {
     "ogImage": "https://blode.co/diffhub/opengraph-image"
