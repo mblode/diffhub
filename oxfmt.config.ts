@@ -14,9 +14,14 @@ export default defineConfig({
    * outside this repo's control, so formatting it just makes the gate red again
    * the next time cmux touches it.
    *
-   * Both patterns are `**`-anchored rather than repo-relative: turbo runs
+   * `.captain/**` is captured output (screenshots, console logs, HAR-style
+   * reports) written by the captain browser-check tool, not authored source.
+   * Same reasoning as `.cmux`: it gets rewritten on the tool's own schedule,
+   * so formatting it here only makes the gate red again next capture.
+   *
+   * All patterns are `**`-anchored rather than repo-relative: turbo runs
    * `oxfmt` with the workspace as its cwd, so `apps/web/lib/...` would match
    * from the repo root and nothing from `apps/web`.
    */
-  ignorePatterns: ["**/docs-proxy.fixture.html", "**/.cmux/**"],
+  ignorePatterns: ["**/docs-proxy.fixture.html", "**/.cmux/**", "**/.captain/**"],
 });
