@@ -36,6 +36,10 @@ diffhub/
 
 `apps/docs/` is pure MDX content with no `package.json`; it is not an npm workspace. Deploy with `cd apps/docs && npx blodemd push docs`.
 
+## Nested AGENTS.md files
+
+Each workspace has its own `AGENTS.md` with boundary rules specific to it: [`apps/cli/AGENTS.md`](apps/cli/AGENTS.md), [`apps/web/AGENTS.md`](apps/web/AGENTS.md), [`apps/docs/AGENTS.md`](apps/docs/AGENTS.md), [`packages/diff-core/AGENTS.md`](packages/diff-core/AGENTS.md). Codex only reads `AGENTS.md` files from the repo root down to its current working directory, so an agent editing a package should read that package's `AGENTS.md` first, not just this root file.
+
 ## Gotchas
 
 - **No inner lockfile**: `apps/cli/package-lock.json` must not exist; only the root lockfile is used. If it appears, delete it and run `npm install` from root.
