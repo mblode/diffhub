@@ -142,7 +142,10 @@
  * so the marketing site stays light. Token values are copied from the CLI's
  * `.dark` palette (achromatic + GitHub Primer diff colors).
  */
-.diffhub-app {
+.diffhub-app,
+html:not(.diffhub-app) [data-slot="dropdown-menu-content"],
+html:not(.diffhub-app) [data-slot="dropdown-menu-sub-content"],
+html:not(.diffhub-app) [data-slot="tooltip-content"] {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -218,6 +221,17 @@
   --diff-selected: oklch(0.93 0 0);
   --diff-success: #1a7f37;
   color-scheme: light;
+}
+
+/* The hero viewer replica opens the shared toolbar's dropdowns and tooltips,
+ * which portal to <body>, outside its .diffhub-app card. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
+  [data-slot="tooltip-content"] {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 @layer base {
