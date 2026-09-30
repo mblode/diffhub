@@ -1,10 +1,6 @@
 {
   "name": "diffhub",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "type": "module",
   "scripts": {
     "build": "turbo build",
@@ -31,5 +27,5 @@
     "lightningcss-linux-arm64-gnu": "1.33.0",
     "lightningcss-linux-x64-gnu": "1.33.0"
   },
-  "packageManager": "npm@12.0.1"
+  "packageManager": "pnpm@12.8.1"
 }

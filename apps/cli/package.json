@@ -34,7 +34,7 @@
     "dev": "portless run --force next dev",
     "build": "next build",
     "prepare:standalone": "node ./bin/prepare-standalone.mjs",
-    "prepack": "next build && npm run prepare:standalone",
+    "prepack": "next build && pnpm run prepare:standalone",
     "start": "next start",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
@@ -45,7 +45,7 @@
     "test:watch": "vitest",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "release": "next build && npm run prepare:standalone && changeset publish"
+    "release": "next build && pnpm run prepare:standalone && changeset publish"
   },
   "dependencies": {
     "chokidar": "^5.0.0",
@@ -54,7 +54,7 @@
   "devDependencies": {
     "@base-ui/react": "^1.8.0",
     "@changesets/cli": "^3.0.3",
-    "@diffhub/diff-core": "*",
+    "@diffhub/diff-core": "workspace:*",
     "@pierre/diffs": "^1.4.3",
     "@pierre/trees": "^1.0.0-beta.6",
     "@tailwindcss/postcss": "^4",

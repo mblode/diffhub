@@ -15,7 +15,7 @@ import { proxyDocsRequest, rewriteDocsHtml, toUpstreamPath } from "./docs-proxy"
  * keeps passing while production breaks. Refresh the fixture when the docs
  * origin changes, and run the live check below after any blode.md change:
  *
- *   DOCS_PROXY_LIVE=1 npm run test --workspace @diffhub/web
+ *   DOCS_PROXY_LIVE=1 pnpm --filter @diffhub/web run test
  */
 const FIXTURE = readFileSync(path.join(import.meta.dirname, "docs-proxy.fixture.html"), "utf-8");
 

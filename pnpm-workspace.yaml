@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  core-js: true
+  lefthook: true
