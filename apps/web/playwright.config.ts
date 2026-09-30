@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Production-build e2e (`npm run test:instant`): instant navigation, and the
+ * Production-build e2e (`pnpm run test:instant`): instant navigation, and the
  * live PR viewer's 404 status. It runs against `next start`, so the build has
  * to expose the testing API that `@next/playwright`'s `instant()` drives: the
  * script builds with `NEXT_EXPOSE_TESTING_API=1` first. A normal production

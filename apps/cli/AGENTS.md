@@ -9,21 +9,21 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Commands
 
 ```bash
-npm run dev          # portless run next dev → https://diffhub.localhost
-npm run build        # next build → .next/standalone/apps/cli/server.js
-npm run start        # next start (the CLI binary itself serves on 2047)
-npm run lint         # oxlint .
-npm run check-types  # tsc --noEmit
-npm run test         # vitest run
+pnpm run dev          # portless run next dev → https://diffhub.localhost
+pnpm run build        # next build → .next/standalone/apps/cli/server.js
+pnpm run start        # next start (the CLI binary itself serves on 2047)
+pnpm run lint         # oxlint .
+pnpm run check-types  # tsc --noEmit
+pnpm run test         # vitest run
 ```
 
-After `npm run build`, copy static assets before running the standalone server:
+After `pnpm run build`, copy static assets before running the standalone server:
 
 ```bash
 cp -r .next/static .next/standalone/apps/cli/.next/static
 ```
 
-`npm run prepack` (and `npm publish` / `npm pack`) does this automatically.
+`pnpm run prepack` (and `pnpm publish` / `pnpm pack`) does this automatically.
 
 ## Gotchas
 

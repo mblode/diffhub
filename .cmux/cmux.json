@@ -17,7 +17,7 @@
             {
               "pane": {
                 "surfaces": [
-                  { "type": "terminal", "name": "Dev", "command": "npm run dev" }
+                  { "type": "terminal", "name": "Dev", "command": "pnpm run dev" }
                 ]
               }
             },
