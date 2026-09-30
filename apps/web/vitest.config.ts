@@ -16,7 +16,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname),
     },
   },
-  // `e2e/` is Playwright's (`npm run test:instant`), not vitest's.
+  // `e2e/` is Playwright's (`pnpm run test:instant`), not vitest's.
   test: {
     exclude: [...configDefaults.exclude, "e2e/**"],
   },
