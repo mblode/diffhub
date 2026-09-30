@@ -15,6 +15,7 @@
     "fix": "ultracite fix"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "lefthook": "^2.1.14",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
