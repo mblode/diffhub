@@ -24,14 +24,21 @@ import type { Shortcut } from "@/lib/shortcuts";
  */
 
 export const guideClass = {
-  body: "mt-4 text-pretty text-muted-foreground",
+  // 65ch: the max-w-3xl column ran body text to 75–84 characters a line at
+  // desktop. Tables, commands and demos stay the full column width.
+  body: "mt-4 max-w-[65ch] text-pretty text-muted-foreground",
   // pr-2 below sm: at 390px the multi-column tables overflowed their container
   // by ~40px and scrolled with no affordance, which hid the last column.
   cell: "border-border/60 border-b py-3 pr-2 align-top sm:pr-6",
-  code: "font-mono text-sm",
-  heading: "mt-16 text-2xl font-medium tracking-tight",
-  lead: "mt-6 text-pretty text-lg text-muted-foreground",
-  link: "text-link underline-offset-4 transition-colors hover:text-link/90 hover:underline",
+  // Relative to the paragraph, so code keeps its size against the 18px lead
+  // as well as 16px body. The tint marks commands apart from prose.
+  code: "rounded bg-secondary/70 px-1 py-0.5 font-mono text-[0.875em] text-foreground/80",
+  heading: "mt-16 text-balance text-2xl font-medium tracking-tight",
+  lead: "mt-6 max-w-[65ch] text-pretty text-lg text-muted-foreground",
+  // Underlined at rest: the link colour alone is ~1.2:1 against the grey body
+  // text, under the 3:1 WCAG 1.4.1 needs. The focus ring replaces the global
+  // `outline-ring/50`, which is barely visible on these links.
+  link: "rounded-sm text-link underline decoration-link/40 underline-offset-4 transition-colors hover:decoration-link focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2",
   primaryCta:
     "inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2",
 } as const;
@@ -52,7 +59,7 @@ export const GuideArticle = ({
   <article className="@container py-16 sm:py-24">
     <div className="mx-auto max-w-3xl px-4 sm:px-6">
       <ZoneBreadcrumb page={crumb} product="DiffHub" />
-      <h1 className="mt-6 text-balance text-4xl font-medium tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
+      <h1 className="mt-6 text-balance text-4xl font-medium leading-[1.1] tracking-tight sm:text-5xl sm:tracking-[-0.03em]">
         {heading}
       </h1>
       <AuthorByline credential updated={updatedAt} />
@@ -167,7 +174,7 @@ export const GuideFaq = ({
     <FaqSection
       answerClassName={guideClass.body}
       faqs={faqs}
-      questionClassName="mt-8 font-medium text-lg tracking-tight"
+      questionClassName="mt-8 text-balance font-medium text-lg tracking-tight"
     />
   </>
 );

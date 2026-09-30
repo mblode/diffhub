@@ -3,20 +3,27 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useState } from "react";
 
-type DemoState = "changed" | "refreshed" | "steady";
+/** The lines each simulated edit adds, in order. */
+const EDITS = ["preserveReviewPosition();", "markRefreshAvailable(watcher);"] as const;
 
 const status = {
   changed: { dot: "bg-[#ffd479]", label: "Updates available" },
-  refreshed: { dot: "bg-[#8be9a8]", label: "Up to date" },
   steady: { dot: "bg-[#8be9a8]", label: "Up to date" },
-} satisfies Record<DemoState, { dot: string; label: string }>;
+};
 
+/**
+ * `edits` counts what the "agent" has written; `shown` counts what the
+ * reader has refreshed in. Keeping them apart is the point of the demo: an
+ * edit never changes the lines on screen until Refresh.
+ */
 export const WorkingTreeDemo = (): React.JSX.Element => {
-  const [state, setState] = useState<DemoState>("steady");
+  const [edits, setEdits] = useState(0);
+  const [shown, setShown] = useState(0);
 
-  const simulateEdit = useCallback(() => setState("changed"), []);
-  const refresh = useCallback(() => setState("refreshed"), []);
-  const current = status[state];
+  const pending = edits > shown;
+  const simulateEdit = useCallback(() => setEdits((count) => count + 1), []);
+  const refresh = useCallback(() => setShown(edits), [edits]);
+  const current = pending ? status.changed : status.steady;
 
   return (
     <div className="mt-8 overflow-hidden rounded-2xl bg-[#151611] text-[#f7f7f4] shadow-soft outline-1 -outline-offset-1 outline-white/10">
@@ -34,7 +41,7 @@ export const WorkingTreeDemo = (): React.JSX.Element => {
       {/* Focusable so the diff can be scrolled sideways from the keyboard on narrow screens. */}
       <section
         aria-label="Example diff"
-        className="overflow-x-auto py-4 font-mono text-sm leading-7 focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
+        className="overflow-x-auto py-4 [mask-image:linear-gradient(to_right,black_85%,transparent)] sm:[mask-image:none] font-mono text-sm leading-7 focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
       >
@@ -50,19 +57,19 @@ export const WorkingTreeDemo = (): React.JSX.Element => {
             <span>return diffFromMergeBase(repo, base);</span>
           </div>
           <AnimatePresence initial={false}>
-            {state === "refreshed" ? (
+            {EDITS.slice(0, shown).map((line, index) => (
               <motion.div
                 animate={{ opacity: 1, y: 0 }}
                 className="grid grid-cols-[2rem_2rem_1fr] bg-[#183923] text-[#b9f6ca]"
                 initial={{ opacity: 0, y: -6 }}
-                key="refreshed-line"
+                key={line}
                 transition={{ duration: 0.24 }}
               >
                 <span className="text-white/35">+</span>
-                <span>44</span>
-                <span>preserveReviewPosition();</span>
+                <span>{44 + index}</span>
+                <span>{line}</span>
               </motion.div>
-            ) : null}
+            ))}
           </AnimatePresence>
         </div>
       </section>
@@ -74,7 +81,7 @@ export const WorkingTreeDemo = (): React.JSX.Element => {
         <div className="flex shrink-0 gap-2">
           <button
             className="min-h-11 rounded-full border border-white/15 px-4 font-medium text-sm transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-45"
-            disabled={state === "changed"}
+            disabled={pending || edits === EDITS.length}
             onClick={simulateEdit}
             type="button"
           >
@@ -82,7 +89,7 @@ export const WorkingTreeDemo = (): React.JSX.Element => {
           </button>
           <button
             className="min-h-11 rounded-full bg-[#f54e00] px-4 font-medium text-[#151611] text-sm transition-colors hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-45"
-            disabled={state !== "changed"}
+            disabled={!pending}
             onClick={refresh}
             type="button"
           >

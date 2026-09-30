@@ -47,7 +47,7 @@ export const FaqSection = ({
         <p className={answerClassName}>
           {answerSegments(faq.answer).map((segment) =>
             segment.code ? (
-              <code className="font-mono text-sm" key={segment.id}>
+              <code className="font-mono text-[0.875em]" key={segment.id}>
                 {segment.text}
               </code>
             ) : (
