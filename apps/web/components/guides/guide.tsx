@@ -5,7 +5,6 @@ import { AuthorByline } from "@/components/shared/author-byline";
 import { FaqSection } from "@/components/shared/faq-section";
 import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import type { ChangelogEntry } from "@/lib/changelog";
 import type { Faq } from "@/lib/faq";
 import { GUIDES } from "@/lib/guides";
 import type { GuidePath } from "@/lib/guides";
@@ -68,6 +67,29 @@ export const GuideArticle = ({
   </article>
 );
 
+/**
+ * Wraps a table that can overflow on a phone. Focusable so it can be scrolled
+ * sideways from the keyboard (axe `scrollable-region-focusable`), and named so
+ * a screen reader announces what the focus landed on. `scroll-fade-x` marks
+ * the cut-off edge; the ring is inset because the mask clips anything outside.
+ */
+export const TableScroll = ({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}): React.JSX.Element => (
+  <section
+    aria-label={label}
+    className="scroll-fade-x mt-6 overflow-x-auto rounded-sm focus-visible:outline-2 focus-visible:outline-link focus-visible:-outline-offset-2"
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+    tabIndex={0}
+  >
+    {children}
+  </section>
+);
+
 /** A table of facts, each with the file or page it was read from. */
 export const FactTable = ({
   caption,
@@ -76,7 +98,7 @@ export const FactTable = ({
   caption: string;
   facts: readonly { label: string; source: string; value: string }[];
 }): React.JSX.Element => (
-  <div className="mt-6 overflow-x-auto">
+  <TableScroll label={caption}>
     <table className="w-full text-left text-sm">
       <caption className="sr-only">{caption}</caption>
       <thead>
@@ -106,7 +128,7 @@ export const FactTable = ({
         ))}
       </tbody>
     </table>
-  </div>
+  </TableScroll>
 );
 
 /**
@@ -176,30 +198,6 @@ export const GuideFaq = ({
       faqs={faqs}
       questionClassName="mt-8 text-balance font-medium text-lg tracking-tight"
     />
-  </>
-);
-
-/**
- * Not a question, on purpose: forcing an interrogative onto a short dated list
- * reads as a filled-in template.
- */
-export const GuideChangelog = ({
-  entries,
-}: {
-  entries: readonly ChangelogEntry[];
-}): React.JSX.Element => (
-  <>
-    <h2 className={guideClass.heading}>Changelog</h2>
-    <ul className={`${guideClass.body} space-y-2`}>
-      {entries.map((entry) => (
-        <li key={entry.date}>
-          <time className="font-mono text-sm" dateTime={entry.date}>
-            {entry.date}
-          </time>
-          : {entry.change}
-        </li>
-      ))}
-    </ul>
   </>
 );
 

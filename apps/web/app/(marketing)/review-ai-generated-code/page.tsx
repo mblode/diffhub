@@ -5,10 +5,10 @@ import { GuideCommand } from "@/components/guides/guide-command";
 import {
   FactTable,
   GuideArticle,
-  GuideChangelog,
   GuideFaq,
   PromptExample,
   RelatedGuides,
+  TableScroll,
   guideClass,
 } from "@/components/guides/guide";
 import { JsonLd } from "@/components/shared/json-ld";
@@ -330,7 +330,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
           Wherever you’re going to act on it. Four of the five options below are terminal-shaped and
           one isn’t, and that difference matters more than how any of them renders a diff.
         </p>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="Diff viewers for agent-written code">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
               Diff viewers for reviewing agent-written code, checked {TOOLS_CHECKED}
@@ -360,7 +360,7 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <p className={body}>
           hunk describes itself as “Terminal diffs for humans &amp; agents” and ships a watch mode,
           so on the refresh question it and DiffHub agree. They disagree about the terminal. revdiff
@@ -433,7 +433,6 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
           heading="What else do people ask about reviewing AI-generated code?"
         />
         <RelatedGuides current={entry.path} />
-        <GuideChangelog entries={CHANGELOG} />
       </GuideArticle>
     </div>
   );

@@ -41,7 +41,7 @@ export const WorkingTreeDemo = (): React.JSX.Element => {
       {/* Focusable so the diff can be scrolled sideways from the keyboard on narrow screens. */}
       <section
         aria-label="Example diff"
-        className="overflow-x-auto py-4 [mask-image:linear-gradient(to_right,black_85%,transparent)] sm:[mask-image:none] font-mono text-sm leading-7 focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
+        className="scroll-fade-x overflow-x-auto py-4 font-mono text-sm leading-7 focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2"
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
       >
