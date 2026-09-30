@@ -1,18 +1,18 @@
 # apps/docs
 
-Pure MDX content, not an npm workspace (no `package.json`). Deploys via `blodemd`. See the root [`AGENTS.md`](../../AGENTS.md) for repo-wide commands and gotchas.
+Pure MDX content, not a pnpm workspace (no `package.json`). Deploys via `blodemd`. See the root [`AGENTS.md`](../../AGENTS.md) for repo-wide commands and gotchas.
 
 ## Commands
 
-`blodemd` is not a devDependency of this repo; run it via `npx` from the **monorepo root**, pointing at this directory:
+`blodemd` is not a devDependency of this repo; run it via `pnpm dlx` from the **monorepo root**, pointing at this directory:
 
 ```bash
-npx blodemd validate apps/docs   # validates docs.json; verified passing in this checkout
+pnpm dlx blodemd validate apps/docs   # validates docs.json; verified passing in this checkout
 ```
 
-Deploy (from the root AGENTS.md, not re-verified here): `cd apps/docs && npx blodemd push docs`.
+Deploy (from the root AGENTS.md, not re-verified here): `cd apps/docs && pnpm dlx blodemd push docs`.
 
-There is no local dev-preview or lint command verified for this checkout; do not assume `npx blodemd dev` works here without trying it first.
+There is no local dev-preview or lint command verified for this checkout; do not assume `pnpm dlx blodemd dev` works here without trying it first.
 
 ## Boundary
 

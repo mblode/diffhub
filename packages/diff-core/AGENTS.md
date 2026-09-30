@@ -7,10 +7,10 @@ Shared diff-viewer package consumed as workspace TypeScript source (no build ste
 Run from the monorepo root, or `cd packages/diff-core` first:
 
 ```bash
-npm run lint --workspace packages/diff-core         # oxlint .
-npm run check-types --workspace packages/diff-core  # tsc --noEmit
-npm run format:check --workspace packages/diff-core # oxfmt --check . (read-only, verified)
-npm run format --workspace packages/diff-core        # oxfmt --write .
+pnpm --filter @diffhub/diff-core run lint         # oxlint .
+pnpm --filter @diffhub/diff-core run check-types  # tsc --noEmit
+pnpm --filter @diffhub/diff-core run format:check # oxfmt --check . (read-only, verified)
+pnpm --filter @diffhub/diff-core run format        # oxfmt --write .
 ```
 
 All three read-only commands above were run against this checkout and passed.

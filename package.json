@@ -1,10 +1,6 @@
 {
   "name": "diffhub",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "type": "module",
   "scripts": {
     "build": "turbo build",
@@ -19,6 +15,7 @@
     "fix": "ultracite fix"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "lefthook": "^2.1.14",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
@@ -31,5 +28,5 @@
     "lightningcss-linux-arm64-gnu": "1.33.0",
     "lightningcss-linux-x64-gnu": "1.33.0"
   },
-  "packageManager": "npm@12.0.1"
+  "packageManager": "pnpm@12.8.1"
 }

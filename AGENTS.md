@@ -6,18 +6,18 @@ GitHub PR-style local diff viewer. Monorepo with three apps and one shared packa
 
 ```bash
 # Development
-npm run dev          # Start all apps via Turbo
-npm run build        # Build all apps
-npm run check-types  # TypeScript check across all workspaces
-npm run test         # vitest across workspaces
-npm run test --workspace=apps/cli -- lib/git.test.ts --reporter=dot   # one file, quiet
+pnpm run dev          # Start all apps via Turbo
+pnpm run build        # Build all apps
+pnpm run check-types  # TypeScript check across all workspaces
+pnpm run test         # vitest across workspaces
+pnpm --filter diffhub test -- lib/git.test.ts --reporter=dot   # one file, quiet
 
 # Quality
-npm run lint         # oxlint via Turbo
-npm run lint:fix     # oxlint --fix via Turbo
-npm run format       # oxfmt --write via Turbo
-npm run check        # ultracite check (lint + format)
-npm run fix          # ultracite fix (lint + format --fix)
+pnpm run lint         # oxlint via Turbo
+pnpm run lint:fix     # oxlint --fix via Turbo
+pnpm run format       # oxfmt --write via Turbo
+pnpm run check        # ultracite check (lint + format)
+pnpm run fix          # ultracite fix (lint + format --fix)
 ```
 
 Run all commands from the **monorepo root**. Do not `cd` into individual apps for routine tasks.
@@ -31,10 +31,11 @@ diffhub/
 ├── apps/docs/            # Documentation MDX content (deploys to blode.md)
 ├── packages/diff-core/   # Shared viewer: streaming, CodeView wiring, themes, worker pool, chrome
 ├── turbo.json            # Task pipelines
-└── package.json          # Root workspace (npm workspaces)
+├── pnpm-workspace.yaml   # Root workspace (pnpm workspaces)
+└── package.json
 ```
 
-`apps/docs/` is pure MDX content with no `package.json`; it is not an npm workspace. Deploy with `cd apps/docs && npx blodemd push docs`.
+`apps/docs/` is pure MDX content with no `package.json`; it is not a pnpm workspace. Deploy with `cd apps/docs && pnpm dlx blodemd push docs`.
 
 ## Nested AGENTS.md files
 
@@ -42,11 +43,11 @@ Each workspace has its own `AGENTS.md` with boundary rules specific to it: [`app
 
 ## Gotchas
 
-- **No inner lockfile**: `apps/cli/package-lock.json` must not exist; only the root lockfile is used. If it appears, delete it and run `npm install` from root.
-- **Changesets gate PRs**: CI runs `npx changeset status --since origin/main`, so a PR that touches a workspace package (even its AGENTS.md) needs `npx changeset`, or `npx changeset add --empty` when nothing ships.
-- **`format:check` is not read-only in diff-core**: its script is `oxfmt .`, which rewrites files. Use `npm run check` for a read-only format check.
-- **CLI dev uses portless**: `npm run dev` in `apps/cli` serves at `https://diffhub.localhost`. The marketing site (`apps/web`) serves at `https://diffhub-web.localhost`.
-- **CLI uses standalone build**: `bin/diffhub.mjs` runs `.next/standalone/apps/cli/server.js` (not `next start`). Build it with `npm run prepack --workspace=apps/cli`, which runs `next build` and then copies `.next/static/` and `public/` into `.next/standalone/`. `npm run build` alone leaves the CLI without static assets.
+- **No inner lockfile**: `apps/cli/package-lock.json` must not exist; only the root `pnpm-lock.yaml` is used. If a lockfile appears there, delete it and run `pnpm install` from root.
+- **Changesets gate PRs**: CI runs `pnpm exec changeset status --since origin/main`, so a PR that touches a workspace package (even its AGENTS.md) needs `pnpm exec changeset`, or `pnpm exec changeset add --empty` when nothing ships.
+- **`format:check` is not read-only in diff-core**: its script is `oxfmt .`, which rewrites files. Use `pnpm run check` for a read-only format check.
+- **CLI dev uses portless**: `pnpm run dev` in `apps/cli` serves at `https://diffhub.localhost`. The marketing site (`apps/web`) serves at `https://diffhub-web.localhost`.
+- **CLI uses standalone build**: `bin/diffhub.mjs` runs `.next/standalone/apps/cli/server.js` (not `next start`). Build it with `pnpm --filter diffhub run prepack`, which runs `next build` and then copies `.next/static/` and `public/` into `.next/standalone/`. `pnpm run build` alone leaves the CLI without static assets.
 - **Env for dev**: Set `DIFFHUB_REPO` in `apps/cli/.env.local` to point at a real git repo when developing. Without it, the diff API defaults to `process.cwd()`.
 - **Marketing site proxies docs**: `apps/web/app/docs/[[...slug]]/route.ts` proxies `/docs/*` to `https://diffhub.blode.md/docs/*` through `apps/web/lib/docs-proxy.ts`, which rewrites the upstream's `/_docs/_next/` asset URLs to `/diffhub/docs/_chunks/*` so they stay inside the zone prefix blode.co forwards to us. This will 404 until the docs site is deployed via blodemd.
 - **Docs assets track blode.md, not this repo**: `UPSTREAM_ASSET_PREFIX` in `docs-proxy.ts` is the platform's Next.js `assetPrefix`. It has changed under us once, which left every docs page unstyled. Chunks are also served only from the apex `blode.md`; the tenant host `diffhub.blode.md` emits those URLs but 404s on them. If the docs render with no CSS, diff the upstream HTML's asset paths against `UPSTREAM_ASSET_PREFIX` first.
@@ -65,15 +66,15 @@ Three options, in order of preference:
 CI (`.github/workflows/ci.yml`) runs changeset status, then:
 
 ```bash
-npm run lint && npm run check-types && npm run test && npm run build
+pnpm run lint && pnpm run check-types && pnpm run test && pnpm run build
 ```
 
-All four pass on `main` as of 27 Sep 2026. `npm run check` does not: `apps/cli/README.md` and `.captain/browser/report.md` are unformatted, and CI does not run it, so judge it by the files you touched. For a viewer change, prove it in the real app:
+All four pass on `main` as of 27 Sep 2026. `pnpm run check` does not: `apps/cli/README.md` and `.captain/browser/report.md` are unformatted, and CI does not run it, so judge it by the files you touched. For a viewer change, prove it in the real app:
 
 ```bash
-npm run prepack --workspace=apps/cli
+pnpm --filter diffhub run prepack
 node apps/cli/bin/diffhub.mjs serve --port 2099 --no-open --repo "$PWD"
 curl -s localhost:2099/api/files      # JSON file list; /api/diff streams text/plain
 ```
 
-There is no `npm run doctor`, `npm run verify`, or feature map. Gap: nothing scripts the build, serve, and API or browser check above, so UI behaviour (scroll anchoring, comments, themes) is proven only by the unit tests and by hand; `apps/web` has a Playwright `test:instant` that CI does not run.
+There is no `pnpm run doctor`, `pnpm run verify`, or feature map. Gap: nothing scripts the build, serve, and API or browser check above, so UI behaviour (scroll anchoring, comments, themes) is proven only by the unit tests and by hand; `apps/web` has a Playwright `test:instant` that CI does not run.
