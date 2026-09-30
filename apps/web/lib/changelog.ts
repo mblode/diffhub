@@ -10,6 +10,10 @@
  * Only dates live here. Page copy stays in the page file; a changelog is
  * metadata about the page, and it has a second reader.
  *
+ * Nothing renders `change`. Readers see only the dates, as the byline's
+ * "Last updated", in JSON-LD and in the sitemap. The text is a record for
+ * whoever edits the page next.
+ *
  * Dates are date-only strings on purpose. `new Date("2026-08-10")` parses as
  * UTC midnight; the `"2026-08-10T00:00:00"` form parses as local and drifts.
  */

@@ -6,9 +6,9 @@ import { GuideCommand } from "@/components/guides/guide-command";
 import {
   FactTable,
   GuideArticle,
-  GuideChangelog,
   GuideFaq,
   RelatedGuides,
+  TableScroll,
   guideClass,
 } from "@/components/guides/guide";
 import { DemoLauncher } from "@/components/shared/demo-launcher";
@@ -249,7 +249,7 @@ export default function GitDiffViewerPage(): React.JSX.Element {
           By default, everything you haven’t committed: HEAD against your working tree, plus
           untracked files. The scope menu in the status bar has four more views.
         </p>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="DiffHub diff scopes">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">DiffHub diff scopes and what each compares</caption>
             <thead>
@@ -273,7 +273,7 @@ export default function GitDiffViewerPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <p className={body}>
           All and Committed need a base branch. DiffHub looks for{" "}
           <code className={code}>origin/main</code>, <code className={code}>origin/master</code>,{" "}
@@ -290,7 +290,7 @@ export default function GitDiffViewerPage(): React.JSX.Element {
           but the page comes from a server on your machine, and it reads the change straight from
           git.
         </p>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="Online diff tools compared with DiffHub">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
               A typical paste-in online diff tool compared with DiffHub
@@ -320,7 +320,7 @@ export default function GitDiffViewerPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <p className={body}>
           Use a paste-in site for two snippets that aren’t in a repository: a config from two
           servers, two API responses, a paragraph someone edited. Use DiffHub when the change lives
@@ -355,7 +355,6 @@ export default function GitDiffViewerPage(): React.JSX.Element {
 
         <GuideFaq faqs={faqs} heading="What else do people ask about git diff viewers?" />
         <RelatedGuides current={entry.path} />
-        <GuideChangelog entries={CHANGELOG} />
       </GuideArticle>
     </div>
   );

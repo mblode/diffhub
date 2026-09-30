@@ -4,7 +4,6 @@ import Link from "next/link";
 import { GuideCommand } from "@/components/guides/guide-command";
 import {
   GuideArticle,
-  GuideChangelog,
   GuideFaq,
   PromptExample,
   RelatedGuides,
@@ -242,7 +241,6 @@ export default function ClaudeCodeReviewPage(): React.JSX.Element {
 
         <GuideFaq faqs={faqs} heading="What else do people ask about reviewing Claude Code?" />
         <RelatedGuides current={entry.path} />
-        <GuideChangelog entries={CHANGELOG} />
       </GuideArticle>
     </div>
   );

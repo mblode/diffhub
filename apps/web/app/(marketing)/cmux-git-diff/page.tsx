@@ -4,10 +4,10 @@ import Link from "next/link";
 import { GuideCommand } from "@/components/guides/guide-command";
 import {
   GuideArticle,
-  GuideChangelog,
   GuideFaq,
   PromptExample,
   RelatedGuides,
+  TableScroll,
   guideClass,
 } from "@/components/guides/guide";
 import { WorkingTreeDemo } from "@/components/marketing/working-tree-demo";
@@ -247,7 +247,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
         </p>
 
         <h2 className={heading}>Which cmux diff viewer should you use?</h2>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="Ways to review a branch in cmux">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
               The three ways to review a branch in cmux, whether each updates while you edit, and
@@ -281,7 +281,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         <GuideCommand command="npx diffhub@latest cmux" variant="cmux" />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -392,7 +392,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
           Three other people have built diff viewers for cmux, and revdiff works in any terminal.
           Each name links to its repository.
         </p>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="Diff viewers for cmux">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
               Diff viewers for cmux: where each runs, how it behaves while files change, and what it
@@ -440,7 +440,7 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <p className={body}>
           The live ones differ in when the view changes. cmux-hub, cmux-git-diff and cmux-diff
           redraw as files change. DiffHub marks the change and waits, so the hunk you&rsquo;re
@@ -469,7 +469,6 @@ export default function CmuxGitDiffPage(): React.JSX.Element {
 
         <GuideFaq faqs={faqs} heading="What else do people ask about git diffs in cmux?" />
         <RelatedGuides current={entry.path} />
-        <GuideChangelog entries={CHANGELOG} />
       </GuideArticle>
     </div>
   );

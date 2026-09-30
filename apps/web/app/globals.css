@@ -272,3 +272,52 @@ html:not(.diffhub-app) [data-slot="tooltip-content"] {
     border: 1px solid var(--color-theme-border-01);
   }
 }
+
+/*
+ * Horizontal scroll fade: masks whichever edge still has content past it, so a
+ * table cut off on a phone reads as scrollable. Scroll-driven, so the right
+ * fade goes once you reach the end, and an element that fits never fades. No
+ * support (older Firefox) means no fade, never a permanently clipped column.
+ */
+@property --scroll-fade-l {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-x {
+  0% {
+    --scroll-fade-l: 0px;
+    --scroll-fade-r: 2.5rem;
+  }
+  10% {
+    --scroll-fade-l: 2.5rem;
+  }
+  90% {
+    --scroll-fade-r: 2.5rem;
+  }
+  100% {
+    --scroll-fade-l: 2.5rem;
+    --scroll-fade-r: 0px;
+  }
+}
+
+@utility scroll-fade-x {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--scroll-fade-l),
+      black calc(100% - var(--scroll-fade-r)),
+      transparent
+    );
+    animation: scroll-fade-x linear both;
+    animation-timeline: scroll(self inline);
+  }
+}

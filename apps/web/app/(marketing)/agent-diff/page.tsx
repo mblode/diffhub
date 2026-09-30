@@ -4,10 +4,10 @@ import Link from "next/link";
 import { GuideCommand } from "@/components/guides/guide-command";
 import {
   GuideArticle,
-  GuideChangelog,
   GuideFaq,
   PromptExample,
   RelatedGuides,
+  TableScroll,
   guideClass,
 } from "@/components/guides/guide";
 import { ReviewDemo } from "@/components/marketing/review-demo";
@@ -152,7 +152,7 @@ export default function AgentDiffPage(): React.JSX.Element {
         <p className={body}>
           Pick the scope by what the agent did with its changes, not by which agent it is.
         </p>
-        <div className="mt-6 overflow-x-auto">
+        <TableScroll label="DiffHub scopes by way of working">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">
               Which DiffHub scope to use for each way of working
@@ -178,7 +178,7 @@ export default function AgentDiffPage(): React.JSX.Element {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         <p className={body}>
           All is the whole-branch view: everything since the branch left its base, committed or not,
           plus untracked files. It’s the one to read before you push. DiffHub finds the base from{" "}
@@ -258,7 +258,6 @@ export default function AgentDiffPage(): React.JSX.Element {
 
         <GuideFaq faqs={faqs} heading="What else do people ask about reviewing agent diffs?" />
         <RelatedGuides current={entry.path} />
-        <GuideChangelog entries={CHANGELOG} />
       </GuideArticle>
     </div>
   );
