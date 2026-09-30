@@ -71,7 +71,7 @@ export const CHANGELOGS = {
   "/cmux-git-diff": [
     {
       change:
-        "Rechecked every cmux claim against cmux v0.64.25 and corrected two version numbers. Added a table for choosing between the three options, the refresh behaviour of each alternative, which viewers highlight syntax, and answers on cmux-hub, cmux’s file viewer and privacy. Cut the keyboard shortcuts and setup detail the docs already cover.",
+        "Rechecked every cmux claim against cmux v0.64.25 and corrected two version numbers. Added a table for choosing between the three options, the refresh behaviour of each alternative, which viewers highlight syntax, and answers on cmux-hub, cmux’s file viewer and privacy. Folded the options and alternatives into one table and cut the keyboard shortcuts, prompt example and setup detail the docs already cover.",
       date: "2026-10-01",
     },
     {

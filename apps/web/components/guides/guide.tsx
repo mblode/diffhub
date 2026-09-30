@@ -31,7 +31,7 @@ export const guideClass = {
   cell: "border-border/60 border-b py-3 pr-2 align-top sm:pr-6",
   // Relative to the paragraph, so code keeps its size against the 18px lead
   // as well as 16px body. The tint marks commands apart from prose.
-  code: "rounded bg-secondary/70 px-1 py-0.5 font-mono text-[0.875em] text-foreground/80",
+  code: "rounded bg-secondary/70 px-1 py-0.5 font-mono text-[0.875em] text-foreground/80 whitespace-nowrap",
   heading: "mt-16 text-balance text-2xl font-medium tracking-tight",
   lead: "mt-6 max-w-[65ch] text-pretty text-lg text-muted-foreground",
   // Underlined at rest: the link colour alone is ~1.2:1 against the grey body
