@@ -7,10 +7,9 @@ import "./globals.css";
 
 const glide = localFont({
   display: "swap",
-  src: [
-    { path: "./fonts/glide-variable.woff2", style: "normal" },
-    { path: "./fonts/glide-variable-italic.woff2", style: "italic" },
-  ],
+  // No italic face: nothing on the site sets italic sans, and preloading it
+  // cost every page 117 KB.
+  src: [{ path: "./fonts/glide-variable.woff2", style: "normal" }],
   variable: "--font-glide",
   weight: "100 950",
 });
