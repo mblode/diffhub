@@ -1,19 +1,14 @@
 import { Agentation } from "agentation";
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
-import localFont from "next/font/local";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { DiffsWorkerProvider } from "@diffhub/diff-core/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const glide = localFont({
+const inter = Inter({
   display: "swap",
-  src: [
-    { path: "./fonts/glide-variable.woff2", style: "normal" },
-    { path: "./fonts/glide-variable-italic.woff2", style: "italic" },
-  ],
-  variable: "--font-glide",
-  weight: "100 950",
+  subsets: ["latin"],
+  variable: "--font-inter",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -35,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${glide.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <body className="bg-background antialiased">

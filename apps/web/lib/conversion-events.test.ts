@@ -90,10 +90,12 @@ test("a product slug stays on location and does not invent $pathname", () => {
 });
 
 test("zip and dmg hrefs use download_clicked", () => {
-  expect(isDownloadHref("https://blode.co/glide/glide.zip")).toBe(true);
+  expect(isDownloadHref("https://blode.co/cascade/cascade.zip")).toBe(true);
   expect(isDownloadHref("https://blode.co/convene/Convene.dmg")).toBe(true);
   expect(isDownloadHref("https://blode.co/commandment/app.dmg?x=1")).toBe(true);
-  expect(conversionEventForHref("https://blode.co/glide/glide.zip")).toBe(DOWNLOAD_CLICKED_EVENT);
+  expect(conversionEventForHref("https://blode.co/cascade/cascade.zip")).toBe(
+    DOWNLOAD_CLICKED_EVENT,
+  );
   expect(isDownloadHref("https://blode.co/diffhub")).toBe(false);
   expect(isDownloadHref("https://github.com/mblode/diffhub")).toBe(false);
   expect(isDownloadHref("npx diffhub@latest cmux")).toBe(false);

@@ -1,24 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Geist_Mono, Inter } from "next/font/google";
 
 import { siteConfig } from "@/lib/config";
 
 import "./globals.css";
 
-const glide = localFont({
+const inter = Inter({
   display: "swap",
-  // No italic face: nothing on the site sets italic sans, and preloading it
-  // cost every page 117 KB.
-  src: [{ path: "./fonts/glide-variable.woff2", style: "normal" }],
-  variable: "--font-glide",
-  weight: "100 950",
+  subsets: ["latin"],
+  variable: "--font-inter",
 });
 
-const glideMono = localFont({
+const geistMono = Geist_Mono({
   display: "swap",
-  src: "./fonts/glide-mono.woff2",
-  variable: "--font-glide-mono",
-  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
 });
 
 export const viewport: Viewport = {
@@ -98,7 +94,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      className={`${glide.variable} ${glideMono.variable} min-h-screen font-sans antialiased`}
+      className={`${inter.variable} ${geistMono.variable} min-h-screen font-sans antialiased`}
       lang="en"
     >
       <head>
