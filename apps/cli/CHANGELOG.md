@@ -1,5 +1,14 @@
 # diffhub
 
+## 1.0.1
+
+### Patch Changes
+
+- a644f8e: Preserve whether each copied review comment refers to the old or new side of a
+  diff, so agent review prompts identify the intended version of the file.
+- b0865ce: Update the bundled viewer to Next.js 16.3.6, React 19.3 and the latest @pierre/diffs.
+- a87ae2f: Replace the bundled Glide/Glide Mono typeface with Inter, loaded via `next/font/google` instead of the removed local woff2 files. Required by a licence takedown demand from Lineto GmbH; no functional or visual-weight change beyond the typeface swap.
+
 ## 1.0.0
 
 ### Major Changes
