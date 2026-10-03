@@ -29,7 +29,7 @@ export interface ConversionClick {
 const DOWNLOAD_HREF = /\.(?:zip|dmg)(?:[?#]|$)/iu;
 
 /**
- * Binary downloads (Glide zip, Convene/Commandment dmg) use `download_clicked`.
+ * Binary downloads (Cascade zip, Convene/Commandment dmg) use `download_clicked`.
  * Install, GitHub, sign-in, and create flows stay on `cta_clicked`.
  */
 export const isDownloadHref = (href: string): boolean => DOWNLOAD_HREF.test(href);

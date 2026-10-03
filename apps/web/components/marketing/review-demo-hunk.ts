@@ -21,8 +21,8 @@ export interface DiffLine {
 // Verbatim from `git show afe7d53 -- apps/cli/lib/export-comments.ts`, split
 // into the tokens Shiki produces with packages/diff-core/src/themes/linear-dark.json,
 // the theme the viewer itself renders with. Set in the system monospace stack,
-// not Glide Mono, because Glide Mono's backtick has zero advance width and eats
-// the space beside it.
+// not the site's `--font-mono` (Geist Mono), to keep this static demo decoupled
+// from font loading.
 const PINK = "#fa9ce3";
 const PURPLE = "#cc9dff";
 const BLUE = "#8fa7ff";

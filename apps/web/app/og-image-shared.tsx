@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
 
 /**
  * Layout helper for this zone's social card. The zone owns the route, the
- * brand colours, and the mark. This file only sets type in Glide and the
+ * brand colours, and the mark. This file only sets type in Inter and the
  * poster lockup (mark at the top, title on the baseline).
  *
  * It is not served by blode-co. `app/opengraph-image.tsx` in this repo is the
@@ -33,10 +33,10 @@ export const OG_CONTENT_TYPE = "image/png";
 
 const ogAsset = (file: string) => path.join(process.cwd(), "lib/og-assets", file);
 
-const glideFonts = [
+const interFonts = [
   {
-    data: readFileSync(ogAsset("glide-600.ttf")),
-    name: "Glide",
+    data: readFileSync(ogAsset("inter-600.ttf")),
+    name: "Inter",
     style: "normal" as const,
     weight: 600 as const,
   },
@@ -80,7 +80,7 @@ export const renderZoneOgImage = ({
         style={{
           color,
           display: "flex",
-          fontFamily: "Glide",
+          fontFamily: "Inter",
           fontSize: titleSize,
           fontWeight: 600,
           letterSpacing: "-0.02em",
@@ -94,5 +94,5 @@ export const renderZoneOgImage = ({
     </div>
   );
 
-  return new ImageResponse(content, { ...OG_SIZE, fonts: glideFonts });
+  return new ImageResponse(content, { ...OG_SIZE, fonts: interFonts });
 };
