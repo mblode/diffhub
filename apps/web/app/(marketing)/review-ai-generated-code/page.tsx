@@ -286,9 +286,9 @@ export default function ReviewAiGeneratedCodePage(): React.JSX.Element {
         {/* The answer block: the first extractable passage answers the h1. */}
         <p className={lead}>
           Read the whole diff yourself before you merge, against the branch it came from. Look for
-          what tests and AI reviewers can’t see: work you didn’t ask for, checks that were deleted
-          or loosened, APIs that don’t exist, and behaviour that changed without a word. Then hand
-          your notes back to the agent that wrote the code, so it does the fixing.
+          what tests and AI reviewers can’t see. That means work you didn’t ask for, checks that
+          were deleted or loosened, APIs that don’t exist, and behaviour that changed without a
+          word. Then hand your notes back to the agent that wrote the code, so it does the fixing.
         </p>
 
         <h2 className={heading}>What should you check in AI-generated code?</h2>

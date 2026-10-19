@@ -239,8 +239,8 @@ export default function GitDiffViewerPage(): React.JSX.Element {
         <h2 className={heading}>Can you see a git diff side by side?</h2>
         <p className={body}>
           Yes. Press <code className={code}>s</code>, or use the layout button in the status bar, to
-          switch between split view, with the old file on the left and the new one on the right, and
-          unified view, with removed and added lines in one column. Unified is the default. The
+          switch layouts. Split view puts the old file on the left and the new one on the right.
+          Unified view puts removed and added lines in one column. Unified is the default. The
           viewer remembers whichever you picked last.
         </p>
 
@@ -324,8 +324,8 @@ export default function GitDiffViewerPage(): React.JSX.Element {
         <p className={body}>
           Use a paste-in site for two snippets that aren’t in a repository: a config from two
           servers, two API responses, a paragraph someone edited. Use DiffHub when the change lives
-          in git and spans more than a file or two, and you want to read all of it before you commit
-          or push.
+          in git and spans more than a file or two. It lets you read all of it before you commit or
+          push.
         </p>
 
         <h2 className={heading}>Can you try it without installing anything?</h2>

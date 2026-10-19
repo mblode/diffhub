@@ -13,7 +13,6 @@ interface MarketingHeroProps {
   action: ReactNode;
   children?: ReactNode;
   description: string;
-  eyebrow?: ReactNode;
   secondary?: ReactNode;
   title: string;
 }
@@ -22,20 +21,18 @@ export const MarketingHero = ({
   action,
   children,
   description,
-  eyebrow,
   secondary,
   title,
 }: MarketingHeroProps): React.JSX.Element => (
   <div className="py-10 sm:py-14 lg:py-16">
     <div className="grid gap-8 lg:grid-cols-[7fr_5fr] lg:items-end lg:gap-14">
       <div className="min-w-0">
-        {eyebrow ? <p className="font-mono text-sm text-white/55">{eyebrow}</p> : null}
-        <h1 className="mt-4 max-w-[14ch] text-balance text-5xl leading-[1.02] tracking-tight sm:text-6xl xl:text-7xl">
+        <h1 className="max-w-[14ch] text-balance font-medium text-4xl leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
           {title}
         </h1>
       </div>
       <div className="min-w-0">
-        <p className="max-w-[42ch] text-pretty text-lg text-white/70">{description}</p>
+        <p className="max-w-[42ch] text-pretty text-lg text-muted-foreground">{description}</p>
         <div className="mt-6 flex flex-col items-start gap-5">
           {action}
           {secondary}

@@ -571,7 +571,7 @@ export const ReviewDemo = (): React.JSX.Element => {
 
   return (
     <div
-      className="diffhub-app overflow-hidden rounded-xl text-foreground shadow-[0_32px_100px_rgba(0,0,0,0.45)] outline-1 -outline-offset-1 outline-white/10"
+      className="diffhub-app overflow-hidden rounded-xl text-foreground shadow-soft outline-1 -outline-offset-1 outline-white/10"
       id="review-demo"
     >
       <header className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 border-border border-b bg-card px-4 py-2 text-sm">

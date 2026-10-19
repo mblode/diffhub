@@ -53,12 +53,11 @@ export const DemoLauncher = (): React.JSX.Element => {
   }, []);
 
   return (
-    <form
-      className="mx-auto flex w-full max-w-md flex-col items-center gap-2"
-      onSubmit={handleSubmit}
-    >
+    <form className="flex w-full max-w-md flex-col items-start gap-2" onSubmit={handleSubmit}>
       <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center">
         <input
+          aria-describedby="demo-launcher-hint"
+          aria-invalid={error}
           aria-label="GitHub pull request URL"
           className="min-w-0 flex-1 rounded-full bg-background px-4 py-3 text-base text-foreground shadow-input outline-1 -outline-offset-1 outline-foreground/10 placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-link"
           name="pull-request-url"
@@ -66,13 +65,15 @@ export const DemoLauncher = (): React.JSX.Element => {
           placeholder="Paste a GitHub PR URL"
           value={value}
         />
-        <Button className="w-full sm:w-auto" size="lg" type="submit" variant="outline">
+        <Button className="w-full hover:bg-primary/80 sm:w-auto" size="lg" type="submit">
           Open PR
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p aria-live="polite" className="text-xs text-muted-foreground" id="demo-launcher-hint">
         {error ? (
-          <span className="text-destructive">Enter a GitHub pull request URL.</span>
+          <span className="text-destructive">
+            Enter a GitHub PR URL, like github.com/owner/repo/pull/123 or owner/repo#123.
+          </span>
         ) : (
           <>
             Try{" "}

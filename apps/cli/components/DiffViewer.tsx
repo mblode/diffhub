@@ -800,9 +800,9 @@ const DiffViewerInner = (
       disableFileHeader: false,
       disableLineNumbers: !showLineNumbers,
       enableGutterUtility: true,
-      // Lean on CodeView's virtualizer: render unchanged context regions in
-      // full instead of collapsing them into "N unmodified lines" banners.
-      expandUnchanged: true,
+      // No expandUnchanged: items are partial diffs parsed from `git diff`
+      // output, and @pierre/diffs throws when asked to expand one without
+      // `loadDiffFiles`.
       expansionLineCount: 100,
       hunkSeparators: "line-info",
       layout: CODE_VIEW_LAYOUT,

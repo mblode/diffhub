@@ -157,7 +157,6 @@ test("primary marketing CTAs fire conversion events", () => {
   expect(tracked).toMatch(/TrackedCta/u);
 
   expect(homepage).toMatch(/label="Try a live review"/u);
-  expect(homepage).toMatch(/label="Live demo screenshot"/u);
   expect(homepage).toMatch(/label="Read the install guide"/u);
   expect(homepage).toMatch(/opensDemo/u);
   expect(install).toMatch(/label="Copy install command"/u);

@@ -90,6 +90,8 @@ interface ReadOnlyDiffViewProps {
   emptyState?: ReactNode;
   // Rendered while the worker pool warms up / the first batch streams in.
   loadingState?: ReactNode;
+  // Rendered when the viewer throws while rendering the loaded diff.
+  renderErrorState?: ReactNode;
 }
 
 const fileStats = (fileDiff: FileDiffMetadata): { insertions: number; deletions: number } => {
@@ -115,8 +117,20 @@ const toViewerFile = (item: CodeViewDiffItem<undefined>): ViewerFile => {
   };
 };
 
-class DiffErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  constructor(props: { children: ReactNode }) {
+// The error itself is logged in componentDidCatch; viewers get a plain message.
+const DefaultRenderError = () => (
+  <div className="flex h-full items-center justify-center p-10 text-sm text-muted-foreground">
+    This diff couldn’t be displayed.
+  </div>
+);
+
+interface DiffErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+class DiffErrorBoundary extends Component<DiffErrorBoundaryProps, { error: Error | null }> {
+  constructor(props: DiffErrorBoundaryProps) {
     super(props);
     this.state = { error: null };
   }
@@ -135,11 +149,7 @@ class DiffErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
 
   render(): ReactNode {
     if (this.state.error) {
-      return (
-        <div className="px-4 py-6 text-sm text-red-600">
-          Failed to render diff: {this.state.error.message}
-        </div>
-      );
+      return this.props.fallback ?? <DefaultRenderError />;
     }
     return this.props.children;
   }
@@ -232,6 +242,7 @@ const ReadOnlyDiffViewInner = (
     renderHeader,
     emptyState,
     loadingState,
+    renderErrorState,
   }: ReadOnlyDiffViewProps,
   ref: React.Ref<ReadOnlyDiffViewHandle>,
 ) => {
@@ -402,7 +413,8 @@ const ReadOnlyDiffViewInner = (
       // is not disabled. Setting this true renders no headers at all.
       disableFileHeader: false,
       disableLineNumbers: !showLineNumbers,
-      expandUnchanged: true,
+      // No expandUnchanged: items are partial diffs parsed from patch text, and
+      // @pierre/diffs throws when asked to expand one without `loadDiffFiles`.
       expansionLineCount: 100,
       hunkSeparators: "line-info",
       layout: CODE_VIEW_LAYOUT,
@@ -482,7 +494,7 @@ const ReadOnlyDiffViewInner = (
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" ref={rootRef}>
-      <DiffErrorBoundary>
+      <DiffErrorBoundary fallback={renderErrorState}>
         <CodeView
           className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-clip overscroll-contain [overflow-anchor:none]"
           containerRef={containerRef}

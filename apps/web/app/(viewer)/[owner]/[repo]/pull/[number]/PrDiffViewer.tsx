@@ -278,6 +278,19 @@ export const PrDiffViewer = ({
           onFilesChange={setFiles}
           ref={viewerRef}
           reloadKey={reloadKey}
+          renderErrorState={
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm">
+              <p className="text-muted-foreground">This pull request couldn’t be displayed here.</p>
+              <a
+                className="rounded-md border border-border px-3 py-1.5 hover:bg-secondary"
+                href={prUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Open on GitHub
+              </a>
+            </div>
+          }
           renderHeader={renderHeader}
           showBackgrounds={display.showBackgrounds}
           showLineNumbers={display.showLineNumbers}

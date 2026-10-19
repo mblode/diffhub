@@ -1,15 +1,10 @@
 import { ArrowRightIcon } from "blode-icons-react";
-import Image from "next/image";
 import Link from "next/link";
 
 import { CtaClose } from "@/components/marketing/cta-close";
-import { FeatureRows } from "@/components/marketing/feature-rows";
 import { HomeInstallCommand, SectionViews } from "@/components/marketing/home-islands";
 import { MarketingHero } from "@/components/marketing/marketing-hero";
-import { ProofStats } from "@/components/marketing/proof-stats";
-import { Reveal } from "@/components/marketing/reveal";
 import { ReviewDemo } from "@/components/marketing/review-demo";
-import { WorkingTreeDemo } from "@/components/marketing/working-tree-demo";
 import { DemoLauncher } from "@/components/shared/demo-launcher";
 import { FaqSection } from "@/components/shared/faq-section";
 import { JsonLd } from "@/components/shared/json-ld";
@@ -17,28 +12,17 @@ import { ZoneBreadcrumb } from "@/components/shared/zone-breadcrumb";
 import { TrackedCta } from "@/components/tracked-cta";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { CHANGELOGS, latestDate } from "@/lib/changelog";
-import { asset, siteConfig } from "@/lib/config";
+import { siteConfig } from "@/lib/config";
 import type { Faq } from "@/lib/faq";
 import { GUIDES } from "@/lib/guides";
-import { fetchGithubStars, fetchNpmWeeklyDownloads } from "@/lib/live-stats";
 import { zoneGraph } from "@/lib/schema";
 
 /**
- * A Server Component. The hero, feature rows, facts and FAQ answers are in the
+ * A Server Component. The hero, features and FAQ answers are in the
  * initial HTML, and nothing above the fold animates on mount.
  */
 
-/** The date the facts table was last read from its sources. */
-const CHECKED = "23 Sep 2026";
-
 const updatedAt = latestDate(CHANGELOGS["/"]);
-
-const facts = [
-  { label: "Network requests", source: "CLI source", value: "0" },
-  { label: "Port", source: "bin/diffhub.mjs", value: "2047" },
-  { label: "Node.js", source: "package.json", value: "20.11+" },
-  { label: "Licence", source: "GitHub", value: "MIT" },
-];
 
 const shortcuts = [
   { keys: ["j", "k"], label: "Move between files" },
@@ -82,90 +66,26 @@ const faqs: Faq[] = [
   },
 ];
 
-const features = [
-  {
-    description: "Compare the branch with its base and jump between changed files from the tree.",
-    media: (
-      <TrackedCta
-        aria-label="Open the live DiffHub demo for oven-sh/bun #16000"
-        className="block overflow-hidden rounded-[min(1.4vw,var(--radius-2xl))] bg-secondary shadow-soft outline-1 -outline-offset-1 outline-foreground/10 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-4"
-        href={siteConfig.links.demo}
-        label="Live demo screenshot"
-        opensDemo
-      >
-        <Image
-          alt="DiffHub reviewing a branch with a file tree on the left and added and removed code on the right"
-          className="w-full"
-          height={1411}
-          sizes="(max-width: 1024px) 100vw, 55vw"
-          src={asset("/screenshot.png")}
-          width={2111}
-        />
-      </TrackedCta>
-    ),
-    title: "See every changed file",
-  },
-  {
-    description:
-      "DiffHub watches the repository and tells you when the agent changes a file. You refresh when you’re ready, so the code never moves mid-review.",
-    media: (
-      <div className="[&>div]:mt-0">
-        <WorkingTreeDemo />
-      </div>
-    ),
-    title: "Keep the diff open while the agent works",
-  },
-  {
-    description: "Move between files, switch views, filter and refresh without the mouse.",
-    media: (
-      <ul className="divide-y divide-foreground/10 border-foreground/10 border-y">
-        {shortcuts.map((shortcut) => (
-          <li className="flex items-center justify-between gap-4 py-4" key={shortcut.label}>
-            <span>{shortcut.label}</span>
-            <KbdGroup>
-              {shortcut.keys.map((key) => (
-                <Kbd key={key}>{key}</Kbd>
-              ))}
-            </KbdGroup>
-          </li>
-        ))}
-      </ul>
-    ),
-    title: "Review from the keyboard",
-  },
-  {
-    description:
-      "Paste a GitHub pull request URL and read it in the DiffHub viewer. No account or install.",
-    media: <DemoLauncher />,
-    title: "Try it on a public pull request",
-  },
-];
-
 // Dev flags anything that would block navigating here; e2e/instant.spec.ts
 // checks it against a production build.
 export const instant = true;
 
-export default async function HomePage(): Promise<React.JSX.Element> {
-  const [stars, downloads] = await Promise.all([
-    fetchGithubStars("mblode/diffhub"),
-    fetchNpmWeeklyDownloads("diffhub"),
-  ]);
-
+export default function HomePage(): React.JSX.Element {
   return (
     <div className="isolate overflow-clip">
       <JsonLd data={zoneGraph({ faqs, updatedAt })} />
       <SectionViews />
 
-      <section className="bg-[#111111] text-[#f7f7f4]">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="pt-6 [&_[data-slot=breadcrumb-list]]:text-white/45 [&_[data-slot=breadcrumb-page]]:text-white [&_a:hover]:text-white">
+      <section>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="pt-6">
             <ZoneBreadcrumb product="DiffHub" />
           </div>
 
           <MarketingHero
             action={
               <TrackedCta
-                className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#f54e00] py-3 pr-5 pl-6 font-medium text-[#151611] transition-[background-color,transform] hover:bg-[#ff6a1f] focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 active:translate-y-px"
+                className="inline-flex min-h-12 items-center gap-2 rounded-full bg-link py-3 pr-5 pl-6 font-medium text-primary-foreground transition-[background-color,transform] hover:bg-link/90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2 active:translate-y-px"
                 href={siteConfig.links.demo}
                 label="Try a live review"
                 opensDemo
@@ -175,7 +95,6 @@ export default async function HomePage(): Promise<React.JSX.Element> {
               </TrackedCta>
             }
             description="For people running coding agents in cmux: review the whole branch, comment on any line, then copy every note into the agent’s next prompt."
-            eyebrow="DiffHub, a git diff viewer for cmux"
             secondary={<HomeInstallCommand />}
             title="Review agent code in cmux"
           >
@@ -184,71 +103,47 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28" data-section="features" id="features">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="grid gap-6 pb-12 lg:grid-cols-[7fr_5fr] lg:gap-16">
-            <h2 className="max-w-[18ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
-              Stop scrolling through diffs.
+      <section className="py-16 sm:py-24" data-section="features" id="features">
+        <div className="mx-auto grid max-w-6xl gap-16 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
+          <div>
+            <h2 className="text-balance font-medium text-2xl tracking-tight sm:text-3xl">
+              Review from the keyboard
             </h2>
-            <p className="max-w-[48ch] text-pretty text-muted-foreground">
-              Terminal output disappears as soon as it scrolls past. DiffHub keeps the whole branch
-              open beside your agent.
+            <p className="mt-3 max-w-[46ch] text-pretty text-muted-foreground">
+              Move between files, switch views, filter and refresh without the mouse.
             </p>
+            <ul className="mt-8 divide-y divide-foreground/10 border-foreground/10 border-y">
+              {shortcuts.map((shortcut) => (
+                <li className="flex items-center justify-between gap-4 py-4" key={shortcut.label}>
+                  <span>{shortcut.label}</span>
+                  <KbdGroup>
+                    {shortcut.keys.map((key) => (
+                      <Kbd key={key}>{key}</Kbd>
+                    ))}
+                  </KbdGroup>
+                </li>
+              ))}
+            </ul>
           </div>
-          <FeatureRows items={features} />
+          <div>
+            <h2 className="text-balance font-medium text-2xl tracking-tight sm:text-3xl">
+              Try it on a public pull request
+            </h2>
+            <p className="mt-3 max-w-[46ch] text-pretty text-muted-foreground">
+              Paste a GitHub pull request URL and read it in the DiffHub viewer. No account or
+              install.
+            </p>
+            <div className="mt-8">
+              <DemoLauncher />
+            </div>
+          </div>
         </div>
       </section>
 
-      <section
-        className="border-foreground/10 border-t bg-secondary py-20 sm:py-28"
-        data-section="proof"
-        id="proof"
-      >
-        <Reveal className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:gap-16">
-            <div>
-              <h2 className="max-w-[16ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
-                You review. Your agent fixes.
-              </h2>
-              <p className="mt-5 max-w-[48ch] text-pretty text-muted-foreground">
-                DiffHub doesn’t review code for you. You read the diff, it keeps your notes and
-                hands them to the agent. No account, and your code stays on your machine.
-              </p>
-            </div>
-            <ProofStats
-              className="lg:self-end"
-              stats={[
-                { href: siteConfig.links.github, label: "GitHub stars", value: stars },
-                {
-                  href: siteConfig.links.npm,
-                  label: "npm downloads last week",
-                  value: downloads,
-                },
-              ]}
-            />
-          </div>
-
-          <dl className="mt-14 grid grid-cols-2 gap-x-6 border-foreground/10 border-t sm:grid-cols-4 sm:gap-x-8">
-            {facts.map((fact) => (
-              <div className="flex flex-col-reverse pt-6" key={fact.label}>
-                <dt className="mt-2 font-medium">
-                  {fact.label}
-                  <span className="mt-0.5 block font-mono font-normal text-muted-foreground text-xs">
-                    {fact.source}
-                  </span>
-                </dt>
-                <dd className="text-2xl tracking-tight sm:text-3xl">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-6 text-muted-foreground text-sm">Facts checked {CHECKED}.</p>
-        </Reveal>
-      </section>
-
-      <section className="py-20 sm:py-28" data-section="faq" id="faq">
+      <section className="py-16 sm:py-24" data-section="faq" id="faq">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="grid gap-8 lg:grid-cols-[5fr_7fr] lg:gap-16">
-            <h2 className="max-w-[16ch] text-balance text-4xl tracking-tight sm:text-5xl sm:leading-[1.05]">
+            <h2 className="max-w-[16ch] text-balance font-medium text-3xl tracking-tight sm:text-4xl">
               A few things to know.
             </h2>
             <div>
@@ -283,16 +178,12 @@ export default async function HomePage(): Promise<React.JSX.Element> {
         </div>
       </section>
 
-      <section
-        className="bg-[#151611] py-20 text-[#f7f7f4] sm:py-28"
-        data-section="install"
-        id="install"
-      >
+      <section className="py-16 sm:py-24" data-section="install" id="install">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <CtaClose
             action={
               <TrackedCta
-                className="inline-flex min-h-11 items-center gap-1.5 text-white/60 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
+                className="inline-flex min-h-11 items-center gap-1.5 text-muted-foreground underline decoration-foreground/25 underline-offset-4 hover:text-foreground hover:decoration-foreground focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2"
                 href={siteConfig.links.docs}
                 label="Read the install guide"
               >

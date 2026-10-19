@@ -67,7 +67,9 @@ export const InstallCommand = ({
                 aria-selected={selected}
                 className={cn(
                   "min-h-9 rounded-full px-3 transition-[background-color,opacity] focus-visible:outline-2 focus-visible:outline-current focus-visible:outline-offset-2",
-                  selected ? "bg-white/12 text-current" : "opacity-60 hover:opacity-100",
+                  selected
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 id={`${id}-tab-${index}`}
                 key={item.label}
@@ -88,7 +90,7 @@ export const InstallCommand = ({
       ) : null}
       <div
         aria-labelledby={commands.length > 1 ? `${id}-tab-${active}` : undefined}
-        className="flex max-w-full items-center gap-2 rounded-full bg-[#f7f7f4] py-2 pr-1.5 pl-4 font-mono text-[#26251e] text-sm"
+        className="flex max-w-full items-center gap-2 rounded-full bg-card py-2 pr-1.5 pl-4 font-mono text-foreground text-sm outline-1 -outline-offset-1 outline-foreground/10"
         id={`${id}-panel`}
         role={commands.length > 1 ? "tabpanel" : undefined}
       >
