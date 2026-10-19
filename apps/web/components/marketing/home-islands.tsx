@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { ComponentProps } from "react";
 
 import { InstallCommand } from "@/components/marketing/install-command";
 import { captureInstallCommandCopied, trackSectionViews } from "@/lib/conversion-events";
@@ -16,12 +17,10 @@ const INSTALL_COMMANDS = [
   { command: "npx diffhub@latest", label: "Browser" },
 ];
 
-export const HomeInstallCommand = ({ className }: { className?: string }): React.JSX.Element => (
-  <InstallCommand
-    className={className}
-    commands={INSTALL_COMMANDS}
-    onCopy={captureInstallCommandCopied}
-  />
+export const HomeInstallCommand = (
+  props: Omit<ComponentProps<typeof InstallCommand>, "commands" | "onCopy">,
+): React.JSX.Element => (
+  <InstallCommand {...props} commands={INSTALL_COMMANDS} onCopy={captureInstallCommandCopied} />
 );
 
 /**

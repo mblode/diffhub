@@ -84,18 +84,22 @@ export default function HomePage(): React.JSX.Element {
 
           <MarketingHero
             action={
-              <TrackedCta
-                className="inline-flex min-h-12 items-center gap-2 rounded-full bg-link py-3 pr-5 pl-6 font-medium text-primary-foreground transition-[background-color,transform] hover:bg-link/90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2 active:translate-y-px"
-                href={siteConfig.links.demo}
-                label="Try a live review"
-                opensDemo
-              >
-                Open the live demo
-                <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
-              </TrackedCta>
+              <HomeInstallCommand
+                action={
+                  <TrackedCta
+                    className="inline-flex h-10 items-center gap-2 rounded-full bg-link px-5 font-medium text-primary-foreground text-sm transition-[background-color,transform] hover:bg-link/90 focus-visible:outline-2 focus-visible:outline-link focus-visible:outline-offset-2 active:translate-y-px"
+                    href={siteConfig.links.demo}
+                    label="Try a live review"
+                    opensDemo
+                  >
+                    Open the live demo
+                    <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
+                  </TrackedCta>
+                }
+                align="center"
+              />
             }
             description="For people running coding agents in cmux: review the whole branch, comment on any line, then copy every note into the agent’s next prompt."
-            secondary={<HomeInstallCommand />}
             title="Review agent code in cmux"
           >
             <ReviewDemo />
@@ -191,7 +195,7 @@ export default function HomePage(): React.JSX.Element {
                 <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
               </TrackedCta>
             }
-            command={<HomeInstallCommand />}
+            command={<HomeInstallCommand className="lg:items-end" />}
             description="Run DiffHub in any git repository. It finds the base branch and opens the diff on localhost."
             title="Review before you push."
           />
