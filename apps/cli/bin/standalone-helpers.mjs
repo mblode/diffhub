@@ -4,7 +4,9 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
+  renameSync,
   rmSync,
 } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -92,6 +94,72 @@ export const findMissingStandaloneNodeModuleAliases = (standaloneDir) => {
   }
 
   return [...missingAliases].toSorted();
+};
+
+export const findStandaloneSymlinks = (standaloneRoot) =>
+  walkDirectory(standaloneRoot, (entry) => entry.isSymbolicLink())
+    .map((symlinkPath) => relative(standaloneRoot, symlinkPath))
+    .toSorted();
+
+const listPackageDirs = (nodeModulesDir) =>
+  readdirSync(nodeModulesDir, { withFileTypes: true }).flatMap((entry) =>
+    entry.name.startsWith("@") && entry.isDirectory()
+      ? readdirSync(join(nodeModulesDir, entry.name), { withFileTypes: true }).map((scoped) => ({
+          entry: scoped,
+          name: `${entry.name}/${scoped.name}`,
+        }))
+      : [{ entry, name: entry.name }],
+  );
+
+// A pnpm install makes Next trace a symlinked layout (node_modules/.pnpm plus
+// links into it), and the npm registry rejects symlinks in a tarball. Rebuild
+// the flat node_modules an npm install would have produced: move every real
+// package out of .pnpm to node_modules/<name>, then drop the links into .pnpm.
+// Two versions of one package cannot share a flat slot, so that fails loudly.
+export const flattenPnpmStandaloneNodeModules = (standaloneRoot) => {
+  const nodeModulesDir = join(standaloneRoot, "node_modules");
+  const pnpmDir = join(nodeModulesDir, ".pnpm");
+  if (!existsSync(pnpmDir)) {
+    return [];
+  }
+
+  const packages = new Map();
+  for (const id of readdirSync(pnpmDir)) {
+    const storeDir = join(pnpmDir, id, "node_modules");
+    if (id === "node_modules" || !existsSync(storeDir)) {
+      continue;
+    }
+
+    for (const { entry, name } of listPackageDirs(storeDir)) {
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
+      if (packages.has(name)) {
+        throw new Error(`Cannot flatten ${name}: traced from both ${packages.get(name)} and ${id}`);
+      }
+      packages.set(name, id);
+    }
+  }
+
+  for (const [name, id] of packages) {
+    const target = join(nodeModulesDir, name);
+    mkdirSync(dirname(target), { recursive: true });
+    renameSync(join(pnpmDir, id, "node_modules", name), target);
+  }
+
+  const pnpmLinks = walkDirectory(standaloneRoot, (entry, entryPath) => {
+    if (!entry.isSymbolicLink()) {
+      return false;
+    }
+    const target = resolve(dirname(entryPath), readlinkSync(entryPath));
+    return target === pnpmDir || target.startsWith(`${pnpmDir}${sep}`);
+  });
+  for (const linkPath of pnpmLinks) {
+    rmSync(linkPath);
+  }
+  rmSync(pnpmDir, { force: true, recursive: true });
+
+  return [...packages.keys()].toSorted();
 };
 
 // Traced-but-never-loaded packages, dropped from the npm package at pack time:

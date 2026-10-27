@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   findMissingStandaloneNodeModuleAliases,
+  findStandaloneSymlinks,
+  flattenPnpmStandaloneNodeModules,
   materializeStandaloneNodeModuleAliases,
   pruneStandalonePackages,
 } from "../bin/standalone-helpers.mjs";
@@ -92,5 +94,52 @@ describe("standalone helpers", () => {
     expect(remaining).toStrictEqual([]);
     expect(existsSync(join(standaloneRoot, "node_modules", "@shikijs", "core"))).toBeTruthy();
     expect(existsSync(join(standaloneRoot, "node_modules", "react"))).toBeTruthy();
+  });
+
+  it("flattens a pnpm standalone layout into node_modules with no symlinks", () => {
+    const standaloneRoot = createTempDir();
+    const pnpmDir = join(standaloneRoot, "node_modules", ".pnpm");
+    for (const [id, name] of [
+      ["next@16.4.2", "next"],
+      ["react@19.3.0", "react"],
+      ["@next+env@16.4.2", "@next/env"],
+    ]) {
+      const packageDir = join(pnpmDir, id, "node_modules", name);
+      mkdirSync(packageDir, { recursive: true });
+      writeFileSync(join(packageDir, "package.json"), `{"name":"${name}"}`);
+    }
+    symlinkSync(
+      join(pnpmDir, "react@19.3.0", "node_modules", "react"),
+      join(pnpmDir, "next@16.4.2", "node_modules", "react"),
+      "dir",
+    );
+    mkdirSync(join(standaloneRoot, "apps", "cli", "node_modules"), { recursive: true });
+    symlinkSync(
+      join(pnpmDir, "next@16.4.2", "node_modules", "next"),
+      join(standaloneRoot, "apps", "cli", "node_modules", "next"),
+      "dir",
+    );
+
+    const flattened = flattenPnpmStandaloneNodeModules(standaloneRoot);
+
+    expect(flattened).toStrictEqual(["@next/env", "next", "react"]);
+    expect(findStandaloneSymlinks(standaloneRoot)).toStrictEqual([]);
+    expect(existsSync(pnpmDir)).toBeFalsy();
+    for (const name of flattened) {
+      expect(
+        readFileSync(join(standaloneRoot, "node_modules", name, "package.json"), "utf-8"),
+      ).toContain(`"name":"${name}"`);
+    }
+  });
+
+  it("refuses to flatten two traced versions of one package", () => {
+    const standaloneRoot = createTempDir();
+    for (const id of ["semver@6.3.1", "semver@7.8.5"]) {
+      mkdirSync(join(standaloneRoot, "node_modules", ".pnpm", id, "node_modules", "semver"), {
+        recursive: true,
+      });
+    }
+
+    expect(() => flattenPnpmStandaloneNodeModules(standaloneRoot)).toThrow(/Cannot flatten semver/);
   });
 });
